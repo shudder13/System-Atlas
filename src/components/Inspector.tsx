@@ -1,4 +1,5 @@
-import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, EDGE_TYPES, NODE_TYPES } from "../types";
+import { useEffect, useMemo, useState } from "react";
+import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, EDGE_TYPES, EdgeType, NODE_TYPES } from "../types";
 
 interface InspectorProps {
   project: AtlasProject;
@@ -6,10 +7,25 @@ interface InspectorProps {
   selectedEdge?: AtlasEdge;
   selectedFlow?: AtlasFlow;
   onSelect: (id: string) => void;
+  onCreateEdge: (source: string, target: string, type: EdgeType, label?: string) => void;
+  onDeleteNode: (id: string) => void;
+  onDeleteEdge: (id: string) => void;
+  onDeleteFlow: (id: string) => void;
   onChange: (project: AtlasProject) => void;
 }
 
-export function Inspector({ project, selectedNode, selectedEdge, selectedFlow, onChange }: InspectorProps) {
+export function Inspector({
+  project,
+  selectedNode,
+  selectedEdge,
+  selectedFlow,
+  onSelect,
+  onCreateEdge,
+  onDeleteNode,
+  onDeleteEdge,
+  onDeleteFlow,
+  onChange
+}: InspectorProps) {
   if (selectedNode) {
     return (
       <aside className="panel inspector">
@@ -31,12 +47,24 @@ export function Inspector({ project, selectedNode, selectedEdge, selectedFlow, o
             {["low", "medium", "high", "critical"].map((criticality) => <option key={criticality} value={criticality}>{pretty(criticality)}</option>)}
           </select>
         </label>
+        <NodeRelationships
+          project={project}
+          node={selectedNode}
+          onSelect={onSelect}
+          onCreateEdge={onCreateEdge}
+          onDeleteEdge={onDeleteEdge}
+        />
         <TextareaList label="Responsibilities" values={selectedNode.responsibilities} onChange={(values) => updateNode(project, selectedNode.id, { responsibilities: values }, onChange)} />
         <TextareaList label="Invariants" values={selectedNode.invariants} onChange={(values) => updateNode(project, selectedNode.id, { invariants: values }, onChange)} />
         <TextareaList label="Linked files" values={selectedNode.linkedFiles} onChange={(values) => updateNode(project, selectedNode.id, { linkedFiles: values }, onChange)} />
         <TextareaList label="Linked tests" values={selectedNode.linkedTests} onChange={(values) => updateNode(project, selectedNode.id, { linkedTests: values }, onChange)} />
         <TextareaList label="Risks" values={selectedNode.risks} onChange={(values) => updateNode(project, selectedNode.id, { risks: values }, onChange)} />
         <label className="field">Notes <textarea rows={5} value={selectedNode.notes ?? ""} onChange={(event) => updateNode(project, selectedNode.id, { notes: event.target.value }, onChange)} /></label>
+        <div className="inspector-actions">
+          <button type="button" className="danger stretch" onClick={() => confirmDelete(`Delete ${selectedNode.name}? Connected edges will also be removed.`, () => onDeleteNode(selectedNode.id))}>
+            Delete Node
+          </button>
+        </div>
       </aside>
     );
   }
@@ -53,6 +81,11 @@ export function Inspector({ project, selectedNode, selectedEdge, selectedFlow, o
         <label className="field">Label <input value={selectedEdge.label ?? ""} onChange={(event) => updateEdge(project, selectedEdge.id, { label: event.target.value }, onChange)} /></label>
         <label className="field">Description <textarea rows={5} value={selectedEdge.description ?? ""} onChange={(event) => updateEdge(project, selectedEdge.id, { description: event.target.value }, onChange)} /></label>
         <label className="field">Risk <textarea rows={4} value={selectedEdge.risk ?? ""} onChange={(event) => updateEdge(project, selectedEdge.id, { risk: event.target.value }, onChange)} /></label>
+        <div className="inspector-actions">
+          <button type="button" className="danger stretch" onClick={() => confirmDelete(`Delete edge ${selectedEdge.label || selectedEdge.type}?`, () => onDeleteEdge(selectedEdge.id))}>
+            Delete Edge
+          </button>
+        </div>
       </aside>
     );
   }
@@ -80,6 +113,11 @@ export function Inspector({ project, selectedNode, selectedEdge, selectedFlow, o
         <TextareaList label="Failure modes" values={selectedFlow.failureModes} onChange={(values) => updateFlow(project, selectedFlow.id, { failureModes: values }, onChange)} />
         <TextareaList label="Acceptance checks" values={selectedFlow.acceptanceChecks} onChange={(values) => updateFlow(project, selectedFlow.id, { acceptanceChecks: values }, onChange)} />
         <TextareaList label="Linked tests" values={selectedFlow.linkedTests} onChange={(values) => updateFlow(project, selectedFlow.id, { linkedTests: values }, onChange)} />
+        <div className="inspector-actions">
+          <button type="button" className="danger stretch" onClick={() => confirmDelete(`Delete ${selectedFlow.name}?`, () => onDeleteFlow(selectedFlow.id))}>
+            Delete Flow
+          </button>
+        </div>
       </aside>
     );
   }
@@ -89,6 +127,84 @@ export function Inspector({ project, selectedNode, selectedEdge, selectedFlow, o
       <h2>No selection</h2>
       <p>Select a node, edge, or flow to edit architecture meaning, linked evidence, invariants, and risks.</p>
     </aside>
+  );
+}
+
+function NodeRelationships({
+  project,
+  node,
+  onSelect,
+  onCreateEdge,
+  onDeleteEdge
+}: {
+  project: AtlasProject;
+  node: AtlasNode;
+  onSelect: (id: string) => void;
+  onCreateEdge: (source: string, target: string, type: EdgeType, label?: string) => void;
+  onDeleteEdge: (id: string) => void;
+}) {
+  const targetOptions = useMemo(() => project.nodes.filter((item) => item.id !== node.id), [node.id, project.nodes]);
+  const [targetId, setTargetId] = useState(targetOptions[0]?.id ?? "");
+  const [type, setType] = useState<EdgeType>("calls");
+  const [label, setLabel] = useState("");
+  const linkedEdges = project.edges.filter((edge) => edge.source === node.id || edge.target === node.id);
+
+  useEffect(() => {
+    if (!targetOptions.some((target) => target.id === targetId)) {
+      setTargetId(targetOptions[0]?.id ?? "");
+    }
+  }, [targetId, targetOptions]);
+
+  return (
+    <section className="relationship-editor">
+      <h3>Edges</h3>
+      <div className="edge-composer">
+        <label className="field">Target
+          <select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
+            {targetOptions.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
+          </select>
+        </label>
+        <label className="field">Type
+          <select value={type} onChange={(event) => setType(event.target.value as EdgeType)}>
+            {EDGE_TYPES.map((edgeType) => <option key={edgeType} value={edgeType}>{pretty(edgeType)}</option>)}
+          </select>
+        </label>
+        <label className="field">Label
+          <input value={label} placeholder={pretty(type)} onChange={(event) => setLabel(event.target.value)} />
+        </label>
+        <button
+          type="button"
+          className="stretch"
+          disabled={!targetId}
+          onClick={() => {
+            onCreateEdge(node.id, targetId, type, label);
+            setLabel("");
+          }}
+        >
+          Add Edge
+        </button>
+      </div>
+
+      <div className="relationship-list">
+        {linkedEdges.length ? linkedEdges.map((edge) => {
+          const otherId = edge.source === node.id ? edge.target : edge.source;
+          const other = project.nodes.find((item) => item.id === otherId);
+          const direction = edge.source === node.id ? "to" : "from";
+
+          return (
+            <div className="relationship-row" key={edge.id}>
+              <button type="button" onClick={() => onSelect(edge.id)}>
+                <strong>{edge.label || pretty(edge.type)}</strong>
+                <span>{direction} {other?.name ?? otherId}</span>
+              </button>
+              <button type="button" className="danger compact" onClick={() => confirmDelete(`Delete edge ${edge.label || edge.type}?`, () => onDeleteEdge(edge.id))}>
+                Delete
+              </button>
+            </div>
+          );
+        }) : <p className="muted">No edges connected to this node.</p>}
+      </div>
+    </section>
   );
 }
 
@@ -137,4 +253,8 @@ function parseSteps(value: string) {
     const [label, nodeId] = line.split("|").map((part) => part.trim());
     return label ? { id: `step.${index + 1}`, label, nodeId: nodeId || undefined } : null;
   }).filter(Boolean) as AtlasFlow["steps"];
+}
+
+function confirmDelete(message: string, action: () => void) {
+  if (window.confirm(message)) action();
 }

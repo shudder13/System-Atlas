@@ -15,10 +15,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  project: () => request<{ project: AtlasProject; workspace: string; loadedFromDisk: boolean }>("/api/project"),
+  project: () => request<{ project: AtlasProject; workspace: string; revision: string; loadedFromDisk: boolean }>("/api/project"),
+  projectRevision: () => request<{ revision: string }>("/api/project/revision"),
   templates: () => request<{ templates: Array<{ id: string; name: string; description: string; project: AtlasProject }> }>("/api/templates"),
   validate: (project: AtlasProject) => request<{ issues: ValidationIssue[] }>("/api/draft/validate", { method: "POST", body: JSON.stringify({ project }) }),
-  export: (project: AtlasProject) => request<{ ok: boolean; files: string[]; issues: ValidationIssue[] }>("/api/export", { method: "POST", body: JSON.stringify({ project }) }),
+  export: (project: AtlasProject) => request<{ ok: boolean; revision: string; files: string[]; issues: ValidationIssue[] }>("/api/export", { method: "POST", body: JSON.stringify({ project }) }),
   scan: () => request<{ evidence: CodeEvidence[] }>("/api/scan", { method: "POST" }),
   contextPack: (project: AtlasProject, targetIds: string[], goal: string) =>
     request<{ markdown: string }>("/api/context-pack", { method: "POST", body: JSON.stringify({ project, targetIds, goal }) }),

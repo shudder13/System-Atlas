@@ -58,6 +58,28 @@ export function Inventory({
         </select>
       </label>
 
+      <div className="flows-list">
+        <h3>Flows</h3>
+        {project.flows.length ? (
+          project.flows.map((flow) => (
+            <button
+              key={flow.id}
+              type="button"
+              className={selectedId === flow.id ? "inventory-item active" : "inventory-item"}
+              onClick={() => onSelect(flow.id)}
+            >
+              <InventoryIcon type="flow" />
+              <span>
+                <strong>{flow.name}</strong>
+                <small>{flow.steps.length} steps · {flow.criticality}</small>
+              </span>
+            </button>
+          ))
+        ) : (
+          <p className="inventory-empty">No flows yet.</p>
+        )}
+      </div>
+
       <div className="inventory-list">
         {Object.entries(grouped).map(([type, nodes]) => (
           <section key={type}>
@@ -77,24 +99,6 @@ export function Inventory({
               </button>
             ))}
           </section>
-        ))}
-      </div>
-
-      <div className="flows-list">
-        <h3>Flows</h3>
-        {project.flows.map((flow) => (
-          <button
-            key={flow.id}
-            type="button"
-            className={selectedId === flow.id ? "inventory-item active" : "inventory-item"}
-            onClick={() => onSelect(flow.id)}
-          >
-            <InventoryIcon type="flow" />
-            <span>
-              <strong>{flow.name}</strong>
-              <small>{flow.steps.length} steps · {flow.criticality}</small>
-            </span>
-          </button>
         ))}
       </div>
     </aside>

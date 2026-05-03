@@ -53,9 +53,29 @@ button.primary {
   color: #ffffff;
 }
 
+button.danger {
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+button.danger:hover {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+button.compact {
+  padding: 0.32rem 0.48rem;
+  font-size: 0.72rem;
+}
+
 button.stretch {
   width: 100%;
   justify-content: center;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 select,
@@ -227,12 +247,24 @@ code {
   font-weight: 700;
 }
 
-.inventory-list,
-.flows-list {
+.inventory-list {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   display: grid;
   gap: 0.8rem;
+}
+
+.flows-list {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.45rem;
+  max-height: 12.5rem;
+  overflow: auto;
+  padding: 0.55rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
 .inventory-list h3,
@@ -242,6 +274,10 @@ code {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0;
+}
+
+.flows-list h3 {
+  margin-bottom: 0;
 }
 
 .inventory-item {
@@ -254,9 +290,20 @@ code {
   text-align: left;
 }
 
+.flows-list .inventory-item {
+  margin-bottom: 0;
+  background: #ffffff;
+}
+
 .inventory-item.active {
   border-color: #0f766e;
   background: #ecfdf5;
+}
+
+.inventory-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
 }
 
 .inventory-item strong,
@@ -403,6 +450,63 @@ code {
 
 .inspector-title h2 {
   line-height: 1.2;
+}
+
+.relationship-editor {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.relationship-editor h3 {
+  margin: 0;
+  color: #475569;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.edge-composer,
+.relationship-list,
+.inspector-actions {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.relationship-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.relationship-row > button:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+  justify-items: start;
+  text-align: left;
+}
+
+.relationship-row strong,
+.relationship-row span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relationship-row span,
+.muted {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.muted {
+  margin: 0;
 }
 
 .empty-state {

@@ -9,12 +9,13 @@ import {
   Network,
   Play,
   Plus,
+  RefreshCcw,
   Save,
   Search,
   ShieldCheck,
   Workflow
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./lib/api";
 import {
   createNode,
@@ -31,7 +32,7 @@ import {
   validateAtlas,
   viewSupportsNodeType
 } from "./lib/atlas";
-import { AtlasProject, EDGE_TYPES, NodeType, ValidationIssue, ViewId, VIEW_IDS } from "./types";
+import { AtlasProject, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId, VIEW_IDS } from "./types";
 import { templates as localTemplates } from "./data/templates";
 import { AtlasCanvas } from "./components/AtlasCanvas";
 import { Inspector } from "./components/Inspector";
@@ -59,15 +60,14 @@ export function App() {
   const [aiBrief, setAiBrief] = useState(generateContextPack(localTemplates[0].project));
   const [status, setStatus] = useState("Ready");
   const [activeProposalId, setActiveProposalId] = useState<string>("");
+  const [diskRevision, setDiskRevision] = useState("");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
     Promise.all([api.templates(), api.project()])
       .then(([templateResponse, projectResponse]) => {
         setTemplates(templateResponse.templates);
-        setProject(projectResponse.project);
-        setSelectedId(projectResponse.project.nodes[0]?.id ?? "");
-        setIssues(validateAtlas(projectResponse.project));
-        setAiBrief(generateContextPack(projectResponse.project));
+        applyLoadedProject(projectResponse.project, projectResponse.revision);
         setStatus(projectResponse.loadedFromDisk ? "Loaded architecture pack" : "Loaded starter atlas");
       })
       .catch(() => {
@@ -75,11 +75,37 @@ export function App() {
       });
   }, []);
 
+  const reloadProjectFromDisk = useCallback(async (reason = "Reloaded architecture pack") => {
+    const response = await api.project();
+    applyLoadedProject(response.project, response.revision);
+    setStatus(response.loadedFromDisk ? reason : "No architecture pack on disk; using starter atlas");
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(async () => {
+      if (hasUnsavedChanges) return;
+
+      try {
+        const response = await api.projectRevision();
+        if (!response.revision || response.revision === diskRevision) return;
+        await reloadProjectFromDisk("Auto-reloaded architecture pack from disk");
+      } catch {
+        // Keep the current in-memory atlas if the local API is temporarily unavailable.
+      }
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [diskRevision, hasUnsavedChanges, reloadProjectFromDisk]);
+
   const selectedNode = project.nodes.find((node) => node.id === selectedId);
   const selectedEdge = project.edges.find((edge) => edge.id === selectedId);
   const selectedFlow = project.flows.find((flow) => flow.id === selectedId);
   const activeProposal = project.proposals.find((proposal) => proposal.id === activeProposalId);
   const graph = useMemo(() => layoutProjectForView(project, viewId), [project, viewId]);
+  const selectedFlowNodeIds = useMemo(
+    () => selectedFlow?.steps.map((step) => step.nodeId).filter((id): id is string => Boolean(id)) ?? [],
+    [selectedFlow]
+  );
   const overview = useMemo(() => generateOverview(project), [project]);
   const mermaid = useMemo(() => generateMermaid(project, viewId), [project, viewId]);
   const migrationBrief = useMemo(() => {
@@ -88,10 +114,21 @@ export function App() {
   }, [activeProposal, project]);
   const diff = activeProposal ? semanticDiff(activeProposal.before, { nodes: project.nodes, edges: project.edges, flows: project.flows }) : null;
 
+  function applyLoadedProject(next: AtlasProject, revision: string) {
+    setProject(next);
+    setSelectedId(next.nodes[0]?.id ?? next.flows[0]?.id ?? "");
+    setActiveProposalId("");
+    setIssues(validateAtlas(next));
+    setAiBrief(generateContextPack(next));
+    setDiskRevision(revision);
+    setHasUnsavedChanges(false);
+  }
+
   function updateProject(next: AtlasProject) {
     const withProposal = updateProposalAfter({ ...next, manifest: { ...next.manifest, updatedAt: new Date().toISOString() } }, activeProposalId);
     setProject(withProposal);
     setIssues(validateAtlas(withProposal));
+    setHasUnsavedChanges(true);
   }
 
   function loadTemplate(templateId: string) {
@@ -103,6 +140,7 @@ export function App() {
     setActiveProposalId("");
     setIssues(validateAtlas(next));
     setAiBrief(generateContextPack(next));
+    setHasUnsavedChanges(true);
     setStatus(`Loaded template: ${template.name}`);
   }
 
@@ -142,15 +180,45 @@ export function App() {
   }
 
   function connect(source: string, target: string) {
+    addEdge(source, target, edgeType);
+  }
+
+  function addEdge(source: string, target: string, type: EdgeType, label?: string) {
     const edge = {
-      id: `${source}-${edgeType}-${target}-${Date.now()}`,
+      id: `${source}-${type}-${target}-${Date.now()}`,
       source,
       target,
-      type: edgeType,
-      label: edgeType.replace(/_/g, " ")
+      type,
+      label: label?.trim() || type.replace(/_/g, " ")
     };
     updateProject({ ...project, edges: [...project.edges, edge] });
     setSelectedId(edge.id);
+  }
+
+  function deleteNode(id: string) {
+    const remainingNodes = project.nodes.filter((node) => node.id !== id);
+    updateProject({
+      ...project,
+      nodes: remainingNodes,
+      edges: project.edges.filter((edge) => edge.source !== id && edge.target !== id),
+      flows: project.flows.map((flow) => ({
+        ...flow,
+        steps: flow.steps.map((step) => step.nodeId === id ? { ...step, nodeId: undefined } : step)
+      }))
+    });
+    setSelectedId(remainingNodes[0]?.id ?? project.flows[0]?.id ?? "");
+  }
+
+  function deleteEdge(id: string) {
+    const remainingEdges = project.edges.filter((edge) => edge.id !== id);
+    updateProject({ ...project, edges: remainingEdges });
+    setSelectedId(project.nodes[0]?.id ?? project.flows[0]?.id ?? "");
+  }
+
+  function deleteFlow(id: string) {
+    const remainingFlows = project.flows.filter((flow) => flow.id !== id);
+    updateProject({ ...project, flows: remainingFlows });
+    setSelectedId(project.nodes[0]?.id ?? remainingFlows[0]?.id ?? "");
   }
 
   function startProposal() {
@@ -181,6 +249,8 @@ export function App() {
     try {
       const response = await api.export(project);
       setIssues(response.issues);
+      setDiskRevision(response.revision);
+      setHasUnsavedChanges(false);
       setStatus(`Exported ${response.files.length} architecture files`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Export failed");
@@ -227,6 +297,17 @@ export function App() {
             <option value="" disabled>Start from...</option>
             {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
           </select>
+          <button
+            type="button"
+            onClick={() => {
+              if (!hasUnsavedChanges || window.confirm("Reload from disk and discard unsaved UI changes?")) {
+                reloadProjectFromDisk();
+              }
+            }}
+            title="Reload architecture files from disk"
+          >
+            <RefreshCcw size={16} /> Reload
+          </button>
           <button type="button" onClick={scanWorkspace} title="Scan code evidence"><Search size={16} /> Scan</button>
           <button type="button" onClick={startProposal} title="Create proposal"><GitCompare size={16} /> Proposal</button>
           <button type="button" onClick={validateDraft} title="Validate atlas"><CheckCircle2 size={16} /> Validate</button>
@@ -277,6 +358,7 @@ export function App() {
             nodes={graph.nodes}
             edges={graph.edges}
             selectedId={selectedId}
+            highlightedNodeIds={viewId === "flows" ? selectedFlowNodeIds : []}
             onSelect={setSelectedId}
             onConnect={connect}
             onPositionChange={(positions) => {
@@ -314,12 +396,17 @@ export function App() {
           selectedEdge={selectedEdge}
           selectedFlow={selectedFlow}
           onSelect={setSelectedId}
+          onCreateEdge={addEdge}
+          onDeleteNode={deleteNode}
+          onDeleteEdge={deleteEdge}
+          onDeleteFlow={deleteFlow}
           onChange={updateProject}
         />
       </main>
 
       <footer className="statusbar">
         <span><Play size={14} /> {status}</span>
+        {hasUnsavedChanges && <span>Unsaved UI changes</span>}
         <span><FileDown size={14} /> Exports to <code>architecture/</code></span>
       </footer>
     </div>

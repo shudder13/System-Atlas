@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasView, CodeEvidence } from "../src/types";
 import { defaultViews, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
@@ -24,12 +25,23 @@ const conceptFolders: Record<string, string> = {
 
 export async function loadAtlas(root: string): Promise<AtlasProject | null> {
   const snapshotPath = safeJoin(root, "architecture/generated/atlas.json");
+  let snapshot: AtlasProject | null = null;
+  let snapshotMtime = 0;
+
   try {
+    const snapshotStat = await fs.stat(snapshotPath);
+    snapshotMtime = snapshotStat.mtimeMs;
     const raw = await fs.readFile(snapshotPath, "utf8");
-    return JSON.parse(raw) as AtlasProject;
+    snapshot = JSON.parse(raw) as AtlasProject;
   } catch {
-    return loadAtlasFromPack(root);
+    snapshot = null;
   }
+
+  const authoredMtime = await latestFileMtime(root, "architecture", ["generated"]);
+  if (snapshot && snapshotMtime >= authoredMtime) return snapshot;
+
+  const pack = await loadAtlasFromPack(root);
+  return pack ?? snapshot;
 }
 
 export async function exportAtlas(root: string, project: AtlasProject) {
@@ -78,6 +90,18 @@ export async function exportAtlas(root: string, project: AtlasProject) {
   }
 
   return { files, issues: validateAtlas(project) };
+}
+
+export async function architectureRevision(root: string) {
+  const architectureRoot = safeJoin(root, "architecture");
+  const hash = createHash("sha1");
+
+  try {
+    await collectRevision(architectureRoot, architectureRoot, hash);
+    return hash.digest("hex");
+  } catch {
+    return "";
+  }
 }
 
 async function loadAtlasFromPack(root: string): Promise<AtlasProject | null> {
@@ -258,6 +282,55 @@ async function readProposals(root: string) {
     return proposals;
   } catch {
     return [];
+  }
+}
+
+async function latestFileMtime(root: string, relativeFolder: string, excludedFolders: string[] = []) {
+  const directory = safeJoin(root, relativeFolder);
+  let latest = 0;
+
+  async function walk(current: string) {
+    let entries: Array<import("node:fs").Dirent>;
+    try {
+      entries = await fs.readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const absolute = path.join(current, entry.name);
+      const relative = path.relative(directory, absolute).replace(/\\/g, "/");
+      if (excludedFolders.some((folder) => relative === folder || relative.startsWith(`${folder}/`))) continue;
+
+      if (entry.isDirectory()) {
+        await walk(absolute);
+        continue;
+      }
+
+      const stat = await fs.stat(absolute);
+      latest = Math.max(latest, stat.mtimeMs);
+    }
+  }
+
+  await walk(directory);
+  return latest;
+}
+
+async function collectRevision(root: string, current: string, hash: ReturnType<typeof createHash>) {
+  const entries = await fs.readdir(current, { withFileTypes: true });
+
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    if (entry.name === ".DS_Store") continue;
+    const absolute = path.join(current, entry.name);
+    const relative = path.relative(root, absolute).replace(/\\/g, "/");
+
+    if (entry.isDirectory()) {
+      await collectRevision(root, absolute, hash);
+      continue;
+    }
+
+    const stat = await fs.stat(absolute);
+    hash.update(`${relative}:${stat.size}:${Math.round(stat.mtimeMs)}\n`);
   }
 }
 
