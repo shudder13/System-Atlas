@@ -6,6 +6,7 @@ import {
   generateMigrationBrief,
   generateOverview,
   layoutProjectForView,
+  mergeCodeEvidence,
   preferredViewForNodeType,
   semanticDiff,
   validateAtlas,
@@ -78,5 +79,31 @@ describe("atlas generators", () => {
   it("generates AI context and migration briefs", () => {
     expect(generateContextPack(project, ["module.core"])).toContain("AI Context Pack");
     expect(generateMigrationBrief(project)).toContain("Migration Brief");
+  });
+
+  it("turns scanned code evidence into code view nodes", () => {
+    const withEvidence = mergeCodeEvidence(project, [
+      {
+        path: "src/lib/example.ts",
+        kind: "source",
+        language: "typescript",
+        lines: 42,
+        imports: ["./other"],
+        exports: ["ExampleService"],
+        symbols: [{ name: "ExampleService", kind: "class", line: 3 }]
+      },
+      {
+        path: "src/lib/other.ts",
+        kind: "source",
+        language: "typescript",
+        lines: 12,
+        exports: ["helper"],
+        symbols: [{ name: "helper", kind: "function", line: 1 }]
+      }
+    ]);
+
+    expect(withEvidence.nodes.some((node) => node.type === "code_symbol" && node.name === "ExampleService")).toBe(true);
+    expect(layoutProjectForView(withEvidence, "code").nodes.some((node) => node.id.startsWith("code.file."))).toBe(true);
+    expect(generateContextPack(withEvidence, ["code.symbol.src-lib-example.ts.exampleservice"])).toContain("Code Evidence");
   });
 });

@@ -31,6 +31,7 @@ Prefer these files in this order:
 6. `architecture/proposals/*` for before/after architecture changes and migration briefs.
 
 Do not treat generated diagrams as the only source of truth. Mermaid files under `architecture/generated/diagrams/` are derived views.
+`architecture/evidence/code-map.json` may include scanned imports, exports, routes, symbols, line counts, and generated node links for Code view context.
 
 ## Load The System Map
 
@@ -50,6 +51,7 @@ When asked to understand the whole app:
    - critical flows
    - security threats, invariants, risks, decisions, and linked tests
    - linked source files
+   - scanned symbols, imports, exports, and routes from code evidence
 
 Keep the summary compact. For large systems, prefer critical and high-risk paths first.
 

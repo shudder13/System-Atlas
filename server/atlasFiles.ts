@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import ts from "typescript";
 import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasView, CodeEvidence } from "../src/types";
 import { defaultViews, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
@@ -184,13 +185,153 @@ export async function scanWorkspace(root: string): Promise<CodeEvidence[]> {
 
       const kind = classify(relative);
       if (kind) {
-        evidence.push({ path: relative, kind: kind.kind, language: kind.language });
+        evidence.push(await indexFile(absolute, relative, kind));
       }
     }
   }
 
   await walk(root);
   return evidence.slice(0, 2000);
+}
+
+async function indexFile(
+  absolute: string,
+  relative: string,
+  kind: Pick<CodeEvidence, "kind" | "language">
+): Promise<CodeEvidence> {
+  const stat = await fs.stat(absolute);
+  const base: CodeEvidence = {
+    path: relative,
+    kind: kind.kind,
+    language: kind.language,
+    sizeBytes: stat.size
+  };
+
+  if (stat.size > 1_000_000) return base;
+
+  try {
+    const text = await fs.readFile(absolute, "utf8");
+    const lines = text.split(/\r?\n/).length;
+    const withLines = { ...base, lines };
+
+    if (!/\.(ts|tsx|js|jsx)$/.test(relative)) return withLines;
+
+    return {
+      ...withLines,
+      ...indexTypeScriptSource(relative, text)
+    };
+  } catch {
+    return base;
+  }
+}
+
+function indexTypeScriptSource(relative: string, text: string): Pick<CodeEvidence, "symbols" | "imports" | "exports" | "routes"> {
+  const source = ts.createSourceFile(relative, text, ts.ScriptTarget.Latest, true, scriptKind(relative));
+  const symbols: NonNullable<CodeEvidence["symbols"]> = [];
+  const imports: string[] = [];
+  const exports: string[] = [];
+  const routes: string[] = [];
+
+  function lineOf(node: ts.Node) {
+    return source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+  }
+
+  function hasExport(node: ts.Node) {
+    return Boolean(ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) =>
+      modifier.kind === ts.SyntaxKind.ExportKeyword || modifier.kind === ts.SyntaxKind.DefaultKeyword
+    ));
+  }
+
+  function addSymbol(name: string | undefined, kind: NonNullable<CodeEvidence["symbols"]>[number]["kind"], node: ts.Node, exported = false) {
+    if (!name || name === "default") return;
+    symbols.push({ name, kind, line: lineOf(node) });
+    if (exported) exports.push(name);
+  }
+
+  function visit(node: ts.Node) {
+    const isTopLevel = node.parent === source;
+
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      imports.push(node.moduleSpecifier.text);
+    }
+
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      exports.push(`* from ${node.moduleSpecifier.text}`);
+    }
+
+    if (isTopLevel && ts.isClassDeclaration(node)) {
+      const exported = hasExport(node);
+      const className = node.name?.text;
+      addSymbol(className, "class", node, exported);
+
+      node.members.forEach((member) => {
+        if (ts.isMethodDeclaration(member) && member.name && ts.isIdentifier(member.name)) {
+          const isPrivate = ts.canHaveModifiers(member) && ts.getModifiers(member)?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword);
+          if (!isPrivate) addSymbol(`${className ?? "Anonymous"}.${member.name.text}`, "method", member, exported);
+        }
+      });
+    }
+
+    if (isTopLevel && ts.isFunctionDeclaration(node)) {
+      addSymbol(node.name?.text, "function", node, hasExport(node));
+    }
+
+    if (isTopLevel && ts.isInterfaceDeclaration(node)) {
+      addSymbol(node.name.text, "interface", node, hasExport(node));
+    }
+
+    if (isTopLevel && ts.isTypeAliasDeclaration(node)) {
+      addSymbol(node.name.text, "type", node, hasExport(node));
+    }
+
+    if (isTopLevel && ts.isVariableStatement(node)) {
+      const exported = hasExport(node);
+      node.declarationList.declarations.forEach((declaration) => {
+        if (ts.isIdentifier(declaration.name)) addSymbol(declaration.name.text, variableSymbolKind(declaration), declaration, exported);
+      });
+    }
+
+    if (ts.isCallExpression(node)) {
+      const route = routeFromCall(node);
+      if (route) {
+        routes.push(route);
+        symbols.push({ name: route, kind: "route", line: lineOf(node) });
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(source);
+
+  return {
+    symbols: uniqueSymbols(symbols).slice(0, 80),
+    imports: unique(imports).slice(0, 120),
+    exports: unique(exports).slice(0, 80),
+    routes: unique(routes).slice(0, 80)
+  };
+}
+
+function scriptKind(relative: string) {
+  if (relative.endsWith(".tsx")) return ts.ScriptKind.TSX;
+  if (relative.endsWith(".jsx")) return ts.ScriptKind.JSX;
+  if (relative.endsWith(".js")) return ts.ScriptKind.JS;
+  return ts.ScriptKind.TS;
+}
+
+function routeFromCall(node: ts.CallExpression) {
+  if (!ts.isPropertyAccessExpression(node.expression)) return null;
+  const method = node.expression.name.text.toLowerCase();
+  if (!["get", "post", "put", "patch", "delete", "all", "use"].includes(method)) return null;
+  const [firstArg] = node.arguments;
+  if (!firstArg || !ts.isStringLiteral(firstArg)) return null;
+  return `${method.toUpperCase()} ${firstArg.text}`;
+}
+
+function variableSymbolKind(declaration: ts.VariableDeclaration): NonNullable<CodeEvidence["symbols"]>[number]["kind"] {
+  const initializer = declaration.initializer;
+  if (initializer && (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))) return "function";
+  return "constant";
 }
 
 function conceptMarkdown(node: AtlasNode) {
@@ -422,6 +563,16 @@ function arrayOfStrings(value: unknown) {
 
 function unique<T>(items: T[]) {
   return Array.from(new Set(items));
+}
+
+function uniqueSymbols(symbols: NonNullable<CodeEvidence["symbols"]>) {
+  const seen = new Set<string>();
+  return symbols.filter((symbol) => {
+    const key = `${symbol.kind}:${symbol.name}:${symbol.line ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function language(relative: string) {

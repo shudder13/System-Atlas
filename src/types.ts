@@ -168,7 +168,12 @@ export interface CodeEvidence {
   kind: "directory" | "source" | "test" | "migration" | "config" | "document" | "contract" | "class" | "function" | "api";
   language?: string;
   linkedNodeIds?: string[];
-  symbols?: Array<{ name: string; kind: "class" | "function" | "method" | "interface" | "type" | "route"; line?: number }>;
+  symbols?: Array<{ name: string; kind: "class" | "function" | "method" | "interface" | "type" | "constant" | "route"; line?: number }>;
+  imports?: string[];
+  exports?: string[];
+  routes?: string[];
+  lines?: number;
+  sizeBytes?: number;
 }
 
 export interface AtlasProposal {

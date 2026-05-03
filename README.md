@@ -44,6 +44,7 @@ This is closer to **AI-assisted Model-Driven Development** than classic diagramm
 - Repo-native `architecture/` export pack
 - Blank and generic starter atlases
 - Validation, semantic diffs, context packs, migration briefs, and lightweight code scanning
+- TypeScript/JavaScript evidence indexing for imports, exports, routes, top-level symbols, file sizes, and line counts
 
 ## Architecture Pack
 
@@ -80,6 +81,7 @@ The MVP focuses on manual architecture modeling first:
 - Switch between architecture views without duplicating the underlying model.
 - Create proposals and generate semantic before/after diffs.
 - Generate AI migration briefs for implementation work.
+- Run Scan to create a capped Code view from repository files and symbols.
 - Export a repo-native architecture pack.
 
 ## Run

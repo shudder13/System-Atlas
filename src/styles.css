@@ -480,12 +480,78 @@ code {
   border-radius: 8px;
 }
 
-.relationship-editor h3 {
+.relationship-editor h3,
+.code-evidence h3 {
   margin: 0;
   color: #475569;
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0;
+}
+
+.code-evidence {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem;
+  background: #fbfdff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.evidence-card {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  min-width: 0;
+}
+
+.evidence-card strong,
+.evidence-card small,
+.evidence-card span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.evidence-card span,
+.evidence-card small {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.symbol-list {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.symbol-list li {
+  display: grid;
+  grid-template-columns: 4.3rem minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: center;
+  color: #334155;
+  font-size: 0.7rem;
+}
+
+.symbol-list li span {
+  color: #64748b;
+  text-transform: uppercase;
+  font-size: 0.62rem;
+}
+
+.symbol-list li strong {
+  font-weight: 700;
+}
+
+.symbol-list li em {
+  color: #64748b;
+  font-style: normal;
 }
 
 .edge-composer,

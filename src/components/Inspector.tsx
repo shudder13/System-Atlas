@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, EDGE_TYPES, EdgeType, NODE_TYPES } from "../types";
+import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, CodeEvidence, EDGE_TYPES, EdgeType, NODE_TYPES } from "../types";
 
 interface InspectorProps {
   project: AtlasProject;
@@ -54,6 +54,7 @@ export function Inspector({
           onCreateEdge={onCreateEdge}
           onDeleteEdge={onDeleteEdge}
         />
+        <NodeEvidence project={project} node={selectedNode} />
         <TextareaList label="Responsibilities" values={selectedNode.responsibilities} onChange={(values) => updateNode(project, selectedNode.id, { responsibilities: values }, onChange)} />
         <TextareaList label="Invariants" values={selectedNode.invariants} onChange={(values) => updateNode(project, selectedNode.id, { invariants: values }, onChange)} />
         <TextareaList label="Linked files" values={selectedNode.linkedFiles} onChange={(values) => updateNode(project, selectedNode.id, { linkedFiles: values }, onChange)} />
@@ -127,6 +128,48 @@ export function Inspector({
       <h2>No selection</h2>
       <p>Select a node, edge, or flow to edit architecture meaning, linked evidence, invariants, and risks.</p>
     </aside>
+  );
+}
+
+function NodeEvidence({ project, node }: { project: AtlasProject; node: AtlasNode }) {
+  const evidence = evidenceForNode(project, node).slice(0, 8);
+
+  return (
+    <section className="code-evidence">
+      <h3>Code Evidence</h3>
+      {evidence.length ? evidence.map((item) => (
+        <article className="evidence-card" key={item.path}>
+          <strong>{item.path}</strong>
+          <span>{[item.kind, item.language, item.lines ? `${item.lines} lines` : ""].filter(Boolean).join(" · ")}</span>
+          {item.exports?.length ? <small>Exports: {item.exports.slice(0, 6).join(", ")}</small> : null}
+          {item.routes?.length ? <small>Routes: {item.routes.slice(0, 4).join(", ")}</small> : null}
+          {item.symbols?.length ? <SymbolList symbols={item.symbols} /> : null}
+        </article>
+      )) : <p className="muted">No scanned evidence linked yet. Run Scan, then link files or inspect generated Code view nodes.</p>}
+    </section>
+  );
+}
+
+function SymbolList({ symbols }: { symbols: NonNullable<CodeEvidence["symbols"]> }) {
+  return (
+    <ul className="symbol-list">
+      {symbols.slice(0, 8).map((symbol) => (
+        <li key={`${symbol.kind}-${symbol.name}-${symbol.line ?? ""}`}>
+          <span>{symbol.kind}</span>
+          <strong>{symbol.name}</strong>
+          {symbol.line ? <em>:{symbol.line}</em> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function evidenceForNode(project: AtlasProject, node: AtlasNode) {
+  const linkedFiles = new Set(node.linkedFiles);
+  return project.evidence.filter((item) =>
+    item.linkedNodeIds?.includes(node.id) ||
+    linkedFiles.has(item.path) ||
+    node.linkedFiles.some((linkedPath) => item.path === linkedPath || item.path.startsWith(`${linkedPath}/`))
   );
 }
 

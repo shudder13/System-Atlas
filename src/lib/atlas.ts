@@ -422,6 +422,12 @@ export function generateContextPack(project: AtlasProject, targetIds: string[] =
   const risks = unique(relatedNodes.flatMap((node) => node.risks));
   const files = unique(relatedNodes.flatMap((node) => node.linkedFiles));
   const tests = unique(relatedNodes.flatMap((node) => node.linkedTests));
+  const evidence = project.evidence
+    .filter((item) =>
+      files.some((file) => item.path === file || item.path.startsWith(`${file}/`)) ||
+      item.linkedNodeIds?.some((nodeId) => relatedNodeIds.has(nodeId))
+    )
+    .slice(0, 25);
 
   return [
     `# AI Context Pack: ${project.manifest.name}`,
@@ -449,6 +455,10 @@ export function generateContextPack(project: AtlasProject, targetIds: string[] =
     "## Linked Files",
     "",
     ...(files.length ? files.map((item) => `- ${item}`) : ["- No linked files yet."]),
+    "",
+    "## Code Evidence",
+    "",
+    ...(evidence.length ? evidence.flatMap(codeEvidenceLines) : ["- No scanned code evidence linked to this scope."]),
     "",
     "## Required Tests",
     "",
@@ -514,6 +524,13 @@ export function generateMigrationBrief(project: AtlasProject, proposal?: AtlasPr
     ...diff.removedEdges.flatMap((edge) => [edge.source, edge.target])
   ]);
   const affectedNodes = after.nodes.filter((node) => affectedIds.includes(node.id));
+  const affectedFiles = unique(affectedNodes.flatMap((node) => node.linkedFiles));
+  const affectedEvidence = project.evidence
+    .filter((item) =>
+      affectedFiles.some((file) => item.path === file || item.path.startsWith(`${file}/`)) ||
+      item.linkedNodeIds?.some((nodeId) => affectedIds.includes(nodeId))
+    )
+    .slice(0, 25);
 
   return [
     `# Migration Brief: ${activeProposal?.name ?? project.manifest.name}`,
@@ -550,7 +567,11 @@ export function generateMigrationBrief(project: AtlasProject, proposal?: AtlasPr
     "",
     "## Linked Files",
     "",
-    ...listOrFallback(unique(affectedNodes.flatMap((node) => node.linkedFiles)), "No linked files recorded."),
+    ...listOrFallback(affectedFiles, "No linked files recorded."),
+    "",
+    "## Code Evidence",
+    "",
+    ...(affectedEvidence.length ? affectedEvidence.flatMap(codeEvidenceLines) : ["- No scanned code evidence linked to affected nodes."]),
     "",
     "## Required Tests",
     "",
@@ -564,6 +585,118 @@ export function generateMigrationBrief(project: AtlasProject, proposal?: AtlasPr
 
 export function mergeEvidence(project: AtlasProject, evidence: CodeEvidence[]): AtlasProject {
   return { ...project, evidence };
+}
+
+export function mergeCodeEvidence(project: AtlasProject, evidence: CodeEvidence[]): AtlasProject {
+  const generatedNodeIds = new Set(project.nodes.filter((node) => node.metadata?.generatedBy === "workspace-scan").map((node) => node.id));
+  const manualNodes = project.nodes.filter((node) => !generatedNodeIds.has(node.id));
+  const manualEdges = project.edges.filter((edge) =>
+    !edge.tags?.includes("generated:workspace-scan") &&
+    !generatedNodeIds.has(edge.source) &&
+    !generatedNodeIds.has(edge.target)
+  );
+  const codeEvidence = evidence.filter((item) => ["source", "test", "contract", "migration"].includes(item.kind));
+  const selectedFiles = rankEvidenceFiles(codeEvidence).slice(0, 40);
+  const fileNodeIds = new Map(selectedFiles.map((item) => [item.path, fileNodeId(item.path)]));
+  const nodes: AtlasNode[] = [];
+  const edges: AtlasEdge[] = [];
+  const evidenceWithLinks = evidence.map((item) => {
+    const linkedNodeIds = new Set(item.linkedNodeIds ?? []);
+    const fileId = fileNodeIds.get(item.path);
+    if (fileId) linkedNodeIds.add(fileId);
+    return { ...item, linkedNodeIds: [...linkedNodeIds] };
+  });
+
+  selectedFiles.forEach((item, index) => {
+    const id = fileNodeId(item.path);
+    nodes.push({
+      id,
+      type: "file_group",
+      name: basename(item.path),
+      owner: "code",
+      status: "active",
+      criticality: criticalityForEvidence(item),
+      responsibilities: [`Represents scanned ${item.kind} evidence at ${item.path}.`],
+      dependencies: item.imports ?? [],
+      invariants: [],
+      linkedFiles: [item.path],
+      linkedTests: item.kind === "test" ? [item.path] : [],
+      risks: [],
+      confidence: "observed",
+      notes: codeEvidenceSummary(item),
+      architectureLevel: "code",
+      tags: ["generated", item.kind],
+      metadata: {
+        generatedBy: "workspace-scan",
+        evidencePath: item.path,
+        evidenceKind: item.kind,
+        language: item.language,
+        lines: item.lines,
+        symbolCount: item.symbols?.length ?? 0
+      },
+      position: { x: 80 + (index % 3) * 260, y: 90 + Math.floor(index / 3) * 150 }
+    });
+  });
+
+  const exportedSymbols = selectedFiles.flatMap((file) =>
+    (file.symbols ?? [])
+      .filter((symbol) => symbol.kind !== "method" || (file.exports ?? []).some((exportName) => symbol.name.startsWith(`${exportName}.`)))
+      .map((symbol) => ({ file, symbol, exported: (file.exports ?? []).includes(symbol.name) || symbol.kind === "route" }))
+  );
+
+  exportedSymbols
+    .sort((left, right) => Number(right.exported) - Number(left.exported) || (left.symbol.line ?? 0) - (right.symbol.line ?? 0))
+    .slice(0, 40)
+    .forEach(({ file, symbol }, index) => {
+      const fileId = fileNodeIds.get(file.path);
+      if (!fileId) return;
+      const id = symbolNodeId(file.path, symbol.name);
+      nodes.push({
+        id,
+        type: "code_symbol",
+        name: symbol.name,
+        owner: "code",
+        status: "active",
+        criticality: symbol.kind === "route" ? "high" : "medium",
+        responsibilities: [`${prettySymbolKind(symbol.kind)} discovered in ${file.path}.`],
+        dependencies: [],
+        invariants: [],
+        linkedFiles: [file.path],
+        linkedTests: file.kind === "test" ? [file.path] : [],
+        risks: [],
+        confidence: "observed",
+        notes: `${prettySymbolKind(symbol.kind)}${symbol.line ? ` at line ${symbol.line}` : ""}.`,
+        architectureLevel: "code",
+        tags: ["generated", "symbol", symbol.kind],
+        metadata: {
+          generatedBy: "workspace-scan",
+          evidencePath: file.path,
+          symbolKind: symbol.kind,
+          line: symbol.line,
+          exported: (file.exports ?? []).includes(symbol.name)
+        },
+        position: { x: 880 + (index % 2) * 260, y: 90 + Math.floor(index / 2) * 120 }
+      });
+      edges.push(generatedEdge(fileId, id, "contains", "contains"));
+    });
+
+  selectedFiles.forEach((file) => {
+    const sourceId = fileNodeIds.get(file.path);
+    if (!sourceId) return;
+    for (const importPath of file.imports ?? []) {
+      const targetPath = resolveImportPath(file.path, importPath, fileNodeIds);
+      if (!targetPath) continue;
+      const targetId = fileNodeIds.get(targetPath);
+      if (targetId && targetId !== sourceId) edges.push(generatedEdge(sourceId, targetId, "depends_on", importPath));
+    }
+  });
+
+  return {
+    ...project,
+    evidence: evidenceWithLinks,
+    nodes: [...manualNodes, ...nodes],
+    edges: [...manualEdges, ...dedupeEdges(edges)]
+  };
 }
 
 export function updateProposalAfter(project: AtlasProject, proposalId?: string): AtlasProject {
@@ -751,6 +884,130 @@ function titleCase(value: string) {
   return value
     .replace(/[_-]/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function rankEvidenceFiles(evidence: CodeEvidence[]) {
+  const score = (item: CodeEvidence) => {
+    let value = 0;
+    if (item.kind === "contract") value += 40;
+    if (item.kind === "source") value += 30;
+    if (item.kind === "migration") value += 25;
+    if (item.kind === "test") value += 20;
+    value += Math.min(item.symbols?.length ?? 0, 20);
+    value += Math.min(item.exports?.length ?? 0, 20);
+    value += Math.min(item.routes?.length ?? 0, 10) * 2;
+    if (item.path.includes("/lib/") || item.path.includes("/server/") || item.path.includes("/src/")) value += 5;
+    return value;
+  };
+
+  return [...evidence].sort((left, right) => score(right) - score(left) || left.path.localeCompare(right.path));
+}
+
+function fileNodeId(filePath: string) {
+  return `code.file.${slug(filePath)}`;
+}
+
+function symbolNodeId(filePath: string, symbolName: string) {
+  return `code.symbol.${slug(filePath)}.${slug(symbolName)}`;
+}
+
+function generatedEdge(source: string, target: string, type: EdgeType, label: string): AtlasEdge {
+  return {
+    id: `${source}-${type}-${target}`,
+    source,
+    target,
+    type,
+    label,
+    tags: ["generated:workspace-scan"]
+  };
+}
+
+function dedupeEdges(edges: AtlasEdge[]) {
+  const seen = new Set<string>();
+  return edges.filter((edge) => {
+    if (seen.has(edge.id)) return false;
+    seen.add(edge.id);
+    return true;
+  });
+}
+
+function criticalityForEvidence(item: CodeEvidence): Criticality {
+  if (item.kind === "contract" || item.kind === "migration" || (item.routes?.length ?? 0) > 0) return "high";
+  if (item.kind === "test") return "low";
+  return "medium";
+}
+
+function codeEvidenceSummary(item: CodeEvidence) {
+  const parts = [
+    `${item.kind} file`,
+    item.language ? `language: ${item.language}` : "",
+    item.lines ? `${item.lines} lines` : "",
+    item.exports?.length ? `exports: ${item.exports.slice(0, 8).join(", ")}` : "",
+    item.routes?.length ? `routes: ${item.routes.slice(0, 8).join(", ")}` : "",
+    item.imports?.length ? `imports: ${item.imports.slice(0, 10).join(", ")}` : ""
+  ].filter(Boolean);
+  return parts.join("\n");
+}
+
+function codeEvidenceLines(item: CodeEvidence) {
+  const lines = [`- ${item.path} (${[item.kind, item.language, item.lines ? `${item.lines} lines` : ""].filter(Boolean).join(", ")})`];
+  if (item.exports?.length) lines.push(`  exports: ${item.exports.slice(0, 12).join(", ")}`);
+  if (item.routes?.length) lines.push(`  routes: ${item.routes.slice(0, 8).join(", ")}`);
+  if (item.symbols?.length) {
+    const symbols = item.symbols.slice(0, 12).map((symbol) => `${symbol.kind}:${symbol.name}${symbol.line ? `@${symbol.line}` : ""}`).join(", ");
+    lines.push(`  symbols: ${symbols}`);
+  }
+  return lines;
+}
+
+function prettySymbolKind(kind: string) {
+  return kind.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function basename(filePath: string) {
+  return filePath.split("/").at(-1) ?? filePath;
+}
+
+function dirname(filePath: string) {
+  const parts = filePath.split("/");
+  parts.pop();
+  return parts.join("/");
+}
+
+function resolveImportPath(fromPath: string, specifier: string, knownFiles: Map<string, string>) {
+  if (!specifier.startsWith(".")) return null;
+
+  const base = normalizePath(`${dirname(fromPath)}/${specifier}`);
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    `${base}.js`,
+    `${base}.jsx`,
+    `${base}/index.ts`,
+    `${base}/index.tsx`,
+    `${base}/index.js`,
+    `${base}/index.jsx`
+  ];
+
+  return candidates.find((candidate) => knownFiles.has(candidate)) ?? null;
+}
+
+function normalizePath(filePath: string) {
+  const parts: string[] = [];
+  for (const part of filePath.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      parts.pop();
+      continue;
+    }
+    parts.push(part);
+  }
+  return parts.join("/");
+}
+
+function slug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
 }
 
 function levelForNodeType(type: NodeType) {

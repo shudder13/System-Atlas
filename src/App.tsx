@@ -30,6 +30,7 @@ import {
   generateMigrationBrief,
   generateOverview,
   layoutProjectForView,
+  mergeCodeEvidence,
   preferredViewForNodeType,
   semanticDiff,
   updateProposalAfter,
@@ -271,8 +272,10 @@ export function App() {
   async function scanWorkspace() {
     try {
       const response = await api.scan();
-      updateProject({ ...project, evidence: response.evidence });
-      setStatus(`Scanned ${response.evidence.length} code evidence items`);
+      const withCodeEvidence = mergeCodeEvidence(project, response.evidence);
+      updateProject(withCodeEvidence);
+      setViewId("code");
+      setStatus(`Scanned ${response.evidence.length} evidence items and updated the Code view`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Scan failed");
     }
