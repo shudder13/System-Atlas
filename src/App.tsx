@@ -3,8 +3,11 @@ import {
   Bot,
   Boxes,
   CheckCircle2,
+  Cloud,
+  Code2,
   Database,
   FileDown,
+  FileText,
   GitCompare,
   Network,
   Play,
@@ -21,6 +24,7 @@ import {
   createNode,
   createFlow,
   createProposal,
+  defaultViews,
   generateContextPack,
   generateMermaid,
   generateMigrationBrief,
@@ -32,7 +36,7 @@ import {
   validateAtlas,
   viewSupportsNodeType
 } from "./lib/atlas";
-import { AtlasProject, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId, VIEW_IDS } from "./types";
+import { AtlasProject, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId, VIEW_FAMILIES } from "./types";
 import { templates as localTemplates } from "./data/templates";
 import { AtlasCanvas } from "./components/AtlasCanvas";
 import { Inspector } from "./components/Inspector";
@@ -41,10 +45,16 @@ import { PreviewPanel } from "./components/PreviewPanel";
 
 const viewIcons: Record<ViewId, typeof Network> = {
   overview: Network,
+  containers: Boxes,
   components: Boxes,
+  code: Code2,
   flows: Workflow,
+  deployment: Cloud,
   data: Database,
+  domain: Boxes,
+  security: ShieldCheck,
   health: ShieldCheck,
+  decisions: FileText,
   proposals: GitCompare
 };
 
@@ -115,11 +125,12 @@ export function App() {
   const diff = activeProposal ? semanticDiff(activeProposal.before, { nodes: project.nodes, edges: project.edges, flows: project.flows }) : null;
 
   function applyLoadedProject(next: AtlasProject, revision: string) {
-    setProject(next);
-    setSelectedId(next.nodes[0]?.id ?? next.flows[0]?.id ?? "");
+    const withViews = mergeDefaultViews(next);
+    setProject(withViews);
+    setSelectedId(withViews.nodes[0]?.id ?? withViews.flows[0]?.id ?? "");
     setActiveProposalId("");
-    setIssues(validateAtlas(next));
-    setAiBrief(generateContextPack(next));
+    setIssues(validateAtlas(withViews));
+    setAiBrief(generateContextPack(withViews));
     setDiskRevision(revision);
     setHasUnsavedChanges(false);
   }
@@ -288,7 +299,7 @@ export function App() {
           <div className="brand-mark"><Network size={20} /></div>
           <div>
             <h1>System Atlas</h1>
-            <p>Architecture overview, components, flows, data, health, and change proposals.</p>
+            <p>C4, runtime, deployment, data, domain, security, decisions, and AI migration briefs.</p>
           </div>
         </div>
 
@@ -317,14 +328,21 @@ export function App() {
       </header>
 
       <nav className="view-tabs" aria-label="Architecture views">
-        {VIEW_IDS.map((id) => {
-          const Icon = viewIcons[id];
-          return (
-            <button key={id} type="button" className={viewId === id ? "active" : ""} onClick={() => setViewId(id)}>
-              <Icon size={15} /> {project.views.find((view) => view.id === id)?.name ?? id}
-            </button>
-          );
-        })}
+        {VIEW_FAMILIES.map((family) => (
+          <section className="view-family" key={family.id} aria-label={family.name}>
+            <span>{family.name}</span>
+            <div>
+              {family.views.map((id) => {
+                const Icon = viewIcons[id];
+                return (
+                  <button key={id} type="button" className={viewId === id ? "active" : ""} onClick={() => setViewId(id)} title={project.views.find((view) => view.id === id)?.description}>
+                    <Icon size={15} /> {project.views.find((view) => view.id === id)?.name ?? id}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </nav>
 
       <main className="workbench">
@@ -411,4 +429,10 @@ export function App() {
       </footer>
     </div>
   );
+}
+
+function mergeDefaultViews(project: AtlasProject): AtlasProject {
+  const existing = new Map(project.views.map((view) => [view.id, view]));
+  const merged = defaultViews().map((view) => ({ ...view, ...(existing.get(view.id) ?? {}) }));
+  return { ...project, views: merged };
 }

@@ -22,6 +22,8 @@ Prefer these files in this order:
    - `architecture/datastores/*.md`
    - `architecture/integrations/*.md`
    - `architecture/contracts/*.md`
+   - `architecture/deployment/*.md`
+   - `architecture/security/*.md`
    - `architecture/reliability/*.md`
    - `architecture/decisions/*.md`
 4. `architecture/views/*.yaml` for per-view layout and view-specific information.
@@ -40,11 +42,13 @@ When asked to understand the whole app:
 4. If the snapshot is missing or stale, read the authored concept files and reconstruct the model.
 5. Summarize the system by:
    - actors and entry points
+   - systems, containers, components, and code evidence
    - apps/services/modules/workers/schedulers
-   - datastores, queues, caches, replicas
-   - external systems and contracts
+   - deployment environments, regions, nodes, and replicas
+   - datastores, schemas, entities, queues, caches, replicas
+   - external systems, API contracts, and event contracts
    - critical flows
-   - invariants, risks, and linked tests
+   - security threats, invariants, risks, decisions, and linked tests
    - linked source files
 
 Keep the summary compact. For large systems, prefer critical and high-risk paths first.
@@ -70,8 +74,10 @@ When asked to edit the architecture:
    - `linked_tests`
    - `risks`
    - `confidence`
+   - `architecture_level`
+   - `metadata`
 5. Add or update linked files and linked tests whenever architecture changes touch implementation.
-6. Record risks and invariants for critical paths, datastores, contracts, and external systems.
+6. Record risks and invariants for critical paths, datastores, schemas, contracts, threats, decisions, and external systems.
 
 After editing architecture files, tell the user to reload the System Atlas UI if it did not auto-reload.
 

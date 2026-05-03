@@ -16,6 +16,8 @@ import {
 } from "../types";
 
 const componentTypes = new Set<NodeType>([
+  "container",
+  "component",
   "app",
   "service",
   "module",
@@ -24,20 +26,34 @@ const componentTypes = new Set<NodeType>([
   "load_balancer",
   "external_system",
   "contract",
+  "api_contract",
+  "event_contract",
   "file_group"
 ]);
 
-const overviewTypes = new Set<NodeType>(["actor", "app", "service", "external_system", "load_balancer"]);
-const dataTypes = new Set<NodeType>(["service", "module", "worker", "datastore", "replica", "queue", "cache", "external_system", "contract"]);
-const healthTypes = new Set<NodeType>(["service", "worker", "scheduler", "load_balancer", "queue", "datastore", "replica", "cache", "external_system", "risk"]);
-const flowTypes = new Set<NodeType>(["actor", "app", "load_balancer", "service", "module", "contract", "queue", "worker", "scheduler", "datastore", "external_system", "flow"]);
+const overviewTypes = new Set<NodeType>(["actor", "system", "app", "container", "service", "external_system", "team", "load_balancer"]);
+const containerTypes = new Set<NodeType>(["system", "container", "app", "service", "worker", "scheduler", "load_balancer", "external_system", "api_contract", "event_contract"]);
+const codeTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract", "api_contract", "event_contract"]);
+const deploymentTypes = new Set<NodeType>(["environment", "region", "deployment_node", "load_balancer", "service", "worker", "scheduler", "datastore", "replica", "queue", "cache", "external_system"]);
+const dataTypes = new Set<NodeType>(["service", "module", "worker", "datastore", "replica", "queue", "cache", "external_system", "contract", "api_contract", "event_contract", "data_entity", "schema", "migration"]);
+const domainTypes = new Set<NodeType>(["system", "container", "component", "module", "data_entity", "schema", "api_contract", "event_contract", "decision", "team"]);
+const securityTypes = new Set<NodeType>(["actor", "app", "service", "external_system", "api_contract", "event_contract", "datastore", "data_entity", "threat", "risk"]);
+const healthTypes = new Set<NodeType>(["quality_scenario", "service", "worker", "scheduler", "load_balancer", "queue", "datastore", "replica", "cache", "external_system", "risk", "threat", "decision"]);
+const decisionTypes = new Set<NodeType>(["decision", "quality_scenario", "risk", "threat", "system", "container", "service", "component", "module"]);
+const flowTypes = new Set<NodeType>(["actor", "app", "load_balancer", "service", "container", "component", "module", "contract", "api_contract", "event_contract", "queue", "worker", "scheduler", "datastore", "external_system", "flow"]);
 
 const viewEdgeTypes: Partial<Record<ViewId, Set<EdgeType>>> = {
-  overview: new Set(["calls", "routes_to", "depends_on"]),
-  components: new Set(["calls", "depends_on", "implements", "routes_to"]),
-  flows: new Set(["calls", "routes_to", "emits", "consumes", "reads", "writes", "tests"]),
-  data: new Set(["reads", "writes", "owns", "replicates_to", "emits", "consumes"]),
-  health: new Set(["risks", "mitigates", "tests", "depends_on", "calls"]),
+  overview: new Set(["contains", "calls", "routes_to", "depends_on", "owns"]),
+  containers: new Set(["contains", "calls", "routes_to", "exposes", "publishes", "subscribes_to", "depends_on", "deploys_to"]),
+  components: new Set(["contains", "calls", "depends_on", "implements", "routes_to", "exposes", "models"]),
+  code: new Set(["contains", "implements", "tests", "depends_on", "traces_to", "models"]),
+  flows: new Set(["calls", "routes_to", "emits", "consumes", "publishes", "subscribes_to", "reads", "writes", "tests", "authenticates", "authorizes"]),
+  deployment: new Set(["contains", "deploys_to", "routes_to", "replicates_to", "depends_on", "calls"]),
+  data: new Set(["reads", "writes", "owns", "replicates_to", "emits", "consumes", "publishes", "subscribes_to", "models"]),
+  domain: new Set(["contains", "owns", "models", "publishes", "subscribes_to", "implements", "decides"]),
+  security: new Set(["authenticates", "authorizes", "protects", "threatens", "mitigates", "risks", "calls", "reads", "writes"]),
+  health: new Set(["risks", "mitigates", "tests", "depends_on", "calls", "protects", "threatens", "decides"]),
+  decisions: new Set(["decides", "supersedes", "mitigates", "risks", "traces_to", "depends_on"]),
   proposals: new Set(EDGE_TYPES)
 };
 
@@ -73,12 +89,18 @@ export function createEmptyProject(name = "Untitled System"): AtlasProject {
 
 export function defaultViews() {
   return [
-    { id: "overview" as const, name: "Overview", description: "System boundary, actors, client surfaces, owned systems, and external dependencies." },
-    { id: "components" as const, name: "Components", description: "Services, modules, contracts, runtime building blocks, and how they connect." },
-    { id: "flows" as const, name: "Flows", description: "Critical user and system journeys, traces, failure modes, and acceptance checks." },
-    { id: "data" as const, name: "Data", description: "Data stores, ownership, read/write paths, queues, replicas, caches, and retention-sensitive paths." },
-    { id: "health" as const, name: "Health", description: "Risks, reliability concerns, stale architecture, regression exposure, and test gaps." },
-    { id: "proposals" as const, name: "Proposals", description: "Architecture change proposals, before/after impact, migration briefs, and acceptance checks." }
+    { id: "overview" as const, name: "Context", family: "c4", concern: "System boundary", scope: "system", description: "C4-style system boundary, actors, client surfaces, owned systems, teams, and external dependencies." },
+    { id: "containers" as const, name: "Containers", family: "c4", concern: "Runtime building blocks", scope: "container", description: "Apps, services, workers, schedulers, load balancers, contracts, and external dependencies." },
+    { id: "components" as const, name: "Components", family: "c4", concern: "Internal building blocks", scope: "component", description: "Services, modules, components, contracts, and their implementation relationships." },
+    { id: "code" as const, name: "Code", family: "c4", concern: "Source structure", scope: "code", description: "Files, packages, code symbols, contracts, linked tests, and implementation evidence." },
+    { id: "flows" as const, name: "Flows", family: "behavior", concern: "Runtime behavior", scope: "scenario", description: "Critical user and system journeys, traces, failure modes, and acceptance checks." },
+    { id: "deployment" as const, name: "Deployment", family: "platform", concern: "Physical/runtime topology", scope: "environment", description: "Environments, regions, deployment nodes, replicas, routing, and operational topology." },
+    { id: "data" as const, name: "Data", family: "platform", concern: "Data ownership", scope: "data", description: "Entities, schemas, stores, queues, caches, ownership, read/write paths, replicas, and retention-sensitive paths." },
+    { id: "domain" as const, name: "Domain", family: "domain", concern: "Domain model", scope: "bounded-context", description: "Bounded contexts, domain entities, contracts, events, teams, and model ownership." },
+    { id: "security" as const, name: "Security", family: "assurance", concern: "Trust and threats", scope: "trust-boundary", description: "Trust boundaries, authentication, authorization, threats, mitigations, sensitive data, and controls." },
+    { id: "health" as const, name: "Health", family: "assurance", concern: "Quality and reliability", scope: "quality", description: "Risks, quality scenarios, reliability concerns, stale architecture, regression exposure, and test gaps." },
+    { id: "decisions" as const, name: "Decisions", family: "assurance", concern: "Architecture rationale", scope: "governance", description: "ADRs, superseded decisions, tradeoffs, quality scenarios, risks, and rationale links." },
+    { id: "proposals" as const, name: "Proposals", family: "assurance", concern: "Change planning", scope: "proposal", description: "Architecture change proposals, before/after impact, migration briefs, and acceptance checks." }
   ];
 }
 
@@ -99,6 +121,8 @@ export function createNode(type: NodeType, index: number): AtlasNode {
     risks: [],
     confidence: "manual",
     notes: "",
+    architectureLevel: levelForNodeType(type),
+    metadata: {},
     position: { x: 160 + (index % 4) * 230, y: 100 + Math.floor(index / 4) * 150 }
   };
 }
@@ -137,18 +161,29 @@ export function createProposal(project: AtlasProject, name = "Architecture chang
 export function viewSupportsNodeType(viewId: ViewId, type: NodeType) {
   if (viewId === "proposals") return true;
   if (viewId === "overview") return overviewTypes.has(type);
+  if (viewId === "containers") return containerTypes.has(type);
   if (viewId === "components") return componentTypes.has(type);
+  if (viewId === "code") return codeTypes.has(type);
   if (viewId === "flows") return flowTypes.has(type);
+  if (viewId === "deployment") return deploymentTypes.has(type);
   if (viewId === "data") return dataTypes.has(type);
+  if (viewId === "domain") return domainTypes.has(type);
+  if (viewId === "security") return securityTypes.has(type);
   if (viewId === "health") return healthTypes.has(type);
+  if (viewId === "decisions") return decisionTypes.has(type);
   return true;
 }
 
 export function preferredViewForNodeType(type: NodeType): ViewId {
-  if (["datastore", "replica", "queue", "cache"].includes(type)) return "data";
-  if (["risk"].includes(type)) return "health";
+  if (["environment", "region", "deployment_node"].includes(type)) return "deployment";
+  if (["datastore", "replica", "queue", "cache", "data_entity", "schema", "migration"].includes(type)) return "data";
+  if (["threat"].includes(type)) return "security";
+  if (["risk", "quality_scenario"].includes(type)) return "health";
+  if (["decision"].includes(type)) return "decisions";
   if (["flow"].includes(type)) return "flows";
-  if (["module", "worker", "scheduler", "contract", "file_group"].includes(type)) return "components";
+  if (["code_symbol", "file_group"].includes(type)) return "code";
+  if (["module", "component", "contract", "api_contract", "event_contract"].includes(type)) return "components";
+  if (["worker", "scheduler", "container"].includes(type)) return "containers";
   return "overview";
 }
 
@@ -180,11 +215,38 @@ export function validateAtlas(project: AtlasProject): ValidationIssue[] {
       });
     }
 
-    if (["datastore", "replica", "queue", "cache"].includes(node.type) && node.invariants.length === 0) {
+    if (["datastore", "replica", "queue", "cache", "data_entity", "schema"].includes(node.type) && node.invariants.length === 0) {
       issues.push({
         severity: "info",
         code: "data-node-invariant",
         message: `${node.name} has no data ownership, retention, or consistency invariant.`,
+        targetId: node.id
+      });
+    }
+
+    if (["api_contract", "event_contract", "contract"].includes(node.type) && node.linkedTests.length === 0) {
+      issues.push({
+        severity: "info",
+        code: "contract-without-tests",
+        message: `${node.name} is a contract with no linked tests.`,
+        targetId: node.id
+      });
+    }
+
+    if (node.type === "threat" && node.risks.length === 0) {
+      issues.push({
+        severity: "warning",
+        code: "threat-without-risk",
+        message: `${node.name} is a threat with no risk or impact recorded.`,
+        targetId: node.id
+      });
+    }
+
+    if (node.type === "decision" && !(node.notes ?? "").trim()) {
+      issues.push({
+        severity: "info",
+        code: "decision-without-rationale",
+        message: `${node.name} has no decision rationale notes.`,
         targetId: node.id
       });
     }
@@ -216,7 +278,7 @@ export function validateAtlas(project: AtlasProject): ValidationIssue[] {
     }
   }
 
-  const datastoreIds = new Set(project.nodes.filter((node) => ["datastore", "replica"].includes(node.type)).map((node) => node.id));
+  const datastoreIds = new Set(project.nodes.filter((node) => ["datastore", "replica", "schema", "data_entity"].includes(node.type)).map((node) => node.id));
   for (const nodeId of datastoreIds) {
     const ownerWriteEdges = project.edges.filter((edge) => edge.target === nodeId && ["writes", "owns"].includes(edge.type));
     if (ownerWriteEdges.length === 0) {
@@ -257,9 +319,15 @@ export function filterProjectForView(project: AtlasProject, viewId: ViewId): Atl
 
   const nodePredicate = (node: AtlasNode) => {
     if (viewId === "overview") return overviewTypes.has(node.type);
+    if (viewId === "containers") return containerTypes.has(node.type);
     if (viewId === "components") return componentTypes.has(node.type);
+    if (viewId === "code") return codeTypes.has(node.type);
+    if (viewId === "deployment") return deploymentTypes.has(node.type);
     if (viewId === "data") return dataTypes.has(node.type);
+    if (viewId === "domain") return domainTypes.has(node.type);
+    if (viewId === "security") return securityTypes.has(node.type) || node.risks.length > 0;
     if (viewId === "health") return healthTypes.has(node.type) || node.risks.length > 0 || node.invariants.length > 0 || isHighRisk(node) || node.confidence === "stale";
+    if (viewId === "decisions") return decisionTypes.has(node.type);
     if (viewId === "flows") return flowTypes.has(node.type) || node.criticality === "critical" || node.linkedTests.length > 0 || project.flows.some((flow) => flow.steps.some((step) => step.nodeId === node.id));
     return true;
   };
@@ -549,41 +617,95 @@ function defaultFlowPositions(nodes: AtlasNode[], project?: AtlasProject) {
 function laneForView(node: AtlasNode, viewId: ViewId) {
   if (viewId === "overview") {
     if (node.type === "actor") return 0;
-    if (node.type === "app") return 1;
-    if (["load_balancer", "service"].includes(node.type)) return 2;
+    if (["system", "team"].includes(node.type)) return 1;
+    if (["app", "container"].includes(node.type)) return 2;
+    if (["load_balancer", "service"].includes(node.type)) return 3;
+    return 4;
+  }
+
+  if (viewId === "containers") {
+    if (["system", "actor", "team"].includes(node.type)) return 0;
+    if (["app", "container", "load_balancer"].includes(node.type)) return 1;
+    if (["service", "worker", "scheduler"].includes(node.type)) return 2;
+    if (["api_contract", "event_contract"].includes(node.type)) return 3;
     return 3;
   }
 
   if (viewId === "components") {
     if (node.type === "file_group") return 0;
-    if (["app", "load_balancer"].includes(node.type)) return 1;
+    if (["container", "app", "load_balancer"].includes(node.type)) return 1;
     if (["service", "worker", "scheduler", "external_system"].includes(node.type)) return 2;
-    if (node.type === "module") return 3;
-    if (node.type === "contract") return 4;
+    if (["module", "component"].includes(node.type)) return 3;
+    if (["contract", "api_contract", "event_contract"].includes(node.type)) return 4;
     return 5;
+  }
+
+  if (viewId === "code") {
+    if (node.type === "file_group") return 0;
+    if (["module", "component"].includes(node.type)) return 1;
+    if (node.type === "code_symbol") return 2;
+    if (["contract", "api_contract", "event_contract"].includes(node.type)) return 3;
+    return 4;
   }
 
   if (viewId === "flows") {
     if (["actor", "app"].includes(node.type)) return 0;
-    if (["load_balancer", "service"].includes(node.type)) return 1;
-    if (["module", "contract"].includes(node.type)) return 2;
+    if (["container", "load_balancer", "service"].includes(node.type)) return 1;
+    if (["component", "module", "contract", "api_contract", "event_contract"].includes(node.type)) return 2;
     if (["queue", "worker", "scheduler"].includes(node.type)) return 3;
     return 4;
+  }
+
+  if (viewId === "deployment") {
+    if (node.type === "environment") return 0;
+    if (node.type === "region") return 1;
+    if (node.type === "deployment_node") return 2;
+    if (["load_balancer", "service", "worker", "scheduler"].includes(node.type)) return 3;
+    if (["queue", "cache", "datastore", "replica"].includes(node.type)) return 4;
+    return 5;
   }
 
   if (viewId === "data") {
     if (["service", "module", "worker", "external_system", "contract"].includes(node.type)) return 0;
     if (["queue", "cache"].includes(node.type)) return 1;
-    if (node.type === "datastore") return 2;
-    if (node.type === "replica") return 3;
+    if (["data_entity", "schema"].includes(node.type)) return 2;
+    if (node.type === "datastore") return 3;
+    if (node.type === "replica") return 4;
+    if (node.type === "migration") return 5;
+    return 6;
+  }
+
+  if (viewId === "domain") {
+    if (["team", "system"].includes(node.type)) return 0;
+    if (["container", "component", "module"].includes(node.type)) return 1;
+    if (["data_entity", "schema"].includes(node.type)) return 2;
+    if (["api_contract", "event_contract"].includes(node.type)) return 3;
+    if (node.type === "decision") return 4;
     return 4;
   }
 
+  if (viewId === "security") {
+    if (["actor", "threat"].includes(node.type)) return 0;
+    if (["app", "service", "external_system"].includes(node.type)) return 1;
+    if (["api_contract", "event_contract"].includes(node.type)) return 2;
+    if (["datastore", "data_entity"].includes(node.type)) return 3;
+    if (["risk"].includes(node.type)) return 4;
+    return 5;
+  }
+
   if (viewId === "health") {
-    if (node.type === "risk") return 0;
+    if (["risk", "threat", "quality_scenario"].includes(node.type)) return 0;
     if (["external_system", "load_balancer", "queue", "cache"].includes(node.type)) return 1;
     if (["service", "worker", "scheduler"].includes(node.type)) return 2;
     if (["datastore", "replica"].includes(node.type)) return 3;
+    return 4;
+  }
+
+  if (viewId === "decisions") {
+    if (node.type === "decision") return 0;
+    if (["quality_scenario", "risk", "threat"].includes(node.type)) return 1;
+    if (["system", "container", "service"].includes(node.type)) return 2;
+    if (["component", "module"].includes(node.type)) return 3;
     return 4;
   }
 
@@ -629,6 +751,18 @@ function titleCase(value: string) {
   return value
     .replace(/[_-]/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function levelForNodeType(type: NodeType) {
+  if (["team"].includes(type)) return "enterprise" as const;
+  if (["system", "actor", "external_system"].includes(type)) return "system" as const;
+  if (["container", "app", "service", "worker", "scheduler", "load_balancer", "queue", "cache", "datastore", "replica"].includes(type)) return "container" as const;
+  if (["component", "module", "contract", "api_contract", "event_contract"].includes(type)) return "component" as const;
+  if (["code_symbol", "file_group"].includes(type)) return "code" as const;
+  if (["environment", "region", "deployment_node"].includes(type)) return "deployment" as const;
+  if (["data_entity", "schema", "migration"].includes(type)) return "data" as const;
+  if (["decision"].includes(type)) return "domain" as const;
+  return "quality" as const;
 }
 
 function cryptoSafeId() {

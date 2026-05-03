@@ -167,7 +167,26 @@ code {
   overflow-x: auto;
 }
 
-.view-tabs button {
+.view-family {
+  display: grid;
+  gap: 0.28rem;
+  flex: 0 0 auto;
+}
+
+.view-family > span {
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.view-family > div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.view-family button {
   white-space: nowrap;
   min-height: 2.25rem;
   padding: 0.5rem 0.78rem;
@@ -177,7 +196,7 @@ code {
   font-weight: 650;
 }
 
-.view-tabs button svg {
+.view-family button svg {
   color: #334155;
 }
 

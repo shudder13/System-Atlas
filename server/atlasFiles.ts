@@ -5,6 +5,10 @@ import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasView, CodeEvide
 import { defaultViews, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
 const conceptFolders: Record<string, string> = {
+  system: "services",
+  container: "services",
+  component: "modules",
+  code_symbol: "modules",
   actor: "modules",
   app: "services",
   service: "services",
@@ -19,6 +23,18 @@ const conceptFolders: Record<string, string> = {
   external_system: "integrations",
   file_group: "modules",
   contract: "contracts",
+  api_contract: "contracts",
+  event_contract: "contracts",
+  deployment_node: "deployment",
+  environment: "deployment",
+  region: "deployment",
+  data_entity: "datastores",
+  schema: "datastores",
+  migration: "datastores",
+  decision: "decisions",
+  quality_scenario: "reliability",
+  threat: "security",
+  team: "modules",
   flow: "flows",
   risk: "reliability"
 };
@@ -196,7 +212,9 @@ function conceptMarkdown(node: AtlasNode) {
       confidence: node.confidence,
       notes: node.notes ?? "",
       position: node.position,
-      tags: node.tags ?? []
+      tags: node.tags ?? [],
+      architecture_level: node.architectureLevel,
+      metadata: node.metadata ?? {}
     }),
     "---",
     "",
@@ -356,7 +374,10 @@ function normalizeNode(value: Record<string, unknown>): AtlasNode {
     risks: arrayOfStrings(value.risks),
     confidence: (value.confidence as AtlasNode["confidence"]) ?? "manual",
     notes: typeof value.notes === "string" ? value.notes : "",
-    position: value.position as AtlasNode["position"]
+    position: value.position as AtlasNode["position"],
+    tags: arrayOfStrings(value.tags),
+    architectureLevel: value.architectureLevel as AtlasNode["architectureLevel"] ?? value.architecture_level as AtlasNode["architectureLevel"],
+    metadata: typeof value.metadata === "object" && value.metadata !== null ? value.metadata as AtlasNode["metadata"] : {}
   };
 }
 
@@ -386,6 +407,7 @@ function slug(value: string) {
 }
 
 function classify(relative: string): Pick<CodeEvidence, "kind" | "language"> | null {
+  if (/(openapi|asyncapi|swagger)\.(json|ya?ml)$/.test(relative) || /\.(graphql|proto)$/.test(relative)) return { kind: "contract", language: language(relative) };
   if (/\.(test|spec)\.(ts|tsx|js|jsx|py|rb|go|rs)$/.test(relative)) return { kind: "test", language: language(relative) };
   if (/migrations?\//.test(relative) || /migrations?.*\.(sql|ts|js)$/.test(relative)) return { kind: "migration", language: language(relative) };
   if (/\.(ts|tsx|js|jsx|py|rb|go|rs|java|cs|php|sql)$/.test(relative)) return { kind: "source", language: language(relative) };

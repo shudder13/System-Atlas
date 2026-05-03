@@ -64,6 +64,15 @@ describe("atlas generators", () => {
     expect(viewSupportsNodeType("overview", "datastore")).toBe(false);
     expect(preferredViewForNodeType("datastore")).toBe("data");
     expect(viewSupportsNodeType("flows", "service")).toBe(true);
+    expect(preferredViewForNodeType("deployment_node")).toBe("deployment");
+    expect(preferredViewForNodeType("threat")).toBe("security");
+    expect(viewSupportsNodeType("code", "code_symbol")).toBe(true);
+  });
+
+  it("supports the expanded architecture view families", () => {
+    expect(generateMermaid(project, "deployment")).toContain("Application Cluster");
+    expect(generateMermaid(project, "security")).toContain("Identity Bypass Threat");
+    expect(generateMermaid(project, "decisions")).toContain("Use Async Job Queue");
   });
 
   it("generates AI context and migration briefs", () => {

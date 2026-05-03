@@ -2,7 +2,7 @@
 
 System Atlas is a local-first architecture workbench for building reliable software with LLMs.
 
-It is inspired by Model-Driven Architecture, but adapted for the era of AI-assisted development. Instead of treating diagrams as stale documentation, System Atlas treats the architecture model as a living source of truth: services, modules, data stores, flows, contracts, risks, invariants, linked files, and tests are represented as a typed graph that both humans and AI agents can inspect.
+It is inspired by C4, arc42, model-driven architecture, DDD, threat modeling, and architecture decision records, but adapted for the era of AI-assisted development. Instead of treating diagrams as stale documentation, System Atlas treats the architecture model as a living source of truth: systems, containers, components, code evidence, data stores, contracts, flows, decisions, threats, risks, invariants, linked files, and tests are represented as a typed graph that both humans and AI agents can inspect.
 
 The goal is not to generate an entire application mechanically from UML. The goal is to let a software architect describe the intended system visually, keep that model close to the repository, and give LLMs precise migration context when the code needs to move from one architecture version to another.
 
@@ -19,7 +19,7 @@ System Atlas is for medium and large projects where vibe coding starts to break 
 ## Core Ideas
 
 - **Architecture as source of truth**: the system model lives in repo-native files under `architecture/`, not inside a hidden app database.
-- **Multiple views over one model**: Overview, Components, Flows, Data, Health, and Proposals are different lenses over the same architecture graph.
+- **Multiple views over one model**: C4, runtime, deployment, data, domain, security, health, decision, and proposal views are different lenses over the same architecture graph.
 - **Code evidence links**: architecture concepts can point to real files, folders, tests, contracts, and generated evidence.
 - **Proposal-driven change**: future designs are modeled as before/after proposals, then turned into implementation briefs.
 - **LLM-ready context**: migration briefs tell an AI what changed, which files are affected, what invariants must hold, what risks matter, and which tests should protect the change.
@@ -38,6 +38,8 @@ This is closer to **AI-assisted Model-Driven Development** than classic diagramm
 - React + TypeScript Vite client
 - Local Node/Express API
 - React Flow canvas with separate layouts per architecture view
+- C4-inspired context, container, component, and code views
+- Deployment, data, domain, security, decision, health, and proposal view families
 - Mermaid and Markdown generation
 - Repo-native `architecture/` export pack
 - Blank and generic starter atlases
@@ -56,6 +58,8 @@ architecture/
   datastores/*.md
   integrations/*.md
   contracts/*.md
+  deployment/*.md
+  security/*.md
   reliability/*.md
   decisions/*.md
   views/*.yaml
