@@ -45,7 +45,7 @@ This is closer to **AI-assisted Model-Driven Development** than classic diagramm
 - Repo-native `architecture/` export pack
 - Blank and generic starter atlases
 - Validation, semantic diffs, context packs, migration briefs, and lightweight code scanning
-- TypeScript/JavaScript evidence indexing for imports, exports, routes, top-level symbols, file sizes, and line counts
+- TypeScript/JavaScript evidence indexing for project structure, file summaries, classes, methods, attributes, routes, symbols, dependencies, tests, file sizes, and line counts
 
 ## Architecture Pack
 
@@ -93,14 +93,89 @@ The MVP focuses on manual architecture modeling first:
 - Create and restore architecture checkpoints.
 - Generate AI migration briefs for implementation work.
 - Generate focused, standard, or expanded AI context packs depending on available model context.
-- Run Scan to persist code intelligence: project structure, file summaries, classes, symbols, routes, dependencies, and test maps.
-- Browse saved code intelligence without rereading the whole codebase every AI session.
-- Export a repo-native architecture pack.
+- Run Scan to index the repository into the current in-memory atlas: project structure, file summaries, classes, symbols, routes, dependencies, and test maps.
+- Browse scanned code intelligence without rereading the whole codebase every AI session.
+- Export a repo-native architecture pack, including durable `architecture/evidence/*.json` files.
 
 ## Supported Workflows
 
 - **Greenfield design**: model the intended system first, create proposals between architecture versions, then give AI agents migration briefs to implement the diff.
-- **Brownfield import**: scan an existing repository, persist code intelligence under `architecture/evidence/`, review the inferred model, then use the same proposal/version workflow for future changes.
+- **Brownfield import**: scan an existing repository, review scanned evidence and generated Code view nodes, export code intelligence under `architecture/evidence/`, then use the same proposal/version workflow for future changes.
+
+## How To Use It
+
+For a new system:
+
+1. Start from a blank or generic atlas.
+2. Add systems, containers, components, datastores, queues, external systems, contracts, risks, and decisions.
+3. Add flows that describe important user journeys or background processes.
+4. Link architecture nodes to planned files, tests, contracts, and invariants.
+5. Create a proposal for the next architecture change.
+6. Generate a migration brief and give it to an AI coding agent.
+7. Validate and export the updated architecture pack.
+
+For an existing system:
+
+1. Run Scan to index the repository into the current atlas.
+2. Review the Code view and Code Intel preview.
+3. Model important files, classes, routes, datastores, queues, contracts, flows, risks, and decisions as explicit architecture concepts.
+4. Mark inferred concepts as `confidence: inferred` until an architect confirms them.
+5. Export the architecture pack so future AI sessions can load the saved model and code intelligence first.
+6. Use proposals and migration briefs for future changes instead of asking an AI to rediscover the whole codebase each time.
+
+## AI Agent Workflow
+
+When Claude Code, Codex, or another AI agent needs to understand the project, it should start from the atlas before opening source files broadly:
+
+1. Read `.claude/skills/system-atlas/SKILL.md` when present.
+2. Read `architecture/manifest.yaml`.
+3. Read `architecture/generated/overview.md` for quick orientation when it exists.
+4. Read the relevant concept files under `architecture/services/`, `architecture/modules/`, `architecture/flows/`, `architecture/contracts/`, `architecture/datastores/`, `architecture/integrations/`, `architecture/deployment/`, `architecture/security/`, `architecture/reliability/`, and `architecture/decisions/`.
+5. Read `architecture/views/*.yaml` for view-specific layouts and navigation.
+6. Read `architecture/evidence/code-intelligence.json` or the split files under `architecture/evidence/` for saved project structure, files, classes, routes, dependencies, and tests.
+7. Read `architecture/proposals/*` when implementing a planned before/after change.
+8. Open raw source files only for the specific files affected by the requested change.
+
+The current MVP loop is:
+
+```text
+architect updates atlas
+        -> proposal captures the desired future system
+        -> AI receives a migration brief
+        -> AI changes code and architecture files together
+        -> architect reloads/reviews the atlas
+        -> architect validates and exports the new state
+```
+
+## Glossary
+
+- **Atlas**: the full structured model of the system.
+- **Concept**: a modeled architecture element, such as a service, component, datastore, queue, contract, flow, risk, threat, or decision.
+- **View**: a lens over the same model, such as C4 context, containers, components, deployment, data, security, health, or proposals.
+- **Criticality**: the business or operational importance of a concept. `medium` means normal importance, `high` means changes need careful review, and `critical` means failure or regression can seriously affect users, money, data, compliance, or core operations.
+- **Confidence**: how trustworthy the architecture knowledge is. `manual` means architect-maintained, `inferred` means scanner- or AI-derived, `observed` means backed by runtime or external evidence, and `stale` means it may no longer match reality.
+- **Invariant**: a rule that must remain true, such as ownership boundaries, consistency rules, security requirements, or data retention constraints.
+- **Proposal**: a planned architecture change with before/after state and a migration brief.
+- **Checkpoint**: a named accepted architecture version.
+- **Code intelligence**: saved repository evidence such as files, classes, methods, routes, dependencies, tests, and summaries.
+
+## Current Limitations
+
+- The MVP is local-first and single-user.
+- Collaboration currently happens through Git diffs of the `architecture/` pack.
+- Scan is lightweight evidence indexing, not a full compiler-grade reverse-engineering engine.
+- Scan updates the in-app atlas; Export writes the durable architecture files.
+- Built-in AI chat and hosted LLM calls are out of scope for the current MVP.
+- Deep database, runtime telemetry, cloud inventory, and external documentation syncers are not fully implemented yet.
+
+## Roadmap
+
+- Live file sync so architecture files can be edited by Claude/Codex and reloaded automatically in the UI.
+- Richer class, API, database, infrastructure, and dependency diagrams.
+- Brownfield import wizard that turns scanned code intelligence into a reviewed initial atlas.
+- Schema-aware metadata for SLAs, RTO/RPO, auth, scaling assumptions, ownership, compliance, and operational concerns.
+- First-class AI agent instructions for understanding the atlas, implementing proposal diffs, and updating architecture files with code changes.
+- Proposal branch mode for multiple independent future designs.
 
 ## Run
 
