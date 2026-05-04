@@ -22,8 +22,8 @@ import {
   Undo2,
   Workflow
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "./lib/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ApiError, api } from "./lib/api";
 import {
   applyProposal,
   CONTEXT_PACK_SCOPES,
@@ -61,6 +61,8 @@ type ProjectHistory = {
   future: AtlasProject[];
 };
 
+type SyncStatus = "idle" | "dirty" | "saving" | "synced" | "external-changes" | "error";
+
 const HISTORY_LIMIT = 50;
 const CORE_VIEW_IDS = new Set<ViewId>(["overview", "containers", "components", "flows", "deployment", "data", "health", "proposals"]);
 
@@ -93,9 +95,14 @@ export function App() {
   const [activeProposalId, setActiveProposalId] = useState<string>("");
   const [diskRevision, setDiskRevision] = useState("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [externalRevision, setExternalRevision] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState("");
   const [history, setHistory] = useState<ProjectHistory>({ past: [], future: [] });
   const [showAdvancedViews, setShowAdvancedViews] = useState(false);
   const [contextScope, setContextScope] = useState<ContextPackScope>("focused");
+  const saveInFlightRef = useRef(false);
+  const changeSeqRef = useRef(0);
 
   useEffect(() => {
     Promise.all([api.templates(), api.project()])
@@ -115,13 +122,70 @@ export function App() {
     setStatus(response.loadedFromDisk ? reason : "No architecture pack on disk; using starter atlas");
   }, []);
 
+  const saveProjectToDisk = useCallback(async (mode: "auto" | "manual", force = false) => {
+    if (saveInFlightRef.current) return;
+
+    const savingSeq = changeSeqRef.current;
+    saveInFlightRef.current = true;
+    setSyncStatus("saving");
+
+    try {
+      const response = await api.export(project, { baseRevision: diskRevision, force });
+      setIssues(response.issues);
+      setDiskRevision(response.revision);
+      setExternalRevision("");
+      setLastSyncedAt(new Date().toISOString());
+
+      if (changeSeqRef.current === savingSeq) {
+        setHasUnsavedChanges(false);
+        setSyncStatus("synced");
+      } else {
+        setHasUnsavedChanges(true);
+        setSyncStatus("dirty");
+      }
+
+      setStatus(mode === "auto" ? `Synced ${response.files.length} architecture files` : `Exported ${response.files.length} architecture files`);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "revision_conflict") {
+        const revision = typeof error.details === "object" && error.details && "revision" in error.details
+          ? String((error.details as { revision?: unknown }).revision ?? "")
+          : "";
+        setExternalRevision(revision);
+        setSyncStatus("external-changes");
+        setStatus("Architecture files changed on disk; reload to accept them or Export to overwrite");
+      } else {
+        setSyncStatus("error");
+        setStatus(error instanceof Error ? error.message : "Sync failed");
+      }
+    } finally {
+      saveInFlightRef.current = false;
+    }
+  }, [diskRevision, project]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || syncStatus === "saving" || syncStatus === "external-changes") return;
+
+    const timeout = window.setTimeout(() => {
+      void saveProjectToDisk("auto");
+    }, 1200);
+
+    return () => window.clearTimeout(timeout);
+  }, [hasUnsavedChanges, project, saveProjectToDisk, syncStatus]);
+
   useEffect(() => {
     const interval = window.setInterval(async () => {
-      if (hasUnsavedChanges) return;
-
       try {
         const response = await api.projectRevision();
         if (!response.revision || response.revision === diskRevision) return;
+        if (saveInFlightRef.current) return;
+
+        if (hasUnsavedChanges) {
+          setExternalRevision(response.revision);
+          setSyncStatus("external-changes");
+          setStatus("Architecture files changed on disk; reload to accept them or Export to overwrite");
+          return;
+        }
+
         await reloadProjectFromDisk("Auto-reloaded architecture pack from disk");
       } catch {
         // Keep the current in-memory atlas if the local API is temporarily unavailable.
@@ -166,14 +230,24 @@ export function App() {
 
   function applyLoadedProject(next: AtlasProject, revision: string) {
     const withViews = mergeDefaultViews(next);
+    changeSeqRef.current = 0;
     setProject(withViews);
     setSelectedId(withViews.nodes[0]?.id ?? withViews.flows[0]?.id ?? "");
     setActiveProposalId("");
     setIssues(validateAtlas(withViews));
     setAiBrief(generateContextPack(withViews, [], undefined, contextScope));
     setDiskRevision(revision);
+    setExternalRevision("");
     setHasUnsavedChanges(false);
+    setSyncStatus(revision ? "synced" : "idle");
+    setLastSyncedAt(revision ? new Date().toISOString() : "");
     setHistory({ past: [], future: [] });
+  }
+
+  function markUnsaved() {
+    changeSeqRef.current += 1;
+    setHasUnsavedChanges(true);
+    setSyncStatus((current) => current === "external-changes" ? current : "dirty");
   }
 
   function applyProjectState(next: AtlasProject, statusText?: string) {
@@ -183,7 +257,7 @@ export function App() {
     setProject(next);
     setIssues(validateAtlas(nextWorkingProject));
     setAiBrief(generateContextPack(nextWorkingProject, [], undefined, contextScope));
-    setHasUnsavedChanges(true);
+    markUnsaved();
     if (activeProposalId && !nextActiveProposalId) {
       setActiveProposalId("");
     }
@@ -221,7 +295,7 @@ export function App() {
     }
     setProject(withProposal);
     setIssues(validateAtlas(nextWorkingProject));
-    setHasUnsavedChanges(true);
+    markUnsaved();
   }
 
   function undoProjectChange() {
@@ -253,7 +327,7 @@ export function App() {
     setActiveProposalId("");
     setIssues(validateAtlas(next));
     setAiBrief(generateContextPack(next, [], undefined, contextScope));
-    setHasUnsavedChanges(true);
+    markUnsaved();
     setHistory({ past: [], future: [] });
     setStatus(`Loaded template: ${template.name}`);
   }
@@ -351,7 +425,7 @@ export function App() {
     setProject(next);
     setActiveProposalId(proposal.id);
     setIssues(validateAtlas(proposalWorkspace(next, proposal.id)));
-    setHasUnsavedChanges(true);
+    markUnsaved();
     setViewId("proposals");
     setPreviewTab("ai");
     setAiBrief(generateMigrationBrief(next, proposal));
@@ -384,7 +458,7 @@ export function App() {
     setActiveProposalId("");
     setIssues(validateAtlas(applied));
     setAiBrief(generateContextPack(applied, [], undefined, contextScope));
-    setHasUnsavedChanges(true);
+    markUnsaved();
     setSelectedId(applied.nodes[0]?.id ?? applied.flows[0]?.id ?? "");
     setViewId("overview");
     setPreviewTab("overview");
@@ -403,7 +477,7 @@ export function App() {
       future: []
     }));
     setProject(next);
-    setHasUnsavedChanges(true);
+    markUnsaved();
     setStatus(`Created checkpoint: ${checkpoint.name}`);
   }
 
@@ -422,7 +496,7 @@ export function App() {
     setActiveProposalId("");
     setIssues(validateAtlas(restored));
     setAiBrief(generateContextPack(restored, [], undefined, contextScope));
-    setHasUnsavedChanges(true);
+    markUnsaved();
     setSelectedId(restored.nodes[0]?.id ?? restored.flows[0]?.id ?? "");
     setViewId("overview");
     setPreviewTab("overview");
@@ -444,15 +518,16 @@ export function App() {
   }
 
   async function exportAtlas() {
-    try {
-      const response = await api.export(project);
-      setIssues(response.issues);
-      setDiskRevision(response.revision);
-      setHasUnsavedChanges(false);
-      setStatus(`Exported ${response.files.length} architecture files`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Export failed");
+    const force = syncStatus === "external-changes"
+      ? window.confirm("Architecture files changed on disk. Export will overwrite those disk changes with the current UI state. Continue?")
+      : false;
+
+    if (syncStatus === "external-changes" && !force) {
+      setStatus("Export cancelled; reload disk changes or export again to overwrite");
+      return;
     }
+
+    await saveProjectToDisk("manual", force);
   }
 
   async function scanWorkspace() {
@@ -528,7 +603,7 @@ export function App() {
           {activeProposal && <button type="button" onClick={exitProposal} title="Return to the current architecture"><GitCompare size={16} /> Main Atlas</button>}
           <button type="button" onClick={validateDraft} title="Validate atlas"><CheckCircle2 size={16} /> Validate</button>
           <button type="button" onClick={generateAiBrief} title="Generate AI brief"><Bot size={16} /> AI Brief</button>
-          <button type="button" className="primary" onClick={exportAtlas} title="Export architecture pack"><Save size={16} /> Export</button>
+          <button type="button" className="primary" onClick={exportAtlas} title="Save architecture pack now"><Save size={16} /> Export</button>
         </div>
       </header>
 
@@ -640,8 +715,10 @@ export function App() {
         <span><Play size={14} /> {status}</span>
         {activeProposal && <span>Editing proposal: {activeProposal.name}</span>}
         <span>{project.versions.length} checkpoints</span>
-        {hasUnsavedChanges && <span>Unsaved UI changes</span>}
-        <span><FileDown size={14} /> Exports to <code>architecture/</code></span>
+        <span>{prettySyncStatus(syncStatus)}{lastSyncedAt ? ` · ${formatSyncTime(lastSyncedAt)}` : ""}</span>
+        {hasUnsavedChanges && <span>{syncStatus === "external-changes" ? "Unsaved UI changes; disk changed" : "Unsaved UI changes"}</span>}
+        {externalRevision && <span>External revision waiting</span>}
+        <span><FileDown size={14} /> Syncs to <code>architecture/</code></span>
       </footer>
     </div>
   );
@@ -655,4 +732,24 @@ function mergeDefaultViews(project: AtlasProject): AtlasProject {
 
 function prettyScope(scope: ContextPackScope) {
   return scope.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function prettySyncStatus(status: SyncStatus) {
+  const labels: Record<SyncStatus, string> = {
+    idle: "No architecture pack yet",
+    dirty: "Sync pending",
+    saving: "Syncing",
+    synced: "Synced",
+    "external-changes": "External changes detected",
+    error: "Sync error"
+  };
+  return labels[status];
+}
+
+function formatSyncTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(new Date(value));
 }

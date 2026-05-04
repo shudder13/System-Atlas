@@ -105,7 +105,7 @@ When asked to edit the architecture:
 5. Add or update linked files and linked tests whenever architecture changes touch implementation.
 6. Record risks and invariants for critical paths, datastores, schemas, contracts, threats, decisions, and external systems.
 
-After editing architecture files, tell the user to reload the System Atlas UI if it did not auto-reload.
+After editing architecture files, tell the user to check the System Atlas UI. It should auto-reload when there are no unsaved UI edits; if the UI reports external changes, the architect must choose whether the disk version or UI version should win.
 
 ## Implement A Proposal Diff
 
@@ -137,14 +137,15 @@ Do not implement an old applied proposal as if it were still a requested future 
 
 ## Editing With The UI Open
 
-The System Atlas UI polls the `architecture/` pack and reloads when files change and there are no unsaved UI edits.
+The System Atlas UI autosyncs UI edits to the `architecture/` pack after a short debounce. It also polls the pack and reloads when files change and there are no unsaved UI edits.
 
 When editing atlas files directly:
 
 1. Keep changes small enough that the UI can reload and the architect can inspect them visually.
 2. Prefer editing authored concept files, proposal files, and manifest edges over generated diagrams.
-3. Run export/validation from the UI after larger edits so generated files and diagrams catch up.
-4. If the UI reports unsaved edits, ask the user whether the disk or UI version should win before overwriting architecture files.
+3. Watch the UI status bar after saving disk edits.
+4. If the UI reports external changes, ask the user whether the disk or UI version should win before overwriting architecture files.
+5. Run validation from the UI after larger edits so generated files and diagrams catch up.
 
 ## Context Budget
 

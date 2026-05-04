@@ -38,6 +38,19 @@ app.post("/api/draft/validate", (request, response) => {
 app.post("/api/export", async (request, response, next) => {
   try {
     const project = request.body.project as AtlasProject;
+    const baseRevision = typeof request.body.baseRevision === "string" ? request.body.baseRevision : undefined;
+    const force = Boolean(request.body.force);
+    const currentRevision = await architectureRevision(workspaceRoot);
+
+    if (!force && baseRevision !== undefined && currentRevision && currentRevision !== baseRevision) {
+      response.status(409).json({
+        error: "Architecture files changed on disk. Reload them or force export to overwrite disk changes.",
+        code: "revision_conflict",
+        revision: currentRevision
+      });
+      return;
+    }
+
     const result = await exportAtlas(workspaceRoot, project);
     const revision = await architectureRevision(workspaceRoot);
     response.json({ ok: true, revision, ...result });

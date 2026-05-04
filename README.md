@@ -95,7 +95,8 @@ The MVP focuses on manual architecture modeling first:
 - Generate focused, standard, or expanded AI context packs depending on available model context.
 - Run Scan to index the repository into the current in-memory atlas: project structure, file summaries, classes, symbols, routes, dependencies, and test maps.
 - Browse scanned code intelligence without rereading the whole codebase every AI session.
-- Export a repo-native architecture pack, including durable `architecture/evidence/*.json` files.
+- Sync UI edits to a repo-native architecture pack, including durable `architecture/evidence/*.json` files.
+- Detect external edits to `architecture/` and ask the architect to reload or explicitly overwrite when there are unsaved UI changes.
 
 ## Supported Workflows
 
@@ -112,7 +113,7 @@ For a new system:
 4. Link architecture nodes to planned files, tests, contracts, and invariants.
 5. Create a proposal for the next architecture change.
 6. Generate a migration brief and give it to an AI coding agent.
-7. Validate and export the updated architecture pack.
+7. Validate the updated architecture pack and use Export when you want an immediate save instead of waiting for autosync.
 
 For an existing system:
 
@@ -120,7 +121,7 @@ For an existing system:
 2. Review the Code view and Code Intel preview.
 3. Model important files, classes, routes, datastores, queues, contracts, flows, risks, and decisions as explicit architecture concepts.
 4. Mark inferred concepts as `confidence: inferred` until an architect confirms them.
-5. Export the architecture pack so future AI sessions can load the saved model and code intelligence first.
+5. Let autosync write the architecture pack, or use Export for an immediate save, so future AI sessions can load the saved model and code intelligence first.
 6. Use proposals and migration briefs for future changes instead of asking an AI to rediscover the whole codebase each time.
 
 ## AI Agent Workflow
@@ -143,8 +144,8 @@ architect updates atlas
         -> proposal captures the desired future system
         -> AI receives a migration brief
         -> AI changes code and architecture files together
-        -> architect reloads/reviews the atlas
-        -> architect validates and exports the new state
+        -> System Atlas reloads disk edits when safe
+        -> architect reviews, validates, and resolves conflicts if needed
 ```
 
 ## Glossary
@@ -164,13 +165,13 @@ architect updates atlas
 - The MVP is local-first and single-user.
 - Collaboration currently happens through Git diffs of the `architecture/` pack.
 - Scan is lightweight evidence indexing, not a full compiler-grade reverse-engineering engine.
-- Scan updates the in-app atlas; Export writes the durable architecture files.
+- Scan updates the in-app atlas; autosync and Export write durable architecture files.
 - Built-in AI chat and hosted LLM calls are out of scope for the current MVP.
 - Deep database, runtime telemetry, cloud inventory, and external documentation syncers are not fully implemented yet.
 
 ## Roadmap
 
-- Live file sync so architecture files can be edited by Claude/Codex and reloaded automatically in the UI.
+- Richer conflict resolution for simultaneous UI edits and direct `architecture/` file edits.
 - Richer class, API, database, infrastructure, and dependency diagrams.
 - Brownfield import wizard that turns scanned code intelligence into a reviewed initial atlas.
 - Schema-aware metadata for SLAs, RTO/RPO, auth, scaling assumptions, ownership, compliance, and operational concerns.
