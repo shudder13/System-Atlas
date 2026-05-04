@@ -86,14 +86,6 @@ export type ArchitectureLevel = "enterprise" | "system" | "container" | "compone
 export type EdgeInteraction = "sync" | "async" | "batch" | "replication" | "human";
 export type MetadataValue = string | number | boolean | string[] | undefined;
 
-export const VIEW_FAMILIES: Array<{ id: string; name: string; description: string; views: ViewId[] }> = [
-  { id: "c4", name: "C4", description: "System context, containers, components, and code-level structure.", views: ["overview", "containers", "components", "code"] },
-  { id: "behavior", name: "Runtime", description: "Scenarios, business flows, dynamic traces, and async behavior.", views: ["flows"] },
-  { id: "platform", name: "Platform", description: "Deployment, infrastructure, regions, data stores, and ownership.", views: ["deployment", "data"] },
-  { id: "domain", name: "Domain", description: "Bounded contexts, entities, contracts, and domain language.", views: ["domain"] },
-  { id: "assurance", name: "Assurance", description: "Security, quality, risks, decisions, validation, and change governance.", views: ["security", "health", "decisions", "proposals"] }
-];
-
 export interface AtlasNode {
   id: string;
   type: NodeType;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { templates } from "../data/templates";
 import {
+  createProposal,
   generateContextPack,
   generateMermaid,
   generateMigrationBrief,
@@ -8,7 +9,9 @@ import {
   layoutProjectForView,
   mergeCodeEvidence,
   preferredViewForNodeType,
+  proposalWorkspace,
   semanticDiff,
+  updateProposalAfter,
   validateAtlas,
   viewSupportsNodeType
 } from "./atlas";
@@ -42,6 +45,37 @@ describe("atlas generators", () => {
     };
     const diff = semanticDiff(before, after);
     expect(diff.changedNodes.map((item) => item.after.id)).toContain("service.api");
+  });
+
+  it("keeps proposal before snapshots stable while after follows edits", () => {
+    const proposal = createProposal(project, "Change API owner");
+    const edited = {
+      ...project,
+      proposals: [proposal],
+      nodes: project.nodes.map((node) => node.id === "service.api" ? { ...node, owner: "platform" } : node)
+    };
+    const withAfter = updateProposalAfter(edited, proposal.id);
+    const activeProposal = withAfter.proposals[0];
+    const diff = semanticDiff(activeProposal.before, activeProposal.after);
+
+    expect(activeProposal.before.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
+    expect(activeProposal.after.nodes.find((node) => node.id === "service.api")?.owner).toBe("platform");
+    expect(diff.changedNodes.map((item) => item.after.id)).toContain("service.api");
+  });
+
+  it("isolates proposal workspace edits from the main atlas", () => {
+    const proposal = createProposal(project, "Branch proposal");
+    const root = { ...project, proposals: [proposal] };
+    const workspace = proposalWorkspace(root, proposal.id);
+    const editedWorkspace = {
+      ...workspace,
+      nodes: workspace.nodes.map((node) => node.id === "service.api" ? { ...node, owner: "platform" } : node)
+    };
+    const updatedRoot = updateProposalAfter(root, proposal.id, editedWorkspace);
+
+    expect(updatedRoot.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
+    expect(updatedRoot.proposals[0].after.nodes.find((node) => node.id === "service.api")?.owner).toBe("platform");
+    expect(updatedRoot.proposals[0].before.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
   });
 
   it("keeps layouts scoped to individual architecture views", () => {

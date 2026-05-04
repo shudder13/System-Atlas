@@ -57,12 +57,123 @@ const viewEdgeTypes: Partial<Record<ViewId, Set<EdgeType>>> = {
   proposals: new Set(EDGE_TYPES)
 };
 
+const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonly NodeType[] }>>> = {
+  overview: [
+    lane(0, ["actor"]),
+    lane(1, ["system", "team"]),
+    lane(2, ["app", "container"]),
+    lane(3, ["load_balancer", "service"])
+  ],
+  containers: [
+    lane(0, ["system", "actor", "team"]),
+    lane(1, ["app", "container", "load_balancer"]),
+    lane(2, ["service", "worker", "scheduler"]),
+    lane(3, ["api_contract", "event_contract"])
+  ],
+  components: [
+    lane(0, ["file_group"]),
+    lane(1, ["container", "app", "load_balancer"]),
+    lane(2, ["service", "worker", "scheduler", "external_system"]),
+    lane(3, ["module", "component"]),
+    lane(4, ["contract", "api_contract", "event_contract"])
+  ],
+  code: [
+    lane(0, ["file_group"]),
+    lane(1, ["module", "component"]),
+    lane(2, ["code_symbol"]),
+    lane(3, ["contract", "api_contract", "event_contract"])
+  ],
+  flows: [
+    lane(0, ["actor", "app"]),
+    lane(1, ["container", "load_balancer", "service"]),
+    lane(2, ["component", "module", "contract", "api_contract", "event_contract"]),
+    lane(3, ["queue", "worker", "scheduler"])
+  ],
+  deployment: [
+    lane(0, ["environment"]),
+    lane(1, ["region"]),
+    lane(2, ["deployment_node"]),
+    lane(3, ["load_balancer", "service", "worker", "scheduler"]),
+    lane(4, ["queue", "cache", "datastore", "replica"])
+  ],
+  data: [
+    lane(0, ["service", "module", "worker", "external_system", "contract"]),
+    lane(1, ["queue", "cache"]),
+    lane(2, ["data_entity", "schema"]),
+    lane(3, ["datastore"]),
+    lane(4, ["replica"]),
+    lane(5, ["migration"])
+  ],
+  domain: [
+    lane(0, ["team", "system"]),
+    lane(1, ["container", "component", "module"]),
+    lane(2, ["data_entity", "schema"]),
+    lane(3, ["api_contract", "event_contract"]),
+    lane(4, ["decision"])
+  ],
+  security: [
+    lane(0, ["actor", "threat"]),
+    lane(1, ["app", "service", "external_system"]),
+    lane(2, ["api_contract", "event_contract"]),
+    lane(3, ["datastore", "data_entity"]),
+    lane(4, ["risk"])
+  ],
+  health: [
+    lane(0, ["risk", "threat", "quality_scenario"]),
+    lane(1, ["external_system", "load_balancer", "queue", "cache"]),
+    lane(2, ["service", "worker", "scheduler"]),
+    lane(3, ["datastore", "replica"])
+  ],
+  decisions: [
+    lane(0, ["decision"]),
+    lane(1, ["quality_scenario", "risk", "threat"]),
+    lane(2, ["system", "container", "service"]),
+    lane(3, ["component", "module"])
+  ]
+};
+
+const viewLaneFallbacks: Partial<Record<ViewId, number>> = {
+  overview: 4,
+  containers: 3,
+  components: 5,
+  code: 4,
+  flows: 4,
+  deployment: 5,
+  data: 6,
+  domain: 4,
+  security: 5,
+  health: 4,
+  decisions: 4
+};
+
+export const VIEW_FAMILIES: Array<{ id: string; name: string; description: string; views: ViewId[] }> = [
+  { id: "c4", name: "C4", description: "System context, containers, components, and code-level structure.", views: ["overview", "containers", "components", "code"] },
+  { id: "behavior", name: "Runtime", description: "Scenarios, business flows, dynamic traces, and async behavior.", views: ["flows"] },
+  { id: "platform", name: "Platform", description: "Deployment, infrastructure, regions, data stores, and ownership.", views: ["deployment", "data"] },
+  { id: "domain", name: "Domain", description: "Bounded contexts, entities, contracts, and domain language.", views: ["domain"] },
+  { id: "assurance", name: "Assurance", description: "Security, quality, risks, decisions, validation, and change governance.", views: ["security", "health", "decisions", "proposals"] }
+];
+
 export function cloneProjectSnapshot(project: AtlasProject): AtlasProjectSnapshot {
   return {
     nodes: structuredClone(project.nodes),
     edges: structuredClone(project.edges),
     flows: structuredClone(project.flows)
   };
+}
+
+export function projectFromSnapshot(project: AtlasProject, snapshot: AtlasProjectSnapshot): AtlasProject {
+  return {
+    ...project,
+    nodes: structuredClone(snapshot.nodes),
+    edges: structuredClone(snapshot.edges),
+    flows: structuredClone(snapshot.flows)
+  };
+}
+
+export function proposalWorkspace(project: AtlasProject, proposalId?: string): AtlasProject {
+  const proposal = project.proposals.find((item) => item.id === proposalId);
+  return proposal ? projectFromSnapshot(project, proposal.after) : project;
 }
 
 export function nowIso() {
@@ -699,12 +810,13 @@ export function mergeCodeEvidence(project: AtlasProject, evidence: CodeEvidence[
   };
 }
 
-export function updateProposalAfter(project: AtlasProject, proposalId?: string): AtlasProject {
+export function updateProposalAfter(project: AtlasProject, proposalId?: string, afterProject: AtlasProject = project): AtlasProject {
   if (!proposalId) return project;
+  const after = cloneProjectSnapshot(afterProject);
   return {
     ...project,
     proposals: project.proposals.map((proposal) =>
-      proposal.id === proposalId ? { ...proposal, after: cloneProjectSnapshot(project) } : proposal
+      proposal.id === proposalId ? { ...proposal, after } : proposal
     )
   };
 }
@@ -748,101 +860,12 @@ function defaultFlowPositions(nodes: AtlasNode[], project?: AtlasProject) {
 }
 
 function laneForView(node: AtlasNode, viewId: ViewId) {
-  if (viewId === "overview") {
-    if (node.type === "actor") return 0;
-    if (["system", "team"].includes(node.type)) return 1;
-    if (["app", "container"].includes(node.type)) return 2;
-    if (["load_balancer", "service"].includes(node.type)) return 3;
-    return 4;
-  }
+  const match = viewLaneRules[viewId]?.find((rule) => rule.types.includes(node.type));
+  return match?.lane ?? viewLaneFallbacks[viewId] ?? 0;
+}
 
-  if (viewId === "containers") {
-    if (["system", "actor", "team"].includes(node.type)) return 0;
-    if (["app", "container", "load_balancer"].includes(node.type)) return 1;
-    if (["service", "worker", "scheduler"].includes(node.type)) return 2;
-    if (["api_contract", "event_contract"].includes(node.type)) return 3;
-    return 3;
-  }
-
-  if (viewId === "components") {
-    if (node.type === "file_group") return 0;
-    if (["container", "app", "load_balancer"].includes(node.type)) return 1;
-    if (["service", "worker", "scheduler", "external_system"].includes(node.type)) return 2;
-    if (["module", "component"].includes(node.type)) return 3;
-    if (["contract", "api_contract", "event_contract"].includes(node.type)) return 4;
-    return 5;
-  }
-
-  if (viewId === "code") {
-    if (node.type === "file_group") return 0;
-    if (["module", "component"].includes(node.type)) return 1;
-    if (node.type === "code_symbol") return 2;
-    if (["contract", "api_contract", "event_contract"].includes(node.type)) return 3;
-    return 4;
-  }
-
-  if (viewId === "flows") {
-    if (["actor", "app"].includes(node.type)) return 0;
-    if (["container", "load_balancer", "service"].includes(node.type)) return 1;
-    if (["component", "module", "contract", "api_contract", "event_contract"].includes(node.type)) return 2;
-    if (["queue", "worker", "scheduler"].includes(node.type)) return 3;
-    return 4;
-  }
-
-  if (viewId === "deployment") {
-    if (node.type === "environment") return 0;
-    if (node.type === "region") return 1;
-    if (node.type === "deployment_node") return 2;
-    if (["load_balancer", "service", "worker", "scheduler"].includes(node.type)) return 3;
-    if (["queue", "cache", "datastore", "replica"].includes(node.type)) return 4;
-    return 5;
-  }
-
-  if (viewId === "data") {
-    if (["service", "module", "worker", "external_system", "contract"].includes(node.type)) return 0;
-    if (["queue", "cache"].includes(node.type)) return 1;
-    if (["data_entity", "schema"].includes(node.type)) return 2;
-    if (node.type === "datastore") return 3;
-    if (node.type === "replica") return 4;
-    if (node.type === "migration") return 5;
-    return 6;
-  }
-
-  if (viewId === "domain") {
-    if (["team", "system"].includes(node.type)) return 0;
-    if (["container", "component", "module"].includes(node.type)) return 1;
-    if (["data_entity", "schema"].includes(node.type)) return 2;
-    if (["api_contract", "event_contract"].includes(node.type)) return 3;
-    if (node.type === "decision") return 4;
-    return 4;
-  }
-
-  if (viewId === "security") {
-    if (["actor", "threat"].includes(node.type)) return 0;
-    if (["app", "service", "external_system"].includes(node.type)) return 1;
-    if (["api_contract", "event_contract"].includes(node.type)) return 2;
-    if (["datastore", "data_entity"].includes(node.type)) return 3;
-    if (["risk"].includes(node.type)) return 4;
-    return 5;
-  }
-
-  if (viewId === "health") {
-    if (["risk", "threat", "quality_scenario"].includes(node.type)) return 0;
-    if (["external_system", "load_balancer", "queue", "cache"].includes(node.type)) return 1;
-    if (["service", "worker", "scheduler"].includes(node.type)) return 2;
-    if (["datastore", "replica"].includes(node.type)) return 3;
-    return 4;
-  }
-
-  if (viewId === "decisions") {
-    if (node.type === "decision") return 0;
-    if (["quality_scenario", "risk", "threat"].includes(node.type)) return 1;
-    if (["system", "container", "service"].includes(node.type)) return 2;
-    if (["component", "module"].includes(node.type)) return 3;
-    return 4;
-  }
-
-  return 0;
+function lane(laneNumber: number, types: NodeType[]) {
+  return { lane: laneNumber, types };
 }
 
 function changedFields(before: object, after: object) {

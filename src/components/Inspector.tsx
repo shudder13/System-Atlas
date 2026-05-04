@@ -103,14 +103,11 @@ export function Inspector({
           </select>
         </label>
         <label className="field">Description <textarea rows={4} value={selectedFlow.description} onChange={(event) => updateFlow(project, selectedFlow.id, { description: event.target.value }, onChange)} /></label>
-        <label className="field">
-          Steps
-          <textarea
-            rows={5}
-            value={selectedFlow.steps.map((step) => `${step.label}${step.nodeId ? ` | ${step.nodeId}` : ""}`).join("\n")}
-            onChange={(event) => updateFlow(project, selectedFlow.id, { steps: parseSteps(event.target.value) }, onChange)}
-          />
-        </label>
+        <FlowStepEditor
+          project={project}
+          flow={selectedFlow}
+          onChange={(steps) => updateFlow(project, selectedFlow.id, { steps }, onChange)}
+        />
         <TextareaList label="Failure modes" values={selectedFlow.failureModes} onChange={(values) => updateFlow(project, selectedFlow.id, { failureModes: values }, onChange)} />
         <TextareaList label="Acceptance checks" values={selectedFlow.acceptanceChecks} onChange={(values) => updateFlow(project, selectedFlow.id, { acceptanceChecks: values }, onChange)} />
         <TextareaList label="Linked tests" values={selectedFlow.linkedTests} onChange={(values) => updateFlow(project, selectedFlow.id, { linkedTests: values }, onChange)} />
@@ -128,6 +125,57 @@ export function Inspector({
       <h2>No selection</h2>
       <p>Select a node, edge, or flow to edit architecture meaning, linked evidence, invariants, and risks.</p>
     </aside>
+  );
+}
+
+function FlowStepEditor({
+  project,
+  flow,
+  onChange
+}: {
+  project: AtlasProject;
+  flow: AtlasFlow;
+  onChange: (steps: AtlasFlow["steps"]) => void;
+}) {
+  const nodes = project.nodes;
+
+  function updateStep(id: string, patch: Partial<AtlasFlow["steps"][number]>) {
+    onChange(flow.steps.map((step) => step.id === id ? { ...step, ...patch } : step));
+  }
+
+  function addStep() {
+    onChange([
+      ...flow.steps,
+      { id: `step.${Date.now()}`, label: `Step ${flow.steps.length + 1}`, nodeId: nodes[0]?.id }
+    ]);
+  }
+
+  function removeStep(id: string) {
+    onChange(flow.steps.filter((step) => step.id !== id));
+  }
+
+  return (
+    <section className="flow-step-editor">
+      <div className="section-heading">
+        <h3>Steps</h3>
+        <button type="button" className="compact" onClick={addStep}>Add Step</button>
+      </div>
+      {flow.steps.length ? flow.steps.map((step, index) => (
+        <div className="flow-step-row" key={step.id}>
+          <span>{index + 1}</span>
+          <label className="field">Label
+            <input value={step.label} onChange={(event) => updateStep(step.id, { label: event.target.value })} />
+          </label>
+          <label className="field">Node
+            <select value={step.nodeId ?? ""} onChange={(event) => updateStep(step.id, { nodeId: event.target.value || undefined })}>
+              <option value="">Unlinked</option>
+              {nodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}
+            </select>
+          </label>
+          <button type="button" className="danger compact" onClick={() => removeStep(step.id)}>Remove</button>
+        </div>
+      )) : <p className="muted">No steps yet.</p>}
+    </section>
   );
 }
 
@@ -289,13 +337,6 @@ function updateFlow(project: AtlasProject, id: string, patch: Partial<AtlasFlow>
 
 function pretty(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function parseSteps(value: string) {
-  return value.split("\n").map((line, index) => {
-    const [label, nodeId] = line.split("|").map((part) => part.trim());
-    return label ? { id: `step.${index + 1}`, label, nodeId: nodeId || undefined } : null;
-  }).filter(Boolean) as AtlasFlow["steps"];
 }
 
 function confirmDelete(message: string, action: () => void) {

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import ts from "typescript";
+import YAML from "yaml";
 import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasView, CodeEvidence } from "../src/types";
 import { defaultViews, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
@@ -124,7 +125,7 @@ export async function architectureRevision(root: string) {
 async function loadAtlasFromPack(root: string): Promise<AtlasProject | null> {
   const manifestPath = safeJoin(root, "architecture/manifest.yaml");
   try {
-    const rawManifest = JSON.parse(await fs.readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    const rawManifest = parseStructured(await fs.readFile(manifestPath, "utf8")) as Record<string, unknown>;
     const { edges = [], ...manifest } = rawManifest;
     const nodes: AtlasNode[] = [];
     const flows: AtlasFlow[] = [];
@@ -408,7 +409,7 @@ async function readJsonFiles<T>(root: string, relativeFolder: string): Promise<T
     for (const entry of entries) {
       if (!entry.isFile() || !/\.(json|yaml|yml)$/.test(entry.name)) continue;
       const raw = await fs.readFile(path.join(directory, entry.name), "utf8");
-      values.push(JSON.parse(raw) as T);
+      values.push(parseStructured(raw) as T);
     }
     return values;
   } catch {
@@ -433,7 +434,7 @@ async function readProposals(root: string) {
       if (!entry.isDirectory()) continue;
       const proposalPath = path.join(proposalsRoot, entry.name, "proposal.yaml");
       try {
-        proposals.push(JSON.parse(await fs.readFile(proposalPath, "utf8")) as AtlasProposal);
+        proposals.push(parseStructured(await fs.readFile(proposalPath, "utf8")) as AtlasProposal);
       } catch {
         continue;
       }
@@ -496,7 +497,15 @@ async function collectRevision(root: string, current: string, hash: ReturnType<t
 function parseFrontmatter(markdown: string) {
   const match = markdown.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return null;
-  return JSON.parse(match[1]);
+  return parseStructured(match[1]);
+}
+
+function parseStructured(raw: string) {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return YAML.parse(raw);
+  }
 }
 
 function normalizeNode(value: Record<string, unknown>): AtlasNode {
@@ -540,7 +549,7 @@ function safeJoin(root: string, relative: string) {
 }
 
 function yamlJson(value: unknown) {
-  return JSON.stringify(value, null, 2);
+  return YAML.stringify(value, { lineWidth: 0 });
 }
 
 function slug(value: string) {

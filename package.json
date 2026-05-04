@@ -19,16 +19,17 @@
     "lucide-react": "^0.468.0",
     "mermaid": "^11.4.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "yaml": "^2.8.4"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
-    "@vitejs/plugin-react": "^5.0.4",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^5.0.4",
     "concurrently": "^9.1.2",
     "jsdom": "^25.0.1",
     "tsx": "^4.19.2",

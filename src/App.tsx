@@ -13,9 +13,12 @@ import {
   Play,
   Plus,
   RefreshCcw,
+  Redo2,
   Save,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
+  Undo2,
   Workflow
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -32,17 +35,27 @@ import {
   layoutProjectForView,
   mergeCodeEvidence,
   preferredViewForNodeType,
+  proposalWorkspace,
   semanticDiff,
   updateProposalAfter,
   validateAtlas,
+  VIEW_FAMILIES,
   viewSupportsNodeType
 } from "./lib/atlas";
-import { AtlasProject, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId, VIEW_FAMILIES } from "./types";
+import { AtlasProject, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId } from "./types";
 import { templates as localTemplates } from "./data/templates";
 import { AtlasCanvas } from "./components/AtlasCanvas";
 import { Inspector } from "./components/Inspector";
 import { Inventory } from "./components/Inventory";
 import { PreviewPanel } from "./components/PreviewPanel";
+
+type ProjectHistory = {
+  past: AtlasProject[];
+  future: AtlasProject[];
+};
+
+const HISTORY_LIMIT = 50;
+const CORE_VIEW_IDS = new Set<ViewId>(["overview", "containers", "components", "flows", "deployment", "data", "health", "proposals"]);
 
 const viewIcons: Record<ViewId, typeof Network> = {
   overview: Network,
@@ -73,6 +86,8 @@ export function App() {
   const [activeProposalId, setActiveProposalId] = useState<string>("");
   const [diskRevision, setDiskRevision] = useState("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [history, setHistory] = useState<ProjectHistory>({ past: [], future: [] });
+  const [showAdvancedViews, setShowAdvancedViews] = useState(false);
 
   useEffect(() => {
     Promise.all([api.templates(), api.project()])
@@ -108,22 +123,37 @@ export function App() {
     return () => window.clearInterval(interval);
   }, [diskRevision, hasUnsavedChanges, reloadProjectFromDisk]);
 
-  const selectedNode = project.nodes.find((node) => node.id === selectedId);
-  const selectedEdge = project.edges.find((edge) => edge.id === selectedId);
-  const selectedFlow = project.flows.find((flow) => flow.id === selectedId);
   const activeProposal = project.proposals.find((proposal) => proposal.id === activeProposalId);
-  const graph = useMemo(() => layoutProjectForView(project, viewId), [project, viewId]);
+  const workingProject = useMemo(() => proposalWorkspace(project, activeProposalId), [project, activeProposalId]);
+  const selectedNode = workingProject.nodes.find((node) => node.id === selectedId);
+  const selectedEdge = workingProject.edges.find((edge) => edge.id === selectedId);
+  const selectedFlow = workingProject.flows.find((flow) => flow.id === selectedId);
+  const graph = useMemo(() => layoutProjectForView(workingProject, viewId), [workingProject, viewId]);
   const selectedFlowNodeIds = useMemo(
     () => selectedFlow?.steps.map((step) => step.nodeId).filter((id): id is string => Boolean(id)) ?? [],
     [selectedFlow]
   );
-  const overview = useMemo(() => generateOverview(project), [project]);
-  const mermaid = useMemo(() => generateMermaid(project, viewId), [project, viewId]);
+  const overview = useMemo(() => generateOverview(workingProject), [workingProject]);
+  const mermaid = useMemo(() => generateMermaid(workingProject, viewId), [workingProject, viewId]);
   const migrationBrief = useMemo(() => {
-    if (!activeProposal) return generateMigrationBrief(project);
-    return generateMigrationBrief(project, { ...activeProposal, after: { nodes: project.nodes, edges: project.edges, flows: project.flows } });
-  }, [activeProposal, project]);
-  const diff = activeProposal ? semanticDiff(activeProposal.before, { nodes: project.nodes, edges: project.edges, flows: project.flows }) : null;
+    if (!activeProposal) return generateMigrationBrief(workingProject);
+    return generateMigrationBrief(project, activeProposal);
+  }, [activeProposal, project, workingProject]);
+  const diff = activeProposal ? semanticDiff(activeProposal.before, activeProposal.after) : null;
+  const canUndo = history.past.length > 0;
+  const canRedo = history.future.length > 0;
+  const visibleViewFamilies = useMemo(() =>
+    VIEW_FAMILIES.map((family) => ({
+      ...family,
+      views: showAdvancedViews ? family.views : family.views.filter((id) => CORE_VIEW_IDS.has(id))
+    })).filter((family) => family.views.length > 0),
+  [showAdvancedViews]);
+
+  useEffect(() => {
+    if (!showAdvancedViews && !CORE_VIEW_IDS.has(viewId)) {
+      setViewId("overview");
+    }
+  }, [showAdvancedViews, viewId]);
 
   function applyLoadedProject(next: AtlasProject, revision: string) {
     const withViews = mergeDefaultViews(next);
@@ -134,13 +164,74 @@ export function App() {
     setAiBrief(generateContextPack(withViews));
     setDiskRevision(revision);
     setHasUnsavedChanges(false);
+    setHistory({ past: [], future: [] });
   }
 
-  function updateProject(next: AtlasProject) {
-    const withProposal = updateProposalAfter({ ...next, manifest: { ...next.manifest, updatedAt: new Date().toISOString() } }, activeProposalId);
-    setProject(withProposal);
-    setIssues(validateAtlas(withProposal));
+  function applyProjectState(next: AtlasProject, statusText?: string) {
+    const nextActiveProposalId = next.proposals.some((proposal) => proposal.id === activeProposalId) ? activeProposalId : "";
+    const nextWorkingProject = proposalWorkspace(next, nextActiveProposalId);
+
+    setProject(next);
+    setIssues(validateAtlas(nextWorkingProject));
+    setAiBrief(generateContextPack(nextWorkingProject));
     setHasUnsavedChanges(true);
+    if (activeProposalId && !nextActiveProposalId) {
+      setActiveProposalId("");
+    }
+    if (
+      !nextWorkingProject.nodes.some((node) => node.id === selectedId) &&
+      !nextWorkingProject.edges.some((edge) => edge.id === selectedId) &&
+      !nextWorkingProject.flows.some((flow) => flow.id === selectedId)
+    ) {
+      setSelectedId(nextWorkingProject.nodes[0]?.id ?? nextWorkingProject.flows[0]?.id ?? "");
+    }
+    if (statusText) setStatus(statusText);
+  }
+
+  function updateProject(next: AtlasProject, options: { recordHistory?: boolean } = {}) {
+    const updatedAt = new Date().toISOString();
+    const rootProject = activeProposalId
+      ? {
+          ...project,
+          manifest: { ...project.manifest, updatedAt },
+          views: next.views,
+          evidence: next.evidence
+        }
+      : { ...next, manifest: { ...next.manifest, updatedAt } };
+    const withProposal = activeProposalId
+      ? updateProposalAfter(rootProject, activeProposalId, next)
+      : rootProject;
+    const nextWorkingProject = proposalWorkspace(withProposal, activeProposalId);
+
+    if (options.recordHistory !== false) {
+      setHistory((current) => ({
+        past: [...current.past, structuredClone(project)].slice(-HISTORY_LIMIT),
+        future: []
+      }));
+    }
+    setProject(withProposal);
+    setIssues(validateAtlas(nextWorkingProject));
+    setHasUnsavedChanges(true);
+  }
+
+  function undoProjectChange() {
+    if (!canUndo) return;
+    const previous = history.past[history.past.length - 1];
+    setHistory({
+      past: history.past.slice(0, -1),
+      future: [structuredClone(project), ...history.future].slice(0, HISTORY_LIMIT)
+    });
+    applyProjectState(structuredClone(previous), "Undid last architecture edit");
+  }
+
+  function redoProjectChange() {
+    if (!canRedo) return;
+    const next = history.future[0];
+    setHistory({
+      past: [...history.past, structuredClone(project)].slice(-HISTORY_LIMIT),
+      future: history.future.slice(1)
+    });
+    applyProjectState(structuredClone(next), "Redid architecture edit");
   }
 
   function loadTemplate(templateId: string) {
@@ -153,17 +244,18 @@ export function App() {
     setIssues(validateAtlas(next));
     setAiBrief(generateContextPack(next));
     setHasUnsavedChanges(true);
+    setHistory({ past: [], future: [] });
     setStatus(`Loaded template: ${template.name}`);
   }
 
   function selectConcept(id: string) {
-    const node = project.nodes.find((item) => item.id === id);
-    const flow = project.flows.find((item) => item.id === id);
+    const node = workingProject.nodes.find((item) => item.id === id);
+    const flow = workingProject.flows.find((item) => item.id === id);
 
     if (node && !graph.nodes.some((item) => item.id === id)) {
       const targetView = preferredViewForNodeType(node.type);
       setViewId(targetView);
-      setStatus(`Showing ${node.name} in ${project.views.find((view) => view.id === targetView)?.name ?? targetView} view`);
+      setStatus(`Showing ${node.name} in ${workingProject.views.find((view) => view.id === targetView)?.name ?? targetView} view`);
     }
 
     if (flow) {
@@ -175,18 +267,18 @@ export function App() {
   }
 
   function addNode() {
-    const node = createNode(nodeType, project.nodes.length);
+    const node = createNode(nodeType, workingProject.nodes.length);
     const targetView = viewSupportsNodeType(viewId, node.type) ? viewId : preferredViewForNodeType(node.type);
 
-    updateProject({ ...project, nodes: [...project.nodes, node] });
+    updateProject({ ...workingProject, nodes: [...workingProject.nodes, node] });
     setSelectedId(node.id);
     setViewId(targetView);
-    setStatus(`Added ${node.name} in ${project.views.find((view) => view.id === targetView)?.name ?? targetView} view`);
+    setStatus(`Added ${node.name} in ${workingProject.views.find((view) => view.id === targetView)?.name ?? targetView} view`);
   }
 
   function addFlow() {
-    const flow = createFlow(project.flows.length);
-    updateProject({ ...project, flows: [...project.flows, flow] });
+    const flow = createFlow(workingProject.flows.length);
+    updateProject({ ...workingProject, flows: [...workingProject.flows, flow] });
     setSelectedId(flow.id);
     setViewId("flows");
   }
@@ -203,54 +295,82 @@ export function App() {
       type,
       label: label?.trim() || type.replace(/_/g, " ")
     };
-    updateProject({ ...project, edges: [...project.edges, edge] });
+    updateProject({ ...workingProject, edges: [...workingProject.edges, edge] });
     setSelectedId(edge.id);
   }
 
   function deleteNode(id: string) {
-    const remainingNodes = project.nodes.filter((node) => node.id !== id);
+    const remainingNodes = workingProject.nodes.filter((node) => node.id !== id);
     updateProject({
-      ...project,
+      ...workingProject,
       nodes: remainingNodes,
-      edges: project.edges.filter((edge) => edge.source !== id && edge.target !== id),
-      flows: project.flows.map((flow) => ({
+      edges: workingProject.edges.filter((edge) => edge.source !== id && edge.target !== id),
+      flows: workingProject.flows.map((flow) => ({
         ...flow,
         steps: flow.steps.map((step) => step.nodeId === id ? { ...step, nodeId: undefined } : step)
       }))
     });
-    setSelectedId(remainingNodes[0]?.id ?? project.flows[0]?.id ?? "");
+    setSelectedId(remainingNodes[0]?.id ?? workingProject.flows[0]?.id ?? "");
   }
 
   function deleteEdge(id: string) {
-    const remainingEdges = project.edges.filter((edge) => edge.id !== id);
-    updateProject({ ...project, edges: remainingEdges });
-    setSelectedId(project.nodes[0]?.id ?? project.flows[0]?.id ?? "");
+    const remainingEdges = workingProject.edges.filter((edge) => edge.id !== id);
+    updateProject({ ...workingProject, edges: remainingEdges });
+    setSelectedId(workingProject.nodes[0]?.id ?? workingProject.flows[0]?.id ?? "");
   }
 
   function deleteFlow(id: string) {
-    const remainingFlows = project.flows.filter((flow) => flow.id !== id);
-    updateProject({ ...project, flows: remainingFlows });
-    setSelectedId(project.nodes[0]?.id ?? remainingFlows[0]?.id ?? "");
+    const remainingFlows = workingProject.flows.filter((flow) => flow.id !== id);
+    updateProject({ ...workingProject, flows: remainingFlows });
+    setSelectedId(workingProject.nodes[0]?.id ?? remainingFlows[0]?.id ?? "");
   }
 
   function startProposal() {
-    const proposal = createProposal(project, "Proposed architecture upgrade");
-    updateProject({ ...project, proposals: [...project.proposals, proposal] });
+    const proposal = createProposal(workingProject, "Proposed architecture upgrade");
+    const next = {
+      ...project,
+      manifest: { ...project.manifest, updatedAt: new Date().toISOString() },
+      views: workingProject.views,
+      evidence: workingProject.evidence,
+      proposals: [...project.proposals, proposal]
+    };
+    setHistory((current) => ({
+      past: [...current.past, structuredClone(project)].slice(-HISTORY_LIMIT),
+      future: []
+    }));
+    setProject(next);
     setActiveProposalId(proposal.id);
+    setIssues(validateAtlas(proposalWorkspace(next, proposal.id)));
+    setHasUnsavedChanges(true);
     setViewId("proposals");
     setPreviewTab("ai");
-    setAiBrief(generateMigrationBrief(project, proposal));
+    setAiBrief(generateMigrationBrief(next, proposal));
     setStatus("Proposal mode started");
+  }
+
+  function exitProposal() {
+    setActiveProposalId("");
+    setIssues(validateAtlas(project));
+    setAiBrief(generateContextPack(project));
+    if (
+      !project.nodes.some((node) => node.id === selectedId) &&
+      !project.edges.some((edge) => edge.id === selectedId) &&
+      !project.flows.some((flow) => flow.id === selectedId)
+    ) {
+      setSelectedId(project.nodes[0]?.id ?? project.flows[0]?.id ?? "");
+    }
+    setViewId("overview");
+    setStatus("Returned to main atlas");
   }
 
   async function validateDraft() {
     try {
-      const response = await api.validate(project);
+      const response = await api.validate(workingProject);
       setIssues(response.issues);
       setPreviewTab("validation");
       setStatus(response.issues.length ? `Validation returned ${response.issues.length} issues` : "Validation passed");
     } catch {
-      const local = validateAtlas(project);
+      const local = validateAtlas(workingProject);
       setIssues(local);
       setPreviewTab("validation");
       setStatus("Validated locally");
@@ -272,8 +392,9 @@ export function App() {
   async function scanWorkspace() {
     try {
       const response = await api.scan();
-      const withCodeEvidence = mergeCodeEvidence(project, response.evidence);
+      const withCodeEvidence = mergeCodeEvidence(workingProject, response.evidence);
       updateProject(withCodeEvidence);
+      setShowAdvancedViews(true);
       setViewId("code");
       setStatus(`Scanned ${response.evidence.length} evidence items and updated the Code view`);
     } catch (error) {
@@ -286,10 +407,10 @@ export function App() {
     try {
       const response = activeProposalId
         ? await api.migrationBrief(project, activeProposalId)
-        : await api.contextPack(project, targetIds, "Implement an architecture-safe change using this atlas.");
+        : await api.contextPack(workingProject, targetIds, "Implement an architecture-safe change using this atlas.");
       setAiBrief(response.markdown);
     } catch {
-      setAiBrief(activeProposalId ? migrationBrief : generateContextPack(project, targetIds));
+      setAiBrief(activeProposalId ? migrationBrief : generateContextPack(workingProject, targetIds));
     }
     setPreviewTab("ai");
     setStatus(activeProposalId ? "Generated migration brief" : "Generated AI context pack");
@@ -322,8 +443,11 @@ export function App() {
           >
             <RefreshCcw size={16} /> Reload
           </button>
+          <button type="button" onClick={undoProjectChange} disabled={!canUndo} title="Undo last architecture edit"><Undo2 size={16} /> Undo</button>
+          <button type="button" onClick={redoProjectChange} disabled={!canRedo} title="Redo architecture edit"><Redo2 size={16} /> Redo</button>
           <button type="button" onClick={scanWorkspace} title="Scan code evidence"><Search size={16} /> Scan</button>
           <button type="button" onClick={startProposal} title="Create proposal"><GitCompare size={16} /> Proposal</button>
+          {activeProposal && <button type="button" onClick={exitProposal} title="Return to the current architecture"><GitCompare size={16} /> Main Atlas</button>}
           <button type="button" onClick={validateDraft} title="Validate atlas"><CheckCircle2 size={16} /> Validate</button>
           <button type="button" onClick={generateAiBrief} title="Generate AI brief"><Bot size={16} /> AI Brief</button>
           <button type="button" className="primary" onClick={exportAtlas} title="Export architecture pack"><Save size={16} /> Export</button>
@@ -331,26 +455,34 @@ export function App() {
       </header>
 
       <nav className="view-tabs" aria-label="Architecture views">
-        {VIEW_FAMILIES.map((family) => (
+        {visibleViewFamilies.map((family) => (
           <section className="view-family" key={family.id} aria-label={family.name}>
             <span>{family.name}</span>
             <div>
               {family.views.map((id) => {
                 const Icon = viewIcons[id];
                 return (
-                  <button key={id} type="button" className={viewId === id ? "active" : ""} onClick={() => setViewId(id)} title={project.views.find((view) => view.id === id)?.description}>
-                    <Icon size={15} /> {project.views.find((view) => view.id === id)?.name ?? id}
+                  <button key={id} type="button" className={viewId === id ? "active" : ""} onClick={() => setViewId(id)} title={workingProject.views.find((view) => view.id === id)?.description}>
+                    <Icon size={15} /> {workingProject.views.find((view) => view.id === id)?.name ?? id}
                   </button>
                 );
               })}
             </div>
           </section>
         ))}
+        <button
+          type="button"
+          className={showAdvancedViews ? "view-toggle active" : "view-toggle"}
+          onClick={() => setShowAdvancedViews((value) => !value)}
+          title="Show or hide advanced architecture lenses"
+        >
+          <SlidersHorizontal size={15} /> {showAdvancedViews ? "All Views" : "More Views"}
+        </button>
       </nav>
 
       <main className="workbench">
         <Inventory
-          project={project}
+          project={workingProject}
           selectedId={selectedId}
           nodeType={nodeType}
           edgeType={edgeType}
@@ -364,8 +496,8 @@ export function App() {
         <section className="canvas-region">
           <div className="canvas-header">
             <div>
-              <h2>{project.views.find((view) => view.id === viewId)?.name}</h2>
-              <p>{project.views.find((view) => view.id === viewId)?.description}</p>
+              <h2>{workingProject.views.find((view) => view.id === viewId)?.name}</h2>
+              <p>{workingProject.views.find((view) => view.id === viewId)?.description}</p>
             </div>
             <div className="canvas-metrics">
               <span><Boxes size={14} /> {graph.nodes.length} nodes</span>
@@ -389,13 +521,13 @@ export function App() {
               });
 
               updateProject({
-                ...project,
-                views: project.views.map((view) =>
+                ...workingProject,
+                views: workingProject.views.map((view) =>
                   view.id === viewId
                     ? { ...view, positions: { ...(view.positions ?? {}), ...nextPositions } }
                     : view
                 )
-              });
+              }, { recordHistory: false });
             }}
             key={viewId}
           />
@@ -412,7 +544,7 @@ export function App() {
         </section>
 
         <Inspector
-          project={project}
+          project={workingProject}
           selectedNode={selectedNode}
           selectedEdge={selectedEdge}
           selectedFlow={selectedFlow}
@@ -427,6 +559,7 @@ export function App() {
 
       <footer className="statusbar">
         <span><Play size={14} /> {status}</span>
+        {activeProposal && <span>Editing proposal: {activeProposal.name}</span>}
         {hasUnsavedChanges && <span>Unsaved UI changes</span>}
         <span><FileDown size={14} /> Exports to <code>architecture/</code></span>
       </footer>
