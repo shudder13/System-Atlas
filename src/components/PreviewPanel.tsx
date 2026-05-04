@@ -1,9 +1,12 @@
 import { AlertCircle, Bot, Code2, FileText, GitCompare } from "lucide-react";
-import { AtlasProposal, ValidationIssue } from "../types";
+import { AtlasProject, AtlasProposal, ValidationIssue } from "../types";
+import { CodeIntelligenceExplorer } from "./CodeIntelligenceExplorer";
 
 interface PreviewPanelProps {
   tab: "overview" | "mermaid" | "validation" | "code" | "ai";
   onTabChange: (tab: "overview" | "mermaid" | "validation" | "code" | "ai") => void;
+  project: AtlasProject;
+  selectedId: string;
   overview: string;
   mermaid: string;
   issues: ValidationIssue[];
@@ -11,9 +14,10 @@ interface PreviewPanelProps {
   aiBrief: string;
   migrationBrief: string;
   activeProposal?: AtlasProposal;
+  onSelect: (id: string) => void;
 }
 
-export function PreviewPanel({ tab, onTabChange, overview, mermaid, issues, codeIntelligence, aiBrief, migrationBrief, activeProposal }: PreviewPanelProps) {
+export function PreviewPanel({ tab, onTabChange, project, selectedId, overview, mermaid, issues, codeIntelligence, aiBrief, migrationBrief, activeProposal, onSelect }: PreviewPanelProps) {
   const content = {
     overview,
     mermaid,
@@ -35,7 +39,9 @@ export function PreviewPanel({ tab, onTabChange, overview, mermaid, issues, code
           {activeProposal ? <GitCompare size={14} /> : <Bot size={14} />} {activeProposal ? "Migration Brief" : "AI Context"}
         </button>
       </div>
-      <pre>{content}</pre>
+      {tab === "code"
+        ? <CodeIntelligenceExplorer project={project} selectedId={selectedId} onSelect={onSelect} />
+        : <pre>{content}</pre>}
     </section>
   );
 }

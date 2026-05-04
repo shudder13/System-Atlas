@@ -474,6 +474,184 @@ code {
   white-space: pre-wrap;
 }
 
+.code-intel-explorer {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: #f8fafc;
+}
+
+.code-intel-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.code-intel-summary {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.code-intel-summary strong {
+  color: #111827;
+  font-size: 0.82rem;
+}
+
+.code-intel-summary span,
+.code-intel-search,
+.code-intel-unlinked,
+.code-intel-empty-list {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.code-intel-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.35rem;
+  align-items: center;
+  font-weight: 700;
+}
+
+.code-intel-search input {
+  min-width: 0;
+  padding: 0.38rem 0.45rem;
+  font-size: 0.74rem;
+}
+
+.code-intel-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-x: auto;
+}
+
+.code-intel-tabs button {
+  min-height: 2rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.code-intel-tabs button.active {
+  border-color: #0f766e;
+  background: #ccfbf1;
+  color: #0f172a;
+}
+
+.code-intel-tabs button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+  font-size: 0.66rem;
+}
+
+.code-intel-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 0.65rem 0.75rem;
+}
+
+.code-intel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.55rem;
+}
+
+.code-intel-card {
+  min-width: 0;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  padding: 0.55rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+}
+
+.code-intel-card.active {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+}
+
+.code-intel-card strong,
+.code-intel-card span,
+.code-intel-card small,
+.dependency-target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.code-intel-card strong {
+  display: block;
+  color: #111827;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.code-intel-card span,
+.code-intel-card small,
+.dependency-target {
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.code-intel-pills,
+.code-intel-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.code-intel-pills span {
+  max-width: 100%;
+  padding: 0.18rem 0.38rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  font-weight: 700;
+}
+
+.dependency-target {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.code-intel-empty,
+.code-intel-empty-list {
+  height: 100%;
+  min-height: 9rem;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.45rem;
+  text-align: center;
+}
+
+.code-intel-empty h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.code-intel-empty p,
+.code-intel-empty-list {
+  margin: 0;
+}
+
 .inspector {
   overflow: auto;
 }

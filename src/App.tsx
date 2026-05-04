@@ -687,6 +687,8 @@ export function App() {
           <PreviewPanel
             tab={previewTab}
             onTabChange={setPreviewTab}
+            project={workingProject}
+            selectedId={selectedId}
             overview={overview}
             mermaid={mermaid}
             issues={issues}
@@ -694,6 +696,7 @@ export function App() {
             aiBrief={aiBrief}
             migrationBrief={migrationBrief}
             activeProposal={activeProposal}
+            onSelect={selectConcept}
           />
         </section>
 
