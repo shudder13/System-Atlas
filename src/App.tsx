@@ -9,6 +9,7 @@ import {
   FileDown,
   FileText,
   GitCompare,
+  History,
   Network,
   Play,
   Plus,
@@ -25,9 +26,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./lib/api";
 import {
   applyProposal,
+  CONTEXT_PACK_SCOPES,
   createNode,
   createFlow,
   createProposal,
+  createVersion,
   defaultViews,
   generateContextPack,
   generateMermaid,
@@ -37,13 +40,14 @@ import {
   mergeCodeEvidence,
   preferredViewForNodeType,
   proposalWorkspace,
+  restoreVersion,
   semanticDiff,
   updateProposalAfter,
   validateAtlas,
   VIEW_FAMILIES,
   viewSupportsNodeType
 } from "./lib/atlas";
-import { AtlasProject, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId } from "./types";
+import { AtlasProject, ContextPackScope, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId } from "./types";
 import { templates as localTemplates } from "./data/templates";
 import { AtlasCanvas } from "./components/AtlasCanvas";
 import { Inspector } from "./components/Inspector";
@@ -82,13 +86,14 @@ export function App() {
   const [nodeType, setNodeType] = useState<NodeType>("service");
   const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "ai">("overview");
   const [issues, setIssues] = useState<ValidationIssue[]>(validateAtlas(localTemplates[0].project));
-  const [aiBrief, setAiBrief] = useState(generateContextPack(localTemplates[0].project));
+  const [aiBrief, setAiBrief] = useState(generateContextPack(localTemplates[0].project, [], undefined, "focused"));
   const [status, setStatus] = useState("Ready");
   const [activeProposalId, setActiveProposalId] = useState<string>("");
   const [diskRevision, setDiskRevision] = useState("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [history, setHistory] = useState<ProjectHistory>({ past: [], future: [] });
   const [showAdvancedViews, setShowAdvancedViews] = useState(false);
+  const [contextScope, setContextScope] = useState<ContextPackScope>("focused");
 
   useEffect(() => {
     Promise.all([api.templates(), api.project()])
@@ -162,7 +167,7 @@ export function App() {
     setSelectedId(withViews.nodes[0]?.id ?? withViews.flows[0]?.id ?? "");
     setActiveProposalId("");
     setIssues(validateAtlas(withViews));
-    setAiBrief(generateContextPack(withViews));
+    setAiBrief(generateContextPack(withViews, [], undefined, contextScope));
     setDiskRevision(revision);
     setHasUnsavedChanges(false);
     setHistory({ past: [], future: [] });
@@ -174,7 +179,7 @@ export function App() {
 
     setProject(next);
     setIssues(validateAtlas(nextWorkingProject));
-    setAiBrief(generateContextPack(nextWorkingProject));
+    setAiBrief(generateContextPack(nextWorkingProject, [], undefined, contextScope));
     setHasUnsavedChanges(true);
     if (activeProposalId && !nextActiveProposalId) {
       setActiveProposalId("");
@@ -243,7 +248,7 @@ export function App() {
     setSelectedId(next.nodes[0]?.id ?? "");
     setActiveProposalId("");
     setIssues(validateAtlas(next));
-    setAiBrief(generateContextPack(next));
+    setAiBrief(generateContextPack(next, [], undefined, contextScope));
     setHasUnsavedChanges(true);
     setHistory({ past: [], future: [] });
     setStatus(`Loaded template: ${template.name}`);
@@ -352,7 +357,7 @@ export function App() {
   function exitProposal() {
     setActiveProposalId("");
     setIssues(validateAtlas(project));
-    setAiBrief(generateContextPack(project));
+    setAiBrief(generateContextPack(project, [], undefined, contextScope));
     if (
       !project.nodes.some((node) => node.id === selectedId) &&
       !project.edges.some((edge) => edge.id === selectedId) &&
@@ -374,12 +379,50 @@ export function App() {
     setProject(applied);
     setActiveProposalId("");
     setIssues(validateAtlas(applied));
-    setAiBrief(generateContextPack(applied));
+    setAiBrief(generateContextPack(applied, [], undefined, contextScope));
     setHasUnsavedChanges(true);
     setSelectedId(applied.nodes[0]?.id ?? applied.flows[0]?.id ?? "");
     setViewId("overview");
     setPreviewTab("overview");
     setStatus(`Applied proposal: ${activeProposal.name}`);
+  }
+
+  function createCheckpoint() {
+    const checkpoint = createVersion(workingProject);
+    const next = {
+      ...project,
+      manifest: { ...project.manifest, updatedAt: new Date().toISOString() },
+      versions: [...project.versions, checkpoint]
+    };
+    setHistory((current) => ({
+      past: [...current.past, structuredClone(project)].slice(-HISTORY_LIMIT),
+      future: []
+    }));
+    setProject(next);
+    setHasUnsavedChanges(true);
+    setStatus(`Created checkpoint: ${checkpoint.name}`);
+  }
+
+  function restoreCheckpoint(versionId: string) {
+    if (!versionId) return;
+    const version = project.versions.find((item) => item.id === versionId);
+    if (!version) return;
+    if (!window.confirm(`Restore checkpoint "${version.name}" into the main atlas? Current unsaved edits will be replaced in memory.`)) return;
+
+    setHistory((current) => ({
+      past: [...current.past, structuredClone(project)].slice(-HISTORY_LIMIT),
+      future: []
+    }));
+    const restored = restoreVersion(project, versionId);
+    setProject(restored);
+    setActiveProposalId("");
+    setIssues(validateAtlas(restored));
+    setAiBrief(generateContextPack(restored, [], undefined, contextScope));
+    setHasUnsavedChanges(true);
+    setSelectedId(restored.nodes[0]?.id ?? restored.flows[0]?.id ?? "");
+    setViewId("overview");
+    setPreviewTab("overview");
+    setStatus(`Restored checkpoint: ${version.name}`);
   }
 
   async function validateDraft() {
@@ -426,10 +469,10 @@ export function App() {
     try {
       const response = activeProposalId
         ? await api.migrationBrief(project, activeProposalId)
-        : await api.contextPack(workingProject, targetIds, "Implement an architecture-safe change using this atlas.");
+        : await api.contextPack(workingProject, targetIds, "Implement an architecture-safe change using this atlas.", contextScope);
       setAiBrief(response.markdown);
     } catch {
-      setAiBrief(activeProposalId ? migrationBrief : generateContextPack(workingProject, targetIds));
+      setAiBrief(activeProposalId ? migrationBrief : generateContextPack(workingProject, targetIds, undefined, contextScope));
     }
     setPreviewTab("ai");
     setStatus(activeProposalId ? "Generated migration brief" : "Generated AI context pack");
@@ -451,6 +494,9 @@ export function App() {
             <option value="" disabled>Start from...</option>
             {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
           </select>
+          <select aria-label="AI context budget" value={contextScope} onChange={(event) => setContextScope(event.target.value as ContextPackScope)} title="AI context pack budget">
+            {CONTEXT_PACK_SCOPES.map((scope) => <option key={scope} value={scope}>Context: {prettyScope(scope)}</option>)}
+          </select>
           <button
             type="button"
             onClick={() => {
@@ -464,6 +510,13 @@ export function App() {
           </button>
           <button type="button" onClick={undoProjectChange} disabled={!canUndo} title="Undo last architecture edit"><Undo2 size={16} /> Undo</button>
           <button type="button" onClick={redoProjectChange} disabled={!canRedo} title="Redo architecture edit"><Redo2 size={16} /> Redo</button>
+          <button type="button" onClick={createCheckpoint} title="Create architecture version checkpoint"><History size={16} /> Checkpoint</button>
+          {project.versions.length > 0 && (
+            <select aria-label="Restore checkpoint" value="" onChange={(event) => restoreCheckpoint(event.target.value)} title="Restore a saved architecture checkpoint">
+              <option value="" disabled>Restore...</option>
+              {project.versions.slice().reverse().map((version) => <option key={version.id} value={version.id}>{version.name}</option>)}
+            </select>
+          )}
           <button type="button" onClick={scanWorkspace} title="Scan code evidence"><Search size={16} /> Scan</button>
           <button type="button" onClick={startProposal} title="Create proposal"><GitCompare size={16} /> Proposal</button>
           {activeProposal && <button type="button" className="primary" onClick={applyActiveProposal} title="Promote proposal after-state to the main atlas"><CheckCircle2 size={16} /> Apply Proposal</button>}
@@ -580,6 +633,7 @@ export function App() {
       <footer className="statusbar">
         <span><Play size={14} /> {status}</span>
         {activeProposal && <span>Editing proposal: {activeProposal.name}</span>}
+        <span>{project.versions.length} checkpoints</span>
         {hasUnsavedChanges && <span>Unsaved UI changes</span>}
         <span><FileDown size={14} /> Exports to <code>architecture/</code></span>
       </footer>
@@ -590,5 +644,9 @@ export function App() {
 function mergeDefaultViews(project: AtlasProject): AtlasProject {
   const existing = new Map(project.views.map((view) => [view.id, view]));
   const merged = defaultViews().map((view) => ({ ...view, ...(existing.get(view.id) ?? {}) }));
-  return { ...project, views: merged };
+  return { ...project, views: merged, versions: project.versions ?? [], proposals: project.proposals ?? [], evidence: project.evidence ?? [] };
+}
+
+function prettyScope(scope: ContextPackScope) {
+  return scope.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

@@ -5,7 +5,9 @@ import {
   AtlasProject,
   AtlasProjectSnapshot,
   AtlasProposal,
+  AtlasVersion,
   CodeEvidence,
+  ContextPackScope,
   Criticality,
   EDGE_TYPES,
   EdgeType,
@@ -56,6 +58,14 @@ const viewEdgeTypes: Partial<Record<ViewId, Set<EdgeType>>> = {
   decisions: new Set(["decides", "supersedes", "mitigates", "risks", "traces_to", "depends_on"]),
   proposals: new Set(EDGE_TYPES)
 };
+
+const contextPackBudgets: Record<ContextPackScope, { seedCount: number; maxNodes: number; maxEdges: number; maxEvidence: number; maxFlows: number; maxFiles: number; maxTests: number }> = {
+  focused: { seedCount: 4, maxNodes: 12, maxEdges: 20, maxEvidence: 10, maxFlows: 3, maxFiles: 16, maxTests: 12 },
+  standard: { seedCount: 8, maxNodes: 28, maxEdges: 48, maxEvidence: 25, maxFlows: 6, maxFiles: 36, maxTests: 24 },
+  expanded: { seedCount: 18, maxNodes: 80, maxEdges: 140, maxEvidence: 60, maxFlows: 14, maxFiles: 100, maxTests: 60 }
+};
+
+export const CONTEXT_PACK_SCOPES: ContextPackScope[] = ["focused", "standard", "expanded"];
 
 const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonly NodeType[] }>>> = {
   overview: [
@@ -322,6 +332,7 @@ export function createEmptyProject(name = "Untitled System"): AtlasProject {
     flows: [],
     views: defaultViews(),
     proposals: [],
+    versions: [],
     evidence: []
   };
 }
@@ -395,6 +406,28 @@ export function createProposal(project: AtlasProject, name = "Architecture chang
     forbiddenChanges: ["Do not weaken existing invariants without explicit architecture approval."],
     acceptanceChecks: ["All affected flows retain acceptance coverage.", "Architecture export and validation pass."],
     createdAt: nowIso()
+  };
+}
+
+export function createVersion(project: AtlasProject, name = `Architecture checkpoint ${project.versions.length + 1}`, summary = "Manual architecture checkpoint."): AtlasVersion {
+  return {
+    id: `version.${cryptoSafeId()}`,
+    name,
+    summary,
+    snapshot: cloneProjectSnapshot(project),
+    createdAt: nowIso(),
+    source: "manual"
+  };
+}
+
+export function restoreVersion(project: AtlasProject, versionId: string): AtlasProject {
+  const version = project.versions.find((item) => item.id === versionId);
+  if (!version) return project;
+
+  return {
+    ...projectFromSnapshot(project, version.snapshot),
+    manifest: { ...project.manifest, updatedAt: nowIso() },
+    versions: project.versions
   };
 }
 
@@ -650,28 +683,49 @@ export function generateOverview(project: AtlasProject): string {
   ].join("\n");
 }
 
-export function generateContextPack(project: AtlasProject, targetIds: string[] = [], goal = "Implement the next architecture-safe change."): string {
+export function generateContextPack(
+  project: AtlasProject,
+  targetIds: string[] = [],
+  goal = "Implement the next architecture-safe change.",
+  scope: ContextPackScope = "standard"
+): string {
+  const budget = contextPackBudgets[scope];
   const targets = targetIds.length
-    ? project.nodes.filter((node) => targetIds.includes(node.id))
-    : project.nodes.filter((node) => node.criticality === "critical" || node.criticality === "high").slice(0, 8);
+    ? project.nodes.filter((node) => targetIds.includes(node.id)).slice(0, budget.seedCount)
+    : rankedContextSeeds(project.nodes).slice(0, budget.seedCount);
   const targetSet = new Set(targets.map((node) => node.id));
-  const relatedEdges = project.edges.filter((edge) => targetSet.has(edge.source) || targetSet.has(edge.target));
+  const relatedEdges = project.edges
+    .filter((edge) => targetSet.has(edge.source) || targetSet.has(edge.target))
+    .slice(0, budget.maxEdges);
   const relatedNodeIds = new Set([...targetSet, ...relatedEdges.flatMap((edge) => [edge.source, edge.target])]);
-  const relatedNodes = project.nodes.filter((node) => relatedNodeIds.has(node.id));
+  const relatedNodes = rankedContextNodes(project.nodes.filter((node) => relatedNodeIds.has(node.id))).slice(0, budget.maxNodes);
+  const keptNodeIds = new Set(relatedNodes.map((node) => node.id));
+  const keptEdges = relatedEdges.filter((edge) => keptNodeIds.has(edge.source) && keptNodeIds.has(edge.target));
+  const relatedFlows = project.flows
+    .filter((flow) => flow.steps.some((step) => step.nodeId && keptNodeIds.has(step.nodeId)))
+    .slice(0, budget.maxFlows);
   const invariants = unique(relatedNodes.flatMap((node) => node.invariants));
   const risks = unique(relatedNodes.flatMap((node) => node.risks));
-  const files = unique(relatedNodes.flatMap((node) => node.linkedFiles));
-  const tests = unique(relatedNodes.flatMap((node) => node.linkedTests));
+  const files = unique(relatedNodes.flatMap((node) => node.linkedFiles)).slice(0, budget.maxFiles);
+  const tests = unique(relatedNodes.flatMap((node) => node.linkedTests)).slice(0, budget.maxTests);
   const metadata = relatedNodes.flatMap((node) => metadataLines(node));
   const evidence = project.evidence
     .filter((item) =>
       files.some((file) => item.path === file || item.path.startsWith(`${file}/`)) ||
-      item.linkedNodeIds?.some((nodeId) => relatedNodeIds.has(nodeId))
+      item.linkedNodeIds?.some((nodeId) => keptNodeIds.has(nodeId))
     )
-    .slice(0, 25);
+    .slice(0, budget.maxEvidence);
 
   return [
     `# AI Context Pack: ${project.manifest.name}`,
+    "",
+    "## Budget",
+    "",
+    `- Scope: ${scope}`,
+    `- Nodes: ${relatedNodes.length}/${relatedNodeIds.size}`,
+    `- Edges: ${keptEdges.length}/${relatedEdges.length}`,
+    `- Evidence items: ${evidence.length}`,
+    `- Flows: ${relatedFlows.length}`,
     "",
     `## Goal`,
     "",
@@ -683,7 +737,13 @@ export function generateContextPack(project: AtlasProject, targetIds: string[] =
     "",
     "## Relevant Dependencies",
     "",
-    ...(relatedEdges.length ? relatedEdges.map((edge) => `- ${edge.source} ${edge.type} ${edge.target}`) : ["- None selected."]),
+    ...(keptEdges.length ? keptEdges.map((edge) => `- ${edge.source} ${edge.type} ${edge.target}`) : ["- None selected."]),
+    "",
+    "## Relevant Flows",
+    "",
+    ...(relatedFlows.length
+      ? relatedFlows.map((flow) => `- ${flow.id}: ${flow.name} (${flow.criticality}); ${flow.steps.length} steps`)
+      : ["- No flows selected for this context budget."]),
     "",
     "## Invariants",
     "",
@@ -959,13 +1019,26 @@ export function applyProposal(project: AtlasProject, proposalId: string): AtlasP
   const proposal = project.proposals.find((item) => item.id === proposalId);
   if (!proposal) return project;
   const appliedAt = nowIso();
+  const appliedSnapshot = proposal.after;
 
   return {
-    ...projectFromSnapshot(project, proposal.after),
+    ...projectFromSnapshot(project, appliedSnapshot),
     manifest: { ...project.manifest, updatedAt: appliedAt },
     proposals: project.proposals.map((item) =>
       item.id === proposalId ? { ...item, status: "applied", appliedAt } : item
-    )
+    ),
+    versions: [
+      ...project.versions,
+      {
+        id: `version.${cryptoSafeId()}`,
+        name: `${proposal.name} applied`,
+        summary: proposal.summary,
+        snapshot: structuredClone(appliedSnapshot),
+        createdAt: appliedAt,
+        source: "proposal" as const,
+        proposalId
+      }
+    ]
   };
 }
 
@@ -1141,6 +1214,26 @@ function metadataLines(node: AtlasNode) {
       return `- ${node.id}.${field.key}: ${rendered}`;
     })
     .filter(Boolean);
+}
+
+function rankedContextSeeds(nodes: AtlasNode[]) {
+  return rankedContextNodes(nodes.filter((node) =>
+    node.criticality === "critical" ||
+    node.criticality === "high" ||
+    node.risks.length > 0 ||
+    node.invariants.length > 0 ||
+    node.linkedTests.length > 0
+  ));
+}
+
+function rankedContextNodes(nodes: AtlasNode[]) {
+  return [...nodes].sort((a, b) => contextNodeScore(b) - contextNodeScore(a) || a.name.localeCompare(b.name));
+}
+
+function contextNodeScore(node: AtlasNode) {
+  const criticalityScore: Record<Criticality, number> = { low: 0, medium: 2, high: 5, critical: 8 };
+  const typeBonus = ["system", "container", "service", "module", "datastore", "queue", "api_contract", "event_contract", "risk", "threat", "quality_scenario"].includes(node.type) ? 2 : 0;
+  return criticalityScore[node.criticality] + typeBonus + node.invariants.length + node.risks.length + node.linkedTests.length;
 }
 
 function prettySymbolKind(kind: string) {

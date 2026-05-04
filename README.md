@@ -22,6 +22,7 @@ System Atlas is for medium and large projects where vibe coding starts to break 
 - **Multiple views over one model**: C4, runtime, deployment, data, domain, security, health, decision, and proposal views are different lenses over the same architecture graph.
 - **Code evidence links**: architecture concepts can point to real files, folders, tests, contracts, and generated evidence.
 - **Proposal-driven change**: future designs are modeled as before/after proposals, then turned into implementation briefs.
+- **Version checkpoints**: accepted architecture states can be saved and restored as explicit repository artifacts.
 - **LLM-ready context**: migration briefs tell an AI what changed, which files are affected, what invariants must hold, what risks matter, and which tests should protect the change.
 - **Local-first by default**: the MVP is single-user, Git-friendly, and designed to work from the project folder.
 
@@ -64,6 +65,7 @@ architecture/
   reliability/*.md
   decisions/*.md
   views/*.yaml
+  versions/*.yaml
   proposals/*/
   evidence/code-map.json
   generated/overview.md
@@ -80,7 +82,9 @@ The MVP focuses on manual architecture modeling first:
 - Link concepts to files, folders, tests, contracts, flows, and risks.
 - Switch between architecture views without duplicating the underlying model.
 - Create proposals and generate semantic before/after diffs.
+- Create and restore architecture checkpoints.
 - Generate AI migration briefs for implementation work.
+- Generate focused, standard, or expanded AI context packs depending on available model context.
 - Run Scan to create a capped Code view from repository files and symbols.
 - Export a repo-native architecture pack.
 

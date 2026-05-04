@@ -2,7 +2,7 @@ import express from "express";
 import path from "node:path";
 import { templates } from "../src/data/templates";
 import { createProposal, generateContextPack, generateMigrationBrief, validateAtlas } from "../src/lib/atlas";
-import { AtlasProject } from "../src/types";
+import { AtlasProject, ContextPackScope } from "../src/types";
 import { architectureRevision, exportAtlas, loadAtlas, scanWorkspace } from "./atlasFiles";
 
 const app = express();
@@ -67,7 +67,8 @@ app.post("/api/context-pack", (request, response) => {
   const project = request.body.project as AtlasProject;
   const targetIds = request.body.targetIds as string[] | undefined;
   const goal = request.body.goal as string | undefined;
-  response.json({ markdown: generateContextPack(project, targetIds ?? [], goal) });
+  const scope = request.body.scope as ContextPackScope | undefined;
+  response.json({ markdown: generateContextPack(project, targetIds ?? [], goal, scope ?? "standard") });
 });
 
 app.post("/api/proposal", (request, response) => {

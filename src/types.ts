@@ -85,6 +85,7 @@ export type Confidence = "manual" | "inferred" | "observed" | "stale";
 export type ArchitectureLevel = "enterprise" | "system" | "container" | "component" | "code" | "runtime" | "deployment" | "data" | "domain" | "quality";
 export type EdgeInteraction = "sync" | "async" | "batch" | "replication" | "human";
 export type MetadataValue = string | number | boolean | string[] | undefined;
+export type ContextPackScope = "focused" | "standard" | "expanded";
 
 export interface AtlasNode {
   id: string;
@@ -188,6 +189,16 @@ export interface AtlasProjectSnapshot {
   flows: AtlasFlow[];
 }
 
+export interface AtlasVersion {
+  id: string;
+  name: string;
+  summary: string;
+  snapshot: AtlasProjectSnapshot;
+  createdAt: string;
+  source?: "manual" | "proposal";
+  proposalId?: string;
+}
+
 export interface AtlasManifest {
   schemaVersion: number;
   name: string;
@@ -203,6 +214,7 @@ export interface AtlasProject {
   flows: AtlasFlow[];
   views: AtlasView[];
   proposals: AtlasProposal[];
+  versions: AtlasVersion[];
   evidence: CodeEvidence[];
 }
 

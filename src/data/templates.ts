@@ -111,6 +111,7 @@ export const templates: AtlasTemplate[] = [
       ],
       views: defaultViews(),
       proposals: [],
+      versions: [],
       evidence: []
     }
   },
@@ -125,6 +126,7 @@ export const templates: AtlasTemplate[] = [
       flows: [],
       views: defaultViews(),
       proposals: [],
+      versions: [],
       evidence: []
     }
   }

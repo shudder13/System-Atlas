@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import ts from "typescript";
 import YAML from "yaml";
-import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasView, CodeEvidence } from "../src/types";
+import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeEvidence } from "../src/types";
 import { defaultViews, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
 const conceptFolders: Record<string, string> = {
@@ -56,10 +56,10 @@ export async function loadAtlas(root: string): Promise<AtlasProject | null> {
   }
 
   const authoredMtime = await latestFileMtime(root, "architecture", ["generated"]);
-  if (snapshot && snapshotMtime >= authoredMtime) return snapshot;
+  if (snapshot && snapshotMtime >= authoredMtime) return normalizeProject(snapshot);
 
   const pack = await loadAtlasFromPack(root);
-  return pack ?? snapshot;
+  return pack ?? (snapshot ? normalizeProject(snapshot) : null);
 }
 
 export async function exportAtlas(root: string, project: AtlasProject) {
@@ -72,7 +72,8 @@ export async function exportAtlas(root: string, project: AtlasProject) {
     nodes: project.nodes.map((node) => node.id),
     edges: project.edges,
     flows: project.flows.map((flow) => flow.id),
-    proposals: project.proposals.map((proposal) => proposal.id)
+    proposals: project.proposals.map((proposal) => proposal.id),
+    versions: project.versions.map((version) => version.id)
   };
 
   await writeFile(root, "architecture/manifest.yaml", yamlJson(manifest), files);
@@ -96,6 +97,10 @@ export async function exportAtlas(root: string, project: AtlasProject) {
     await writeFile(root, `${folder}/before.yaml`, yamlJson(proposal.before), files);
     await writeFile(root, `${folder}/after.yaml`, yamlJson(proposal.after), files);
     await writeFile(root, `${folder}/migration-brief.md`, generateMigrationBrief(project, proposal), files);
+  }
+
+  for (const version of project.versions) {
+    await writeFile(root, `architecture/versions/${slug(version.id)}.yaml`, yamlJson(version), files);
   }
 
   await writeFile(root, "architecture/evidence/code-map.json", JSON.stringify(project.evidence, null, 2), files);
@@ -146,6 +151,7 @@ async function loadAtlasFromPack(root: string): Promise<AtlasProject | null> {
     const views = await readJsonFiles<AtlasView>(root, "architecture/views");
     const evidence = await readEvidence(root);
     const proposals = await readProposals(root);
+    const versions = await readJsonFiles<AtlasVersion>(root, "architecture/versions");
 
     return {
       manifest: {
@@ -160,6 +166,7 @@ async function loadAtlasFromPack(root: string): Promise<AtlasProject | null> {
       flows,
       views: views.length ? views : defaultViews(),
       proposals,
+      versions,
       evidence
     };
   } catch {
@@ -536,6 +543,16 @@ async function writeFile(root: string, relative: string, content: string, files:
   await fs.mkdir(path.dirname(absolute), { recursive: true });
   await fs.writeFile(absolute, content, "utf8");
   files.push(relative);
+}
+
+function normalizeProject(project: AtlasProject): AtlasProject {
+  return {
+    ...project,
+    views: project.views ?? defaultViews(),
+    proposals: project.proposals ?? [],
+    versions: project.versions ?? [],
+    evidence: project.evidence ?? []
+  };
 }
 
 function safeJoin(root: string, relative: string) {

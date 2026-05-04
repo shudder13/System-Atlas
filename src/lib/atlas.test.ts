@@ -3,6 +3,7 @@ import { templates } from "../data/templates";
 import {
   applyProposal,
   createProposal,
+  createVersion,
   generateContextPack,
   generateMermaid,
   generateMigrationBrief,
@@ -12,6 +13,7 @@ import {
   metadataFieldsForNode,
   preferredViewForNodeType,
   proposalWorkspace,
+  restoreVersion,
   semanticDiff,
   updateProposalAfter,
   validateAtlas,
@@ -92,6 +94,20 @@ describe("atlas generators", () => {
     expect(applied.nodes.find((node) => node.id === "service.api")?.owner).toBe("platform");
     expect(applied.proposals[0].status).toBe("applied");
     expect(applied.proposals[0].before.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
+    expect(applied.versions.at(-1)?.source).toBe("proposal");
+  });
+
+  it("creates and restores architecture version checkpoints", () => {
+    const checkpoint = createVersion(project, "Before API owner change");
+    const changed = {
+      ...project,
+      versions: [checkpoint],
+      nodes: project.nodes.map((node) => node.id === "service.api" ? { ...node, owner: "platform" } : node)
+    };
+    const restored = restoreVersion(changed, checkpoint.id);
+
+    expect(restored.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
+    expect(restored.versions[0].name).toBe("Before API owner change");
   });
 
   it("provides typed metadata profiles for operational architecture facts", () => {
@@ -117,6 +133,15 @@ describe("atlas generators", () => {
 
     expect(context).toContain("## Typed Metadata");
     expect(context).toContain("service.api.rto: 15 minutes");
+  });
+
+  it("supports focused AI context budgets", () => {
+    const focused = generateContextPack(project, [], "Keep this compact.", "focused");
+    const expanded = generateContextPack(project, [], "Show more.", "expanded");
+
+    expect(focused).toContain("- Scope: focused");
+    expect(expanded).toContain("- Scope: expanded");
+    expect(expanded.length).toBeGreaterThan(focused.length);
   });
 
   it("keeps layouts scoped to individual architecture views", () => {

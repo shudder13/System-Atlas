@@ -29,10 +29,12 @@ Prefer these files in this order:
 4. `architecture/views/*.yaml` for per-view layout and view-specific information.
 5. `architecture/evidence/code-map.json` for file evidence.
 6. `architecture/proposals/*` for before/after architecture changes and migration briefs.
+7. `architecture/versions/*.yaml` for named architecture checkpoints.
 
 Do not treat generated diagrams as the only source of truth. Mermaid files under `architecture/generated/diagrams/` are derived views.
 `architecture/evidence/code-map.json` may include scanned imports, exports, routes, symbols, line counts, and generated node links for Code view context.
 Proposal records may have `status: draft`, `status: applied`, or `status: superseded`. Draft proposals describe a future architecture; applied proposals are historical evidence of how the main atlas moved.
+Version checkpoints capture accepted architecture states. Use them to compare historical/current architecture before assuming the latest files describe the requested baseline.
 
 ## Load The System Map
 
@@ -127,11 +129,14 @@ When editing atlas files directly:
 
 When context must stay below roughly 100k tokens:
 
-1. Start with `overview.md`, the active proposal/migration brief, and the selected flow or node.
-2. Include only affected concepts and their first-degree edges.
-3. Include linked file paths and short summaries before reading full source files.
-4. Read full files only for changed modules, tests, contracts, or invariants.
-5. Avoid loading generated Mermaid diagrams unless the visual layout itself is relevant.
+1. Prefer a focused context pack for single-node or small change work.
+2. Use a standard context pack for normal implementation work across several related nodes.
+3. Use an expanded context pack only for broad refactors or design reviews.
+4. Start with `overview.md`, the active proposal/migration brief, and the selected flow or node.
+5. Include only affected concepts and their first-degree edges before expanding.
+6. Include linked file paths and short summaries before reading full source files.
+7. Read full files only for changed modules, tests, contracts, or invariants.
+8. Avoid loading generated Mermaid diagrams unless the visual layout itself is relevant.
 
 ## Expected Output
 
