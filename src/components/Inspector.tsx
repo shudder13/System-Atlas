@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, CodeEvidence, EDGE_TYPES, EdgeType, NODE_TYPES } from "../types";
+import { MetadataFieldDefinition, metadataFieldsForNode } from "../lib/atlas";
+import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, CodeEvidence, EDGE_TYPES, EdgeType, MetadataValue, NODE_TYPES } from "../types";
 
 interface InspectorProps {
   project: AtlasProject;
@@ -47,6 +48,10 @@ export function Inspector({
             {["low", "medium", "high", "critical"].map((criticality) => <option key={criticality} value={criticality}>{pretty(criticality)}</option>)}
           </select>
         </label>
+        <MetadataEditor
+          node={selectedNode}
+          onChange={(metadata) => updateNode(project, selectedNode.id, { metadata }, onChange)}
+        />
         <NodeRelationships
           project={project}
           node={selectedNode}
@@ -125,6 +130,91 @@ export function Inspector({
       <h2>No selection</h2>
       <p>Select a node, edge, or flow to edit architecture meaning, linked evidence, invariants, and risks.</p>
     </aside>
+  );
+}
+
+function MetadataEditor({
+  node,
+  onChange
+}: {
+  node: AtlasNode;
+  onChange: (metadata: AtlasNode["metadata"]) => void;
+}) {
+  const fields = metadataFieldsForNode(node.type);
+  const metadata = node.metadata ?? {};
+
+  function updateMetadata(key: string, value: MetadataValue) {
+    const next = { ...metadata, [key]: value };
+    if (value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) {
+      delete next[key];
+    }
+    onChange(next);
+  }
+
+  return (
+    <section className="metadata-editor">
+      <div className="section-heading">
+        <h3>Typed Metadata</h3>
+        <span>{fields.length} fields</span>
+      </div>
+      {fields.map((field) => (
+        <MetadataField
+          key={field.key}
+          field={field}
+          value={metadata[field.key]}
+          onChange={(value) => updateMetadata(field.key, value)}
+        />
+      ))}
+    </section>
+  );
+}
+
+function MetadataField({
+  field,
+  value,
+  onChange
+}: {
+  field: MetadataFieldDefinition;
+  value: MetadataValue;
+  onChange: (value: MetadataValue) => void;
+}) {
+  if (field.kind === "boolean") {
+    return (
+      <label className="metadata-checkbox" title={field.description}>
+        <input type="checkbox" checked={value === true} onChange={(event) => onChange(event.target.checked ? true : undefined)} />
+        <span>{field.label}</span>
+      </label>
+    );
+  }
+
+  if (field.kind === "number") {
+    return (
+      <label className="field" title={field.description}>{field.label}
+        <input
+          type="number"
+          value={typeof value === "number" ? value : ""}
+          onChange={(event) => onChange(event.target.value === "" ? undefined : Number(event.target.value))}
+        />
+      </label>
+    );
+  }
+
+  if (field.kind === "list") {
+    return (
+      <label className="field" title={field.description}>{field.label}
+        <textarea
+          rows={3}
+          value={Array.isArray(value) ? value.join("\n") : ""}
+          onChange={(event) => onChange(event.target.value.split("\n").map((item) => item.trim()).filter(Boolean))}
+        />
+      </label>
+    );
+  }
+
+  return (
+    <label className="field" title={field.description}>{field.label}
+      <input value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} />
+    </label>
   );
 }
 

@@ -32,6 +32,7 @@ Prefer these files in this order:
 
 Do not treat generated diagrams as the only source of truth. Mermaid files under `architecture/generated/diagrams/` are derived views.
 `architecture/evidence/code-map.json` may include scanned imports, exports, routes, symbols, line counts, and generated node links for Code view context.
+Proposal records may have `status: draft`, `status: applied`, or `status: superseded`. Draft proposals describe a future architecture; applied proposals are historical evidence of how the main atlas moved.
 
 ## Load The System Map
 
@@ -97,6 +98,30 @@ When asked to implement a before/after architecture change:
 8. Run the relevant validation/build/test commands.
 
 Do not weaken invariants, remove tests, bypass owners of datastores/contracts, or introduce undocumented external calls without calling that out explicitly.
+
+## Proposal Lifecycle
+
+Use proposals as architecture branches:
+
+1. Treat `before.yaml` as the accepted current architecture at proposal creation time.
+2. Treat `after.yaml` as the proposed future architecture.
+3. Use `migration-brief.md` as the implementation contract, not as a vague prompt.
+4. After implementation, compare the resulting code and tests to `after.yaml`.
+5. If implementation differs from the proposal, update the proposal or the atlas explicitly instead of silently drifting.
+6. Once the proposal is accepted, the app may apply `after.yaml` back into the main atlas and mark the proposal `status: applied`.
+
+Do not implement an old applied proposal as if it were still a requested future change. Use applied proposals as history and rationale.
+
+## Editing With The UI Open
+
+The System Atlas UI polls the `architecture/` pack and reloads when files change and there are no unsaved UI edits.
+
+When editing atlas files directly:
+
+1. Keep changes small enough that the UI can reload and the architect can inspect them visually.
+2. Prefer editing authored concept files, proposal files, and manifest edges over generated diagrams.
+3. Run export/validation from the UI after larger edits so generated files and diagrams catch up.
+4. If the UI reports unsaved edits, ask the user whether the disk or UI version should win before overwriting architecture files.
 
 ## Context Budget
 

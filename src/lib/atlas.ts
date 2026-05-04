@@ -146,6 +146,67 @@ const viewLaneFallbacks: Partial<Record<ViewId, number>> = {
   decisions: 4
 };
 
+export type MetadataFieldDefinition = {
+  key: string;
+  label: string;
+  kind: "text" | "number" | "boolean" | "list";
+  description: string;
+};
+
+const sharedMetadataFields: MetadataFieldDefinition[] = [
+  { key: "runtimeName", label: "Runtime name", kind: "text", description: "Production/runtime identifier when it differs from the architecture name." },
+  { key: "observability", label: "Observability", kind: "list", description: "Dashboards, logs, traces, alerts, or monitors for this concept." }
+];
+
+const metadataProfiles: Partial<Record<NodeType, MetadataFieldDefinition[]>> = {
+  system: [
+    { key: "businessOwner", label: "Business owner", kind: "text", description: "Business accountable owner for the system." },
+    { key: "sla", label: "SLA/SLO", kind: "text", description: "Availability or latency target that constrains architecture changes." }
+  ],
+  app: runtimeMetadataFields(),
+  container: runtimeMetadataFields(),
+  service: runtimeMetadataFields(),
+  worker: runtimeMetadataFields(),
+  scheduler: runtimeMetadataFields(),
+  load_balancer: [
+    { key: "protocol", label: "Protocol", kind: "text", description: "Primary routing protocol, such as HTTP, TCP, or gRPC." },
+    { key: "rateLimit", label: "Rate limit", kind: "text", description: "Traffic shaping or request limit policy." },
+    { key: "failoverPolicy", label: "Failover policy", kind: "text", description: "How traffic moves during service or zone failure." }
+  ],
+  datastore: dataMetadataFields(),
+  replica: dataMetadataFields(),
+  schema: dataMetadataFields(),
+  data_entity: dataMetadataFields(),
+  queue: asyncMetadataFields(),
+  cache: [
+    { key: "ttl", label: "TTL", kind: "text", description: "Cache expiration policy." },
+    { key: "consistency", label: "Consistency", kind: "text", description: "Consistency expectation and invalidation approach." },
+    { key: "containsPii", label: "Contains PII", kind: "boolean", description: "Whether cached data includes personal or sensitive data." }
+  ],
+  external_system: contractMetadataFields(),
+  api_contract: contractMetadataFields(),
+  event_contract: [
+    { key: "version", label: "Version", kind: "text", description: "Contract or event schema version." },
+    { key: "deliveryGuarantee", label: "Delivery guarantee", kind: "text", description: "At-most-once, at-least-once, exactly-once, or best-effort semantics." },
+    { key: "ordering", label: "Ordering", kind: "text", description: "Ordering guarantee and partitioning key, if relevant." }
+  ],
+  environment: deploymentMetadataFields(),
+  region: deploymentMetadataFields(),
+  deployment_node: deploymentMetadataFields(),
+  risk: assuranceMetadataFields(),
+  threat: assuranceMetadataFields(),
+  quality_scenario: assuranceMetadataFields(),
+  decision: [
+    { key: "adrStatus", label: "ADR status", kind: "text", description: "Proposed, accepted, superseded, or deprecated." },
+    { key: "decisionDate", label: "Decision date", kind: "text", description: "Date the decision was made or reviewed." },
+    { key: "supersedes", label: "Supersedes", kind: "list", description: "Earlier decision ids this decision replaces." }
+  ],
+  team: [
+    { key: "contact", label: "Contact", kind: "text", description: "Team channel, alias, or ownership contact." },
+    { key: "responsibilityBoundary", label: "Boundary", kind: "text", description: "Short description of what this team owns." }
+  ]
+};
+
 export const VIEW_FAMILIES: Array<{ id: string; name: string; description: string; views: ViewId[] }> = [
   { id: "c4", name: "C4", description: "System context, containers, components, and code-level structure.", views: ["overview", "containers", "components", "code"] },
   { id: "behavior", name: "Runtime", description: "Scenarios, business flows, dynamic traces, and async behavior.", views: ["flows"] },
@@ -153,6 +214,73 @@ export const VIEW_FAMILIES: Array<{ id: string; name: string; description: strin
   { id: "domain", name: "Domain", description: "Bounded contexts, entities, contracts, and domain language.", views: ["domain"] },
   { id: "assurance", name: "Assurance", description: "Security, quality, risks, decisions, validation, and change governance.", views: ["security", "health", "decisions", "proposals"] }
 ];
+
+export function metadataFieldsForNode(type: NodeType): MetadataFieldDefinition[] {
+  const fields = [...sharedMetadataFields, ...(metadataProfiles[type] ?? [])];
+  const seen = new Set<string>();
+  return fields.filter((field) => {
+    if (seen.has(field.key)) return false;
+    seen.add(field.key);
+    return true;
+  });
+}
+
+function runtimeMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    { key: "sla", label: "SLA/SLO", kind: "text", description: "Availability, latency, or throughput target." },
+    { key: "rto", label: "RTO", kind: "text", description: "Maximum acceptable recovery time." },
+    { key: "rpo", label: "RPO", kind: "text", description: "Maximum acceptable data loss window." },
+    { key: "scaling", label: "Scaling", kind: "text", description: "Replica, autoscaling, concurrency, or capacity rule." }
+  ];
+}
+
+function dataMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    { key: "dataOwner", label: "Data owner", kind: "text", description: "Team or service accountable for this data." },
+    { key: "retention", label: "Retention", kind: "text", description: "Retention and deletion policy." },
+    { key: "consistency", label: "Consistency", kind: "text", description: "Consistency model and stale-read expectations." },
+    { key: "backupPolicy", label: "Backup policy", kind: "text", description: "Backup, restore, and verification policy." },
+    { key: "rto", label: "RTO", kind: "text", description: "Maximum acceptable recovery time." },
+    { key: "rpo", label: "RPO", kind: "text", description: "Maximum acceptable data loss window." },
+    { key: "containsPii", label: "Contains PII", kind: "boolean", description: "Whether this data includes personal or sensitive data." }
+  ];
+}
+
+function asyncMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    { key: "deliveryGuarantee", label: "Delivery guarantee", kind: "text", description: "At-most-once, at-least-once, exactly-once, or best-effort semantics." },
+    { key: "retention", label: "Retention", kind: "text", description: "Message retention period and dead-letter policy." },
+    { key: "ordering", label: "Ordering", kind: "text", description: "Ordering guarantee and partitioning key, if relevant." }
+  ];
+}
+
+function contractMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    { key: "provider", label: "Provider", kind: "text", description: "External provider or owning service/team." },
+    { key: "version", label: "Version", kind: "text", description: "API, contract, or dependency version." },
+    { key: "auth", label: "Auth", kind: "text", description: "Authentication and authorization mechanism." },
+    { key: "rateLimit", label: "Rate limit", kind: "text", description: "Quota, throttling, or burst policy." },
+    { key: "sla", label: "SLA/SLO", kind: "text", description: "Availability or response-time commitment." }
+  ];
+}
+
+function deploymentMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    { key: "cloud", label: "Cloud/platform", kind: "text", description: "Cloud, platform, or hosting provider." },
+    { key: "region", label: "Region", kind: "text", description: "Region, zone, or locality." },
+    { key: "instanceClass", label: "Instance class", kind: "text", description: "Compute, storage, or node class." },
+    { key: "scaling", label: "Scaling", kind: "text", description: "Scaling and capacity rule." }
+  ];
+}
+
+function assuranceMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    { key: "impact", label: "Impact", kind: "text", description: "Expected user, business, security, or reliability impact." },
+    { key: "likelihood", label: "Likelihood", kind: "text", description: "Likelihood or frequency estimate." },
+    { key: "mitigationOwner", label: "Mitigation owner", kind: "text", description: "Team or person accountable for mitigation." },
+    { key: "reviewCadence", label: "Review cadence", kind: "text", description: "How often this item should be reviewed." }
+  ];
+}
 
 export function cloneProjectSnapshot(project: AtlasProject): AtlasProjectSnapshot {
   return {
@@ -261,6 +389,7 @@ export function createProposal(project: AtlasProject, name = "Architecture chang
     name,
     summary: "Describe the intended architecture upgrade.",
     rationale: "Explain why the system should move from the current architecture to the proposed design.",
+    status: "draft",
     before: snapshot,
     after: structuredClone(snapshot),
     forbiddenChanges: ["Do not weaken existing invariants without explicit architecture approval."],
@@ -533,6 +662,7 @@ export function generateContextPack(project: AtlasProject, targetIds: string[] =
   const risks = unique(relatedNodes.flatMap((node) => node.risks));
   const files = unique(relatedNodes.flatMap((node) => node.linkedFiles));
   const tests = unique(relatedNodes.flatMap((node) => node.linkedTests));
+  const metadata = relatedNodes.flatMap((node) => metadataLines(node));
   const evidence = project.evidence
     .filter((item) =>
       files.some((file) => item.path === file || item.path.startsWith(`${file}/`)) ||
@@ -562,6 +692,10 @@ export function generateContextPack(project: AtlasProject, targetIds: string[] =
     "## Risks",
     "",
     ...(risks.length ? risks.map((item) => `- ${item}`) : ["- No risks recorded for selected scope."]),
+    "",
+    "## Typed Metadata",
+    "",
+    ...(metadata.length ? metadata : ["- No typed metadata recorded for selected scope."]),
     "",
     "## Linked Files",
     "",
@@ -821,6 +955,20 @@ export function updateProposalAfter(project: AtlasProject, proposalId?: string, 
   };
 }
 
+export function applyProposal(project: AtlasProject, proposalId: string): AtlasProject {
+  const proposal = project.proposals.find((item) => item.id === proposalId);
+  if (!proposal) return project;
+  const appliedAt = nowIso();
+
+  return {
+    ...projectFromSnapshot(project, proposal.after),
+    manifest: { ...project.manifest, updatedAt: appliedAt },
+    proposals: project.proposals.map((item) =>
+      item.id === proposalId ? { ...item, status: "applied", appliedAt } : item
+    )
+  };
+}
+
 function isHighRisk(node: AtlasNode) {
   const rank: Record<Criticality, number> = { low: 0, medium: 1, high: 2, critical: 3 };
   return rank[node.criticality] >= 2 || node.risks.length > 0 || node.linkedTests.length === 0;
@@ -981,6 +1129,18 @@ function codeEvidenceLines(item: CodeEvidence) {
     lines.push(`  symbols: ${symbols}`);
   }
   return lines;
+}
+
+function metadataLines(node: AtlasNode) {
+  const metadata = node.metadata ?? {};
+  return metadataFieldsForNode(node.type)
+    .map((field) => {
+      const value = metadata[field.key];
+      if (value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) return "";
+      const rendered = Array.isArray(value) ? value.join(", ") : String(value);
+      return `- ${node.id}.${field.key}: ${rendered}`;
+    })
+    .filter(Boolean);
 }
 
 function prettySymbolKind(kind: string) {

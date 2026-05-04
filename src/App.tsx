@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./lib/api";
 import {
+  applyProposal,
   createNode,
   createFlow,
   createProposal,
@@ -363,6 +364,24 @@ export function App() {
     setStatus("Returned to main atlas");
   }
 
+  function applyActiveProposal() {
+    if (!activeProposal) return;
+    setHistory((current) => ({
+      past: [...current.past, structuredClone(project)].slice(-HISTORY_LIMIT),
+      future: []
+    }));
+    const applied = applyProposal(project, activeProposal.id);
+    setProject(applied);
+    setActiveProposalId("");
+    setIssues(validateAtlas(applied));
+    setAiBrief(generateContextPack(applied));
+    setHasUnsavedChanges(true);
+    setSelectedId(applied.nodes[0]?.id ?? applied.flows[0]?.id ?? "");
+    setViewId("overview");
+    setPreviewTab("overview");
+    setStatus(`Applied proposal: ${activeProposal.name}`);
+  }
+
   async function validateDraft() {
     try {
       const response = await api.validate(workingProject);
@@ -447,6 +466,7 @@ export function App() {
           <button type="button" onClick={redoProjectChange} disabled={!canRedo} title="Redo architecture edit"><Redo2 size={16} /> Redo</button>
           <button type="button" onClick={scanWorkspace} title="Scan code evidence"><Search size={16} /> Scan</button>
           <button type="button" onClick={startProposal} title="Create proposal"><GitCompare size={16} /> Proposal</button>
+          {activeProposal && <button type="button" className="primary" onClick={applyActiveProposal} title="Promote proposal after-state to the main atlas"><CheckCircle2 size={16} /> Apply Proposal</button>}
           {activeProposal && <button type="button" onClick={exitProposal} title="Return to the current architecture"><GitCompare size={16} /> Main Atlas</button>}
           <button type="button" onClick={validateDraft} title="Validate atlas"><CheckCircle2 size={16} /> Validate</button>
           <button type="button" onClick={generateAiBrief} title="Generate AI brief"><Bot size={16} /> AI Brief</button>

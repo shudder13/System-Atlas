@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { templates } from "../data/templates";
 import {
+  applyProposal,
   createProposal,
   generateContextPack,
   generateMermaid,
@@ -8,6 +9,7 @@ import {
   generateOverview,
   layoutProjectForView,
   mergeCodeEvidence,
+  metadataFieldsForNode,
   preferredViewForNodeType,
   proposalWorkspace,
   semanticDiff,
@@ -76,6 +78,45 @@ describe("atlas generators", () => {
     expect(updatedRoot.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
     expect(updatedRoot.proposals[0].after.nodes.find((node) => node.id === "service.api")?.owner).toBe("platform");
     expect(updatedRoot.proposals[0].before.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
+  });
+
+  it("applies proposal after-state back to the main atlas", () => {
+    const proposal = createProposal(project, "Apply owner change");
+    const editedWorkspace = {
+      ...proposalWorkspace({ ...project, proposals: [proposal] }, proposal.id),
+      nodes: project.nodes.map((node) => node.id === "service.api" ? { ...node, owner: "platform" } : node)
+    };
+    const withProposal = updateProposalAfter({ ...project, proposals: [proposal] }, proposal.id, editedWorkspace);
+    const applied = applyProposal(withProposal, proposal.id);
+
+    expect(applied.nodes.find((node) => node.id === "service.api")?.owner).toBe("platform");
+    expect(applied.proposals[0].status).toBe("applied");
+    expect(applied.proposals[0].before.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
+  });
+
+  it("provides typed metadata profiles for operational architecture facts", () => {
+    const serviceFields = metadataFieldsForNode("service").map((field) => field.key);
+    const datastoreFields = metadataFieldsForNode("datastore").map((field) => field.key);
+
+    expect(serviceFields).toContain("rto");
+    expect(serviceFields).toContain("scaling");
+    expect(datastoreFields).toContain("retention");
+    expect(datastoreFields).toContain("containsPii");
+  });
+
+  it("includes typed metadata in AI context packs", () => {
+    const withMetadata = {
+      ...project,
+      nodes: project.nodes.map((node) =>
+        node.id === "service.api"
+          ? { ...node, metadata: { ...node.metadata, rto: "15 minutes" } }
+          : node
+      )
+    };
+    const context = generateContextPack(withMetadata, ["service.api"]);
+
+    expect(context).toContain("## Typed Metadata");
+    expect(context).toContain("service.api.rto: 15 minutes");
   });
 
   it("keeps layouts scoped to individual architecture views", () => {

@@ -483,6 +483,7 @@ code {
 }
 
 .relationship-editor,
+.metadata-editor,
 .flow-step-editor {
   display: grid;
   gap: 0.65rem;
@@ -493,6 +494,7 @@ code {
 }
 
 .relationship-editor h3,
+.metadata-editor h3,
 .flow-step-editor h3,
 .code-evidence h3 {
   margin: 0;
@@ -500,6 +502,25 @@ code {
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0;
+}
+
+.metadata-editor .section-heading > span {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.metadata-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.metadata-checkbox input {
+  width: auto;
 }
 
 .section-heading {

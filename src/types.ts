@@ -173,11 +173,13 @@ export interface AtlasProposal {
   name: string;
   summary: string;
   rationale: string;
+  status?: "draft" | "applied" | "superseded";
   before: AtlasProjectSnapshot;
   after: AtlasProjectSnapshot;
   forbiddenChanges: string[];
   acceptanceChecks: string[];
   createdAt: string;
+  appliedAt?: string;
 }
 
 export interface AtlasProjectSnapshot {
