@@ -7,6 +7,7 @@ import {
   AtlasProposal,
   AtlasVersion,
   CodeEvidence,
+  CodeIntelligence,
   ContextPackScope,
   Criticality,
   EDGE_TYPES,
@@ -66,6 +67,19 @@ const contextPackBudgets: Record<ContextPackScope, { seedCount: number; maxNodes
 };
 
 export const CONTEXT_PACK_SCOPES: ContextPackScope[] = ["focused", "standard", "expanded"];
+
+export function emptyCodeIntelligence(): CodeIntelligence {
+  return {
+    generatedAt: "",
+    projectStructure: [],
+    files: [],
+    symbols: [],
+    classes: [],
+    routes: [],
+    dependencies: [],
+    testMap: []
+  };
+}
 
 const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonly NodeType[] }>>> = {
   overview: [
@@ -333,7 +347,8 @@ export function createEmptyProject(name = "Untitled System"): AtlasProject {
     views: defaultViews(),
     proposals: [],
     versions: [],
-    evidence: []
+    evidence: [],
+    intelligence: emptyCodeIntelligence()
   };
 }
 
@@ -683,6 +698,58 @@ export function generateOverview(project: AtlasProject): string {
   ].join("\n");
 }
 
+export function generateCodeIntelligenceOverview(project: AtlasProject): string {
+  const intelligence = project.intelligence ?? emptyCodeIntelligence();
+  const largestFiles = [...intelligence.files]
+    .sort((left, right) => (right.lines ?? 0) - (left.lines ?? 0))
+    .slice(0, 12);
+  const busiestClasses = [...intelligence.classes]
+    .sort((left, right) => (right.methods.length + right.attributes.length) - (left.methods.length + left.attributes.length))
+    .slice(0, 16);
+  const internalDeps = intelligence.dependencies.filter((item) => item.kind === "internal").slice(0, 30);
+  const externalDeps = unique(intelligence.dependencies.filter((item) => item.kind === "external").map((item) => item.target)).slice(0, 30);
+
+  return [
+    `# Code Intelligence: ${project.manifest.name}`,
+    "",
+    intelligence.generatedAt ? `Generated at: ${intelligence.generatedAt}` : "No scan persisted yet.",
+    "",
+    "## Inventory",
+    "",
+    `- Structure entries: ${intelligence.projectStructure.length}`,
+    `- Files: ${intelligence.files.length}`,
+    `- Symbols: ${intelligence.symbols.length}`,
+    `- Classes: ${intelligence.classes.length}`,
+    `- Routes: ${intelligence.routes.length}`,
+    `- Dependencies: ${intelligence.dependencies.length}`,
+    `- Test map entries: ${intelligence.testMap.length}`,
+    "",
+    "## Largest Files",
+    "",
+    ...(largestFiles.length ? largestFiles.map((item) => `- ${item.path}: ${item.lines ?? "?"} lines, ${item.symbols.length} symbols`) : ["- No files indexed."]),
+    "",
+    "## Classes",
+    "",
+    ...(busiestClasses.length ? busiestClasses.map((item) => `- ${item.name} (${item.path}): ${item.attributes.length} attrs, ${item.methods.length} methods`) : ["- No classes indexed."]),
+    "",
+    "## Routes",
+    "",
+    ...(intelligence.routes.length ? intelligence.routes.slice(0, 40).map((item) => `- ${item.method} ${item.path} -> ${item.sourceFile}${item.line ? `:${item.line}` : ""}`) : ["- No routes indexed."]),
+    "",
+    "## Internal Dependencies",
+    "",
+    ...(internalDeps.length ? internalDeps.map((item) => `- ${item.source} -> ${item.target}`) : ["- No internal dependencies indexed."]),
+    "",
+    "## External Dependencies",
+    "",
+    ...(externalDeps.length ? externalDeps.map((item) => `- ${item}`) : ["- No external dependencies indexed."]),
+    "",
+    "## Tests",
+    "",
+    ...(intelligence.testMap.length ? intelligence.testMap.slice(0, 40).map((item) => `- ${item.testFile} -> ${item.targetFiles.join(", ") || "unknown"}`) : ["- No test map indexed."])
+  ].join("\n");
+}
+
 export function generateContextPack(
   project: AtlasProject,
   targetIds: string[] = [],
@@ -709,6 +776,7 @@ export function generateContextPack(
   const files = unique(relatedNodes.flatMap((node) => node.linkedFiles)).slice(0, budget.maxFiles);
   const tests = unique(relatedNodes.flatMap((node) => node.linkedTests)).slice(0, budget.maxTests);
   const metadata = relatedNodes.flatMap((node) => metadataLines(node));
+  const intelligence = codeIntelligenceContextLines(project.intelligence ?? emptyCodeIntelligence(), files, budget.maxEvidence);
   const evidence = project.evidence
     .filter((item) =>
       files.some((file) => item.path === file || item.path.startsWith(`${file}/`)) ||
@@ -764,6 +832,10 @@ export function generateContextPack(
     "## Code Evidence",
     "",
     ...(evidence.length ? evidence.flatMap(codeEvidenceLines) : ["- No scanned code evidence linked to this scope."]),
+    "",
+    "## Persistent Code Intelligence",
+    "",
+    ...(intelligence.length ? intelligence : ["- No persistent code intelligence linked to this scope. Run Scan and Export to persist it."]),
     "",
     "## Required Tests",
     "",
@@ -892,7 +964,7 @@ export function mergeEvidence(project: AtlasProject, evidence: CodeEvidence[]): 
   return { ...project, evidence };
 }
 
-export function mergeCodeEvidence(project: AtlasProject, evidence: CodeEvidence[]): AtlasProject {
+export function mergeCodeEvidence(project: AtlasProject, evidence: CodeEvidence[], intelligence: CodeIntelligence = project.intelligence ?? emptyCodeIntelligence()): AtlasProject {
   const generatedNodeIds = new Set(project.nodes.filter((node) => node.metadata?.generatedBy === "workspace-scan").map((node) => node.id));
   const manualNodes = project.nodes.filter((node) => !generatedNodeIds.has(node.id));
   const manualEdges = project.edges.filter((edge) =>
@@ -999,6 +1071,7 @@ export function mergeCodeEvidence(project: AtlasProject, evidence: CodeEvidence[
   return {
     ...project,
     evidence: evidenceWithLinks,
+    intelligence,
     nodes: [...manualNodes, ...nodes],
     edges: [...manualEdges, ...dedupeEdges(edges)]
   };
@@ -1214,6 +1287,23 @@ function metadataLines(node: AtlasNode) {
       return `- ${node.id}.${field.key}: ${rendered}`;
     })
     .filter(Boolean);
+}
+
+function codeIntelligenceContextLines(intelligence: CodeIntelligence, files: string[], limit: number) {
+  const fileSet = new Set(files);
+  const classes = intelligence.classes.filter((item) => fileSet.has(item.path)).slice(0, limit);
+  const routes = intelligence.routes.filter((item) => fileSet.has(item.sourceFile)).slice(0, limit);
+  const dependencies = intelligence.dependencies.filter((item) => fileSet.has(item.source) || fileSet.has(item.target)).slice(0, limit);
+  const tests = intelligence.testMap.filter((item) => fileSet.has(item.testFile) || item.targetFiles.some((target) => fileSet.has(target))).slice(0, limit);
+  const symbols = intelligence.symbols.filter((item) => fileSet.has(item.path) && item.kind !== "method").slice(0, limit);
+
+  return [
+    ...classes.map((item) => `- class ${item.name} in ${item.path}: ${item.attributes.length} attrs, ${item.methods.length} methods${item.extends ? `, extends ${item.extends}` : ""}`),
+    ...routes.map((item) => `- route ${item.method} ${item.path} in ${item.sourceFile}${item.line ? `:${item.line}` : ""}`),
+    ...symbols.map((item) => `- symbol ${item.kind} ${item.name} in ${item.path}${item.line ? `:${item.line}` : ""}`),
+    ...dependencies.map((item) => `- dependency ${item.source} -> ${item.target} (${item.kind})`),
+    ...tests.map((item) => `- test ${item.testFile} covers ${item.targetFiles.join(", ") || "unknown targets"}`)
+  ].slice(0, limit * 4);
 }
 
 function rankedContextSeeds(nodes: AtlasNode[]) {

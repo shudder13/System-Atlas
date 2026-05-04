@@ -27,12 +27,21 @@ Prefer these files in this order:
    - `architecture/reliability/*.md`
    - `architecture/decisions/*.md`
 4. `architecture/views/*.yaml` for per-view layout and view-specific information.
-5. `architecture/evidence/code-map.json` for file evidence.
-6. `architecture/proposals/*` for before/after architecture changes and migration briefs.
-7. `architecture/versions/*.yaml` for named architecture checkpoints.
+5. `architecture/evidence/code-map.json` for flat file evidence.
+6. Persistent code intelligence files:
+   - `architecture/evidence/code-intelligence.json`
+   - `architecture/evidence/project-structure.json`
+   - `architecture/evidence/file-summaries.json`
+   - `architecture/evidence/classes.json`
+   - `architecture/evidence/code-symbols.json`
+   - `architecture/evidence/routes.json`
+   - `architecture/evidence/dependencies.json`
+   - `architecture/evidence/test-map.json`
+7. `architecture/proposals/*` for before/after architecture changes and migration briefs.
+8. `architecture/versions/*.yaml` for named architecture checkpoints.
 
 Do not treat generated diagrams as the only source of truth. Mermaid files under `architecture/generated/diagrams/` are derived views.
-`architecture/evidence/code-map.json` may include scanned imports, exports, routes, symbols, line counts, and generated node links for Code view context.
+`architecture/evidence/code-map.json` may include scanned imports, exports, routes, symbols, line counts, and generated node links for Code view context. The richer `code-intelligence.json` and split evidence files are the durable memory for project structure, classes, methods, routes, dependencies, and tests.
 Proposal records may have `status: draft`, `status: applied`, or `status: superseded`. Draft proposals describe a future architecture; applied proposals are historical evidence of how the main atlas moved.
 Version checkpoints capture accepted architecture states. Use them to compare historical/current architecture before assuming the latest files describe the requested baseline.
 
@@ -54,9 +63,21 @@ When asked to understand the whole app:
    - critical flows
    - security threats, invariants, risks, decisions, and linked tests
    - linked source files
-   - scanned symbols, imports, exports, and routes from code evidence
+   - scanned symbols, imports, exports, routes, classes, dependencies, and tests from persistent code intelligence
 
 Keep the summary compact. For large systems, prefer critical and high-risk paths first.
+
+## Brownfield Import
+
+When asked to create an atlas for an existing project:
+
+1. Run or ask the user to run Scan in System Atlas.
+2. Treat `architecture/evidence/code-intelligence.json` as the first durable code memory.
+3. Use project structure, file summaries, classes, routes, dependencies, and tests to draft the initial architecture model.
+4. Create high-level systems, containers, modules, datastores, contracts, flows, risks, and decisions from the evidence.
+5. Link architecture nodes to source files, tests, routes, classes, and external dependencies.
+6. Mark inferred concepts as `confidence: inferred` until the architect confirms them.
+7. Do not re-read the whole codebase in every future session. Start from the atlas and persistent evidence, then open raw code only for changed files.
 
 ## Update The Atlas
 

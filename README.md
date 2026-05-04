@@ -68,6 +68,14 @@ architecture/
   versions/*.yaml
   proposals/*/
   evidence/code-map.json
+  evidence/code-intelligence.json
+  evidence/project-structure.json
+  evidence/file-summaries.json
+  evidence/classes.json
+  evidence/code-symbols.json
+  evidence/routes.json
+  evidence/dependencies.json
+  evidence/test-map.json
   generated/overview.md
   generated/diagrams/*.mmd
 ```
@@ -85,8 +93,14 @@ The MVP focuses on manual architecture modeling first:
 - Create and restore architecture checkpoints.
 - Generate AI migration briefs for implementation work.
 - Generate focused, standard, or expanded AI context packs depending on available model context.
-- Run Scan to create a capped Code view from repository files and symbols.
+- Run Scan to persist code intelligence: project structure, file summaries, classes, symbols, routes, dependencies, and test maps.
+- Browse saved code intelligence without rereading the whole codebase every AI session.
 - Export a repo-native architecture pack.
+
+## Supported Workflows
+
+- **Greenfield design**: model the intended system first, create proposals between architecture versions, then give AI agents migration briefs to implement the diff.
+- **Brownfield import**: scan an existing repository, persist code intelligence under `architecture/evidence/`, review the inferred model, then use the same proposal/version workflow for future changes.
 
 ## Run
 

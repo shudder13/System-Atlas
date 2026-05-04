@@ -4,6 +4,7 @@ import {
   applyProposal,
   createProposal,
   createVersion,
+  generateCodeIntelligenceOverview,
   generateContextPack,
   generateMermaid,
   generateMigrationBrief,
@@ -182,6 +183,28 @@ describe("atlas generators", () => {
   });
 
   it("turns scanned code evidence into code view nodes", () => {
+    const intelligence = {
+      generatedAt: "2026-05-05T00:00:00.000Z",
+      projectStructure: [],
+      files: [
+        {
+          path: "src/lib/example.ts",
+          kind: "source" as const,
+          language: "typescript",
+          lines: 42,
+          imports: ["./other"],
+          exports: ["ExampleService"],
+          routes: ["GET /examples"],
+          symbols: ["class:ExampleService@3"],
+          summary: "Example service file"
+        }
+      ],
+      symbols: [{ id: "symbol.example", path: "src/lib/example.ts", name: "ExampleService", kind: "class" as const, line: 3, exported: true }],
+      classes: [{ id: "class.example", path: "src/lib/example.ts", name: "ExampleService", line: 3, exported: true, attributes: [{ name: "repo", kind: "attribute" as const, type: "Repo" }], methods: [{ name: "list", kind: "method" as const, returnType: "Item[]" }] }],
+      routes: [{ id: "route.example", method: "GET", path: "/examples", sourceFile: "src/lib/example.ts", line: 18 }],
+      dependencies: [{ source: "src/lib/example.ts", target: "src/lib/other.ts", importPath: "./other", kind: "internal" as const }],
+      testMap: [{ testFile: "src/lib/example.test.ts", targetFiles: ["src/lib/example.ts"], inferred: false }]
+    };
     const withEvidence = mergeCodeEvidence(project, [
       {
         path: "src/lib/example.ts",
@@ -200,10 +223,12 @@ describe("atlas generators", () => {
         exports: ["helper"],
         symbols: [{ name: "helper", kind: "function", line: 1 }]
       }
-    ]);
+    ], intelligence);
 
     expect(withEvidence.nodes.some((node) => node.type === "code_symbol" && node.name === "ExampleService")).toBe(true);
+    expect(withEvidence.intelligence.classes[0].name).toBe("ExampleService");
     expect(layoutProjectForView(withEvidence, "code").nodes.some((node) => node.id.startsWith("code.file."))).toBe(true);
-    expect(generateContextPack(withEvidence, ["code.symbol.src-lib-example.ts.exampleservice"])).toContain("Code Evidence");
+    expect(generateContextPack(withEvidence, ["code.file.src-lib-example.ts"])).toContain("Persistent Code Intelligence");
+    expect(generateCodeIntelligenceOverview(withEvidence)).toContain("GET /examples");
   });
 });

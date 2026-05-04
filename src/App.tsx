@@ -32,7 +32,9 @@ import {
   createProposal,
   createVersion,
   defaultViews,
+  emptyCodeIntelligence,
   generateContextPack,
+  generateCodeIntelligenceOverview,
   generateMermaid,
   generateMigrationBrief,
   generateOverview,
@@ -84,7 +86,7 @@ export function App() {
   const [viewId, setViewId] = useState<ViewId>("overview");
   const [edgeType, setEdgeType] = useState<(typeof EDGE_TYPES)[number]>("calls");
   const [nodeType, setNodeType] = useState<NodeType>("service");
-  const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "ai">("overview");
+  const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "code" | "ai">("overview");
   const [issues, setIssues] = useState<ValidationIssue[]>(validateAtlas(localTemplates[0].project));
   const [aiBrief, setAiBrief] = useState(generateContextPack(localTemplates[0].project, [], undefined, "focused"));
   const [status, setStatus] = useState("Ready");
@@ -140,6 +142,7 @@ export function App() {
     [selectedFlow]
   );
   const overview = useMemo(() => generateOverview(workingProject), [workingProject]);
+  const codeIntelligence = useMemo(() => generateCodeIntelligenceOverview(workingProject), [workingProject]);
   const mermaid = useMemo(() => generateMermaid(workingProject, viewId), [workingProject, viewId]);
   const migrationBrief = useMemo(() => {
     if (!activeProposal) return generateMigrationBrief(workingProject);
@@ -201,7 +204,8 @@ export function App() {
           ...project,
           manifest: { ...project.manifest, updatedAt },
           views: next.views,
-          evidence: next.evidence
+          evidence: next.evidence,
+          intelligence: next.intelligence
         }
       : { ...next, manifest: { ...next.manifest, updatedAt } };
     const withProposal = activeProposalId
@@ -454,11 +458,12 @@ export function App() {
   async function scanWorkspace() {
     try {
       const response = await api.scan();
-      const withCodeEvidence = mergeCodeEvidence(workingProject, response.evidence);
+      const withCodeEvidence = mergeCodeEvidence(workingProject, response.evidence, response.intelligence);
       updateProject(withCodeEvidence);
       setShowAdvancedViews(true);
       setViewId("code");
-      setStatus(`Scanned ${response.evidence.length} evidence items and updated the Code view`);
+      setPreviewTab("code");
+      setStatus(`Scanned ${response.intelligence.files.length} files, ${response.intelligence.classes.length} classes, ${response.intelligence.routes.length} routes`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Scan failed");
     }
@@ -610,6 +615,7 @@ export function App() {
             overview={overview}
             mermaid={mermaid}
             issues={issues}
+            codeIntelligence={codeIntelligence}
             aiBrief={aiBrief}
             migrationBrief={migrationBrief}
             activeProposal={activeProposal}
@@ -644,7 +650,7 @@ export function App() {
 function mergeDefaultViews(project: AtlasProject): AtlasProject {
   const existing = new Map(project.views.map((view) => [view.id, view]));
   const merged = defaultViews().map((view) => ({ ...view, ...(existing.get(view.id) ?? {}) }));
-  return { ...project, views: merged, versions: project.versions ?? [], proposals: project.proposals ?? [], evidence: project.evidence ?? [] };
+  return { ...project, views: merged, versions: project.versions ?? [], proposals: project.proposals ?? [], evidence: project.evidence ?? [], intelligence: project.intelligence ?? emptyCodeIntelligence() };
 }
 
 function prettyScope(scope: ContextPackScope) {

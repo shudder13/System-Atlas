@@ -56,8 +56,7 @@ app.get("/api/project/revision", async (_request, response, next) => {
 
 app.post("/api/scan", async (_request, response, next) => {
   try {
-    const evidence = await scanWorkspace(workspaceRoot);
-    response.json({ evidence });
+    response.json(await scanWorkspace(workspaceRoot));
   } catch (error) {
     next(error);
   }

@@ -87,6 +87,99 @@ export type EdgeInteraction = "sync" | "async" | "batch" | "replication" | "huma
 export type MetadataValue = string | number | boolean | string[] | undefined;
 export type ContextPackScope = "focused" | "standard" | "expanded";
 
+export interface ProjectStructureEntry {
+  path: string;
+  name: string;
+  kind: "directory" | "file";
+  parent?: string;
+  depth: number;
+  language?: string;
+  sizeBytes?: number;
+  lines?: number;
+}
+
+export interface CodeFileSummary {
+  path: string;
+  kind: CodeEvidence["kind"];
+  language?: string;
+  lines?: number;
+  sizeBytes?: number;
+  imports: string[];
+  exports: string[];
+  routes: string[];
+  symbols: string[];
+  summary: string;
+}
+
+export interface CodeSymbol {
+  id: string;
+  path: string;
+  name: string;
+  kind: "class" | "function" | "method" | "interface" | "type" | "constant" | "route";
+  line?: number;
+  exported?: boolean;
+  containerName?: string;
+}
+
+export interface CodeClassMember {
+  name: string;
+  kind: "attribute" | "method";
+  visibility?: "public" | "protected" | "private";
+  type?: string;
+  parameters?: string[];
+  returnType?: string;
+  line?: number;
+}
+
+export interface CodeClass {
+  id: string;
+  path: string;
+  name: string;
+  line?: number;
+  exported?: boolean;
+  extends?: string;
+  implements?: string[];
+  attributes: CodeClassMember[];
+  methods: CodeClassMember[];
+}
+
+export interface CodeRoute {
+  id: string;
+  method: string;
+  path: string;
+  sourceFile: string;
+  line?: number;
+}
+
+export interface CodeDependency {
+  source: string;
+  target: string;
+  importPath: string;
+  kind: "internal" | "external";
+}
+
+export interface CodeTestMapEntry {
+  testFile: string;
+  targetFiles: string[];
+  inferred: boolean;
+}
+
+export interface CodeIntelligence {
+  generatedAt: string;
+  projectStructure: ProjectStructureEntry[];
+  files: CodeFileSummary[];
+  symbols: CodeSymbol[];
+  classes: CodeClass[];
+  routes: CodeRoute[];
+  dependencies: CodeDependency[];
+  testMap: CodeTestMapEntry[];
+}
+
+export interface CodeScanResult {
+  evidence: CodeEvidence[];
+  intelligence: CodeIntelligence;
+}
+
 export interface AtlasNode {
   id: string;
   type: NodeType;
@@ -162,6 +255,7 @@ export interface CodeEvidence {
   language?: string;
   linkedNodeIds?: string[];
   symbols?: Array<{ name: string; kind: "class" | "function" | "method" | "interface" | "type" | "constant" | "route"; line?: number }>;
+  classes?: CodeClass[];
   imports?: string[];
   exports?: string[];
   routes?: string[];
@@ -216,6 +310,7 @@ export interface AtlasProject {
   proposals: AtlasProposal[];
   versions: AtlasVersion[];
   evidence: CodeEvidence[];
+  intelligence: CodeIntelligence;
 }
 
 export interface AtlasTemplate {

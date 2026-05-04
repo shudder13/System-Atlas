@@ -1,5 +1,5 @@
 import { AtlasProject, AtlasTemplate } from "../types";
-import { defaultViews, nowIso } from "../lib/atlas";
+import { defaultViews, emptyCodeIntelligence, nowIso } from "../lib/atlas";
 
 const baseManifest = (name: string) => ({
   schemaVersion: 1,
@@ -112,7 +112,8 @@ export const templates: AtlasTemplate[] = [
       views: defaultViews(),
       proposals: [],
       versions: [],
-      evidence: []
+      evidence: [],
+      intelligence: emptyCodeIntelligence()
     }
   },
   {
@@ -127,7 +128,8 @@ export const templates: AtlasTemplate[] = [
       views: defaultViews(),
       proposals: [],
       versions: [],
-      evidence: []
+      evidence: [],
+      intelligence: emptyCodeIntelligence()
     }
   }
 ];
