@@ -33,6 +33,7 @@ import {
   createVersion,
   defaultViews,
   emptyCodeIntelligence,
+  generateArchitectureReview,
   generateContextPack,
   generateCodeIntelligenceOverview,
   generateMermaid,
@@ -88,7 +89,7 @@ export function App() {
   const [viewId, setViewId] = useState<ViewId>("overview");
   const [edgeType, setEdgeType] = useState<(typeof EDGE_TYPES)[number]>("calls");
   const [nodeType, setNodeType] = useState<NodeType>("service");
-  const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "code" | "ai">("overview");
+  const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "review" | "code" | "ai">("overview");
   const [issues, setIssues] = useState<ValidationIssue[]>(validateAtlas(localTemplates[0].project));
   const [aiBrief, setAiBrief] = useState(generateContextPack(localTemplates[0].project, [], undefined, "focused"));
   const [status, setStatus] = useState("Ready");
@@ -206,6 +207,7 @@ export function App() {
     [selectedFlow]
   );
   const overview = useMemo(() => generateOverview(workingProject), [workingProject]);
+  const architectureReview = useMemo(() => generateArchitectureReview(workingProject), [workingProject]);
   const codeIntelligence = useMemo(() => generateCodeIntelligenceOverview(workingProject), [workingProject]);
   const mermaid = useMemo(() => generateMermaid(workingProject, viewId), [workingProject, viewId]);
   const migrationBrief = useMemo(() => {
@@ -692,6 +694,7 @@ export function App() {
             overview={overview}
             mermaid={mermaid}
             issues={issues}
+            architectureReview={architectureReview}
             codeIntelligence={codeIntelligence}
             aiBrief={aiBrief}
             migrationBrief={migrationBrief}

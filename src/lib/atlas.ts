@@ -698,6 +698,123 @@ export function generateOverview(project: AtlasProject): string {
   ].join("\n");
 }
 
+export function generateArchitectureReview(project: AtlasProject): string {
+  const nodesByType = groupBy(project.nodes, (node) => node.type);
+  const edgeTypes = new Set(project.edges.map((edge) => edge.type));
+  const highImpactNodes = project.nodes.filter((node) => ["critical", "high"].includes(node.criticality));
+  const nodesWithoutInvariants = highImpactNodes.filter((node) => node.invariants.length === 0);
+  const nodesWithoutTests = highImpactNodes.filter((node) => node.linkedTests.length === 0);
+  const nodesWithoutFiles = highImpactNodes.filter((node) => node.linkedFiles.length === 0);
+  const flowsWithoutTests = project.flows.filter((flow) => flow.linkedTests.length === 0);
+  const flowsWithoutFailureModes = project.flows.filter((flow) => flow.failureModes.length === 0);
+  const staleNodes = project.nodes.filter((node) => node.confidence === "stale");
+  const inferredNodes = project.nodes.filter((node) => node.confidence === "inferred");
+  const hasCodeEvidence = project.evidence.length > 0 || project.intelligence.files.length > 0;
+  const hasDeployment = hasAny(nodesByType, ["environment", "region", "deployment_node"]);
+  const hasDataModel = hasAny(nodesByType, ["datastore", "schema", "data_entity"]);
+  const hasSecurityModel = hasAny(nodesByType, ["threat"]) || edgeTypes.has("authenticates") || edgeTypes.has("authorizes") || edgeTypes.has("protects");
+  const hasQualityModel = hasAny(nodesByType, ["quality_scenario"]) || project.nodes.some((node) => node.invariants.length > 0);
+  const hasDecisionModel = hasAny(nodesByType, ["decision"]);
+  const hasRuntimeModel = project.flows.length > 0;
+
+  const checks: Array<{ label: string; status: "ok" | "warn" | "missing"; detail: string }> = [
+    {
+      label: "C4 context",
+      status: hasAny(nodesByType, ["actor"]) && hasAny(nodesByType, ["system", "container", "app", "service"]) ? "ok" : "missing",
+      detail: "Shows who uses the system and what major system boundary they interact with."
+    },
+    {
+      label: "C4 containers",
+      status: hasAny(nodesByType, ["container", "app", "service", "worker", "scheduler"]) ? "ok" : "missing",
+      detail: "Shows deployable or runtime building blocks and their responsibilities."
+    },
+    {
+      label: "Components and code",
+      status: hasAny(nodesByType, ["component", "module", "code_symbol", "file_group"]) || hasCodeEvidence ? "ok" : "warn",
+      detail: "Connects high-level design to code-level implementation evidence."
+    },
+    {
+      label: "Runtime scenarios",
+      status: hasRuntimeModel ? "ok" : "missing",
+      detail: "Important flows or use cases explain dynamic behavior and failure paths."
+    },
+    {
+      label: "Deployment view",
+      status: hasDeployment ? "ok" : "warn",
+      detail: "Environments, regions, deployment nodes, and infrastructure mappings."
+    },
+    {
+      label: "Data view",
+      status: hasDataModel && (edgeTypes.has("reads") || edgeTypes.has("writes") || edgeTypes.has("owns")) ? "ok" : "warn",
+      detail: "Datastores, schemas, owners, and read/write paths."
+    },
+    {
+      label: "Security and threats",
+      status: hasSecurityModel ? "ok" : "warn",
+      detail: "Threats, protected assets, authentication, authorization, and mitigations."
+    },
+    {
+      label: "Quality requirements",
+      status: hasQualityModel ? "ok" : "warn",
+      detail: "Quality scenarios, invariants, RTO/RPO, scalability, reliability, and test expectations."
+    },
+    {
+      label: "Decisions and rationale",
+      status: hasDecisionModel ? "ok" : "warn",
+      detail: "ADRs or decision nodes preserve why the architecture is shaped this way."
+    },
+    {
+      label: "Stakeholder concerns",
+      status: hasAny(nodesByType, ["actor", "team"]) && (hasQualityModel || project.nodes.some((node) => node.risks.length > 0)) ? "ok" : "warn",
+      detail: "Actors, teams, concerns, risks, and qualities are visible instead of implicit."
+    }
+  ];
+
+  const nextActions = [
+    ...missingActions(checks),
+    ...gapActions("Add invariants to high-impact nodes", nodesWithoutInvariants),
+    ...gapActions("Link tests to high-impact nodes", nodesWithoutTests),
+    ...gapActions("Link implementation files to high-impact nodes", nodesWithoutFiles),
+    ...gapActions("Add failure modes to important flows", flowsWithoutFailureModes),
+    ...gapActions("Link tests to flows", flowsWithoutTests),
+    ...gapActions("Review stale architecture facts", staleNodes),
+    ...gapActions("Confirm inferred architecture facts", inferredNodes)
+  ].slice(0, 10);
+
+  return [
+    `# Architecture Review: ${project.manifest.name}`,
+    "",
+    "Heuristic review inspired by C4, arc42, 4+1, and ISO 42010 concerns. This is not a substitute for architect judgment; it highlights where the atlas may be thin.",
+    "",
+    "## Viewpoint Coverage",
+    "",
+    ...checks.map((check) => `- [${reviewStatusLabel(check.status)}] ${check.label}: ${check.detail}`),
+    "",
+    "## Traceability",
+    "",
+    `- High-impact nodes: ${highImpactNodes.length}`,
+    `- High-impact nodes without invariants: ${nodesWithoutInvariants.length}`,
+    `- High-impact nodes without linked tests: ${nodesWithoutTests.length}`,
+    `- High-impact nodes without linked files: ${nodesWithoutFiles.length}`,
+    `- Flows without failure modes: ${flowsWithoutFailureModes.length}`,
+    `- Flows without linked tests: ${flowsWithoutTests.length}`,
+    `- Stale nodes: ${staleNodes.length}`,
+    `- Inferred nodes awaiting confirmation: ${inferredNodes.length}`,
+    "",
+    "## Code Intelligence",
+    "",
+    `- Files: ${project.intelligence.files.length}`,
+    `- Classes: ${project.intelligence.classes.length}`,
+    `- Routes: ${project.intelligence.routes.length}`,
+    `- Dependencies: ${project.intelligence.dependencies.length}`,
+    `- Test map entries: ${project.intelligence.testMap.length}`,
+    "",
+    "## Suggested Next Actions",
+    "",
+    ...(nextActions.length ? nextActions.map((item) => `- ${item}`) : ["- No obvious architecture documentation gaps found by the heuristic review."])
+  ].join("\n");
+}
+
 export function generateCodeIntelligenceOverview(project: AtlasProject): string {
   const intelligence = project.intelligence ?? emptyCodeIntelligence();
   const largestFiles = [...intelligence.files]
@@ -1304,6 +1421,29 @@ function codeIntelligenceContextLines(intelligence: CodeIntelligence, files: str
     ...dependencies.map((item) => `- dependency ${item.source} -> ${item.target} (${item.kind})`),
     ...tests.map((item) => `- test ${item.testFile} covers ${item.targetFiles.join(", ") || "unknown targets"}`)
   ].slice(0, limit * 4);
+}
+
+function hasAny(groups: Record<string, AtlasNode[]>, types: string[]) {
+  return types.some((type) => (groups[type]?.length ?? 0) > 0);
+}
+
+function reviewStatusLabel(status: "ok" | "warn" | "missing") {
+  if (status === "ok") return "OK";
+  if (status === "missing") return "Missing";
+  return "Needs attention";
+}
+
+function missingActions(checks: Array<{ label: string; status: "ok" | "warn" | "missing" }>) {
+  return checks
+    .filter((check) => check.status !== "ok")
+    .map((check) => `${check.status === "missing" ? "Create" : "Review"} ${check.label.toLowerCase()} coverage.`);
+}
+
+function gapActions(label: string, nodes: Array<AtlasNode | AtlasFlow>) {
+  if (!nodes.length) return [];
+  const names = nodes.slice(0, 4).map((item) => item.name).join(", ");
+  const suffix = nodes.length > 4 ? `, and ${nodes.length - 4} more` : "";
+  return [`${label}: ${names}${suffix}.`];
 }
 
 function rankedContextSeeds(nodes: AtlasNode[]) {

@@ -4,6 +4,7 @@ import {
   applyProposal,
   createProposal,
   createVersion,
+  generateArchitectureReview,
   generateCodeIntelligenceOverview,
   generateContextPack,
   generateMermaid,
@@ -40,6 +41,14 @@ describe("atlas generators", () => {
     const overview = generateOverview(project);
     expect(overview).toContain("# Generic Service System");
     expect(overview).toContain("## Critical Areas");
+  });
+
+  it("generates an architecture practice review", () => {
+    const review = generateArchitectureReview(project);
+    expect(review).toContain("Architecture Review");
+    expect(review).toContain("Viewpoint Coverage");
+    expect(review).toContain("Stakeholder concerns");
+    expect(review).toContain("Suggested Next Actions");
   });
 
   it("detects semantic node changes", () => {
