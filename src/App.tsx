@@ -105,6 +105,8 @@ export function App() {
   const [contextScope, setContextScope] = useState<ContextPackScope>("focused");
   const saveInFlightRef = useRef(false);
   const changeSeqRef = useRef(0);
+  const codeIntelligenceDirtyRef = useRef(false);
+  const codeIntelligenceVersionRef = useRef(0);
 
   useEffect(() => {
     Promise.all([api.templates(), api.project()])
@@ -132,11 +134,16 @@ export function App() {
     setSyncStatus("saving");
 
     try {
-      const response = await api.export(project, { baseRevision: diskRevision, force });
+      const includeIntelligence = codeIntelligenceDirtyRef.current;
+      const savingIntelligenceVersion = codeIntelligenceVersionRef.current;
+      const response = await api.export(project, { baseRevision: diskRevision, force, includeIntelligence });
       setIssues(response.issues);
       setDiskRevision(response.revision);
       setExternalRevision("");
       setLastSyncedAt(new Date().toISOString());
+      if (includeIntelligence && codeIntelligenceVersionRef.current === savingIntelligenceVersion) {
+        codeIntelligenceDirtyRef.current = false;
+      }
 
       if (changeSeqRef.current === savingSeq) {
         setHasUnsavedChanges(false);
@@ -245,6 +252,8 @@ export function App() {
     setSyncStatus(revision ? "synced" : "idle");
     setLastSyncedAt(revision ? new Date().toISOString() : "");
     setHistory({ past: [], future: [] });
+    codeIntelligenceDirtyRef.current = false;
+    codeIntelligenceVersionRef.current = 0;
   }
 
   function markUnsaved() {
@@ -257,6 +266,7 @@ export function App() {
     const nextActiveProposalId = next.proposals.some((proposal) => proposal.id === activeProposalId) ? activeProposalId : "";
     const nextWorkingProject = proposalWorkspace(next, nextActiveProposalId);
 
+    if (next.intelligence !== project.intelligence) markCodeIntelligenceDirty();
     setProject(next);
     setIssues(validateAtlas(nextWorkingProject));
     setAiBrief(generateContextPack(nextWorkingProject, [], undefined, contextScope));
@@ -275,6 +285,7 @@ export function App() {
   }
 
   function updateProject(next: AtlasProject, options: { recordHistory?: boolean } = {}) {
+    if (next.intelligence !== project.intelligence) markCodeIntelligenceDirty();
     const updatedAt = new Date().toISOString();
     const rootProject = activeProposalId
       ? {
@@ -299,6 +310,11 @@ export function App() {
     setProject(withProposal);
     setIssues(validateAtlas(nextWorkingProject));
     markUnsaved();
+  }
+
+  function markCodeIntelligenceDirty() {
+    codeIntelligenceDirtyRef.current = true;
+    codeIntelligenceVersionRef.current += 1;
   }
 
   function undoProjectChange() {

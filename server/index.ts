@@ -1,8 +1,8 @@
 import express from "express";
 import path from "node:path";
 import { templates } from "../src/data/templates";
-import { createProposal, generateContextPack, generateMigrationBrief, validateAtlas } from "../src/lib/atlas";
-import { AtlasProject, ContextPackScope } from "../src/types";
+import { createProposal, emptyCodeIntelligence, generateContextPack, generateMigrationBrief, validateAtlas } from "../src/lib/atlas";
+import { AtlasProject, CodeIntelligence, ContextPackScope } from "../src/types";
 import { architectureRevision, exportAtlas, loadAtlas, scanWorkspace } from "./atlasFiles";
 
 const app = express();
@@ -10,6 +10,8 @@ const port = Number(process.env.SYSTEM_ATLAS_API_PORT ?? 5174);
 const workspaceRoot = path.resolve(process.env.SYSTEM_ATLAS_WORKSPACE ?? process.cwd());
 
 app.use(express.json({ limit: "20mb" }));
+
+type ExportAtlasProject = Omit<AtlasProject, "intelligence"> & { intelligence?: CodeIntelligence };
 
 app.get("/api/templates", (_request, response) => {
   response.json({ templates });
@@ -37,7 +39,7 @@ app.post("/api/draft/validate", (request, response) => {
 
 app.post("/api/export", async (request, response, next) => {
   try {
-    const project = request.body.project as AtlasProject;
+    const incomingProject = request.body.project as ExportAtlasProject;
     const baseRevision = typeof request.body.baseRevision === "string" ? request.body.baseRevision : undefined;
     const force = Boolean(request.body.force);
     const currentRevision = await architectureRevision(workspaceRoot);
@@ -50,6 +52,12 @@ app.post("/api/export", async (request, response, next) => {
       });
       return;
     }
+
+    const existingProject = incomingProject.intelligence ? undefined : await loadAtlas(workspaceRoot);
+    const project = {
+      ...incomingProject,
+      intelligence: incomingProject.intelligence ?? existingProject?.intelligence ?? emptyCodeIntelligence()
+    } as AtlasProject;
 
     const result = await exportAtlas(workspaceRoot, project);
     const revision = await architectureRevision(workspaceRoot);

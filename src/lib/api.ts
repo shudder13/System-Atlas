@@ -1,4 +1,12 @@
-import { AtlasProject, AtlasProposal, CodeScanResult, ContextPackScope, ValidationIssue } from "../types";
+import { AtlasProject, AtlasProposal, CodeScanResult, CodeIntelligence, ContextPackScope, ValidationIssue } from "../types";
+
+type ExportProjectPayload = Omit<AtlasProject, "intelligence"> & { intelligence?: CodeIntelligence };
+
+function projectPayloadForExport(project: AtlasProject, includeIntelligence: boolean): ExportProjectPayload | AtlasProject {
+  if (includeIntelligence) return project;
+  const { intelligence: _intelligence, ...projectWithoutIntelligence } = project;
+  return projectWithoutIntelligence;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -37,11 +45,18 @@ export const api = {
   projectRevision: () => request<{ revision: string }>("/api/project/revision"),
   templates: () => request<{ templates: Array<{ id: string; name: string; description: string; project: AtlasProject }> }>("/api/templates"),
   validate: (project: AtlasProject) => request<{ issues: ValidationIssue[] }>("/api/draft/validate", { method: "POST", body: JSON.stringify({ project }) }),
-  export: (project: AtlasProject, options: { baseRevision?: string; force?: boolean } = {}) =>
-    request<{ ok: boolean; revision: string; files: string[]; issues: ValidationIssue[] }>("/api/export", {
+  export: (project: AtlasProject, options: { baseRevision?: string; force?: boolean; includeIntelligence?: boolean } = {}) => {
+    const includeIntelligence = options.includeIntelligence ?? false;
+    return request<{ ok: boolean; revision: string; files: string[]; issues: ValidationIssue[] }>("/api/export", {
       method: "POST",
-      body: JSON.stringify({ project, ...options })
-    }),
+      body: JSON.stringify({
+        project: projectPayloadForExport(project, includeIntelligence),
+        baseRevision: options.baseRevision,
+        force: options.force,
+        includeIntelligence
+      })
+    });
+  },
   scan: () => request<CodeScanResult>("/api/scan", { method: "POST" }),
   contextPack: (project: AtlasProject, targetIds: string[], goal: string, scope: ContextPackScope) =>
     request<{ markdown: string }>("/api/context-pack", { method: "POST", body: JSON.stringify({ project, targetIds, goal, scope }) }),
