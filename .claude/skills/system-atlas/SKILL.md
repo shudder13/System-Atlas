@@ -19,6 +19,8 @@ Prefer these files in this order:
    - `architecture/services/*.md`
    - `architecture/modules/*.md`
    - `architecture/flows/*.md`
+   - `architecture/stakeholders/*.md`
+   - `architecture/concerns/*.md`
    - `architecture/datastores/*.md`
    - `architecture/integrations/*.md`
    - `architecture/contracts/*.md`
@@ -55,6 +57,7 @@ When asked to understand the whole app:
 4. If the snapshot is missing or stale, read the authored concept files and reconstruct the model.
 5. Summarize the system by:
    - actors and entry points
+   - stakeholders, concerns, quality drivers, and what architecture elements address them
    - systems, containers, components, and code evidence
    - apps/services/modules/workers/schedulers
    - deployment environments, regions, nodes, and replicas
@@ -74,8 +77,8 @@ When asked to create an atlas for an existing project:
 1. Run or ask the user to run Scan in System Atlas.
 2. Treat `architecture/evidence/code-intelligence.json` as the first durable code memory.
 3. Use project structure, file summaries, classes, routes, dependencies, and tests to draft the initial architecture model.
-4. Create high-level systems, containers, modules, datastores, contracts, flows, risks, and decisions from the evidence.
-5. Link architecture nodes to source files, tests, routes, classes, and external dependencies.
+4. Create high-level systems, containers, modules, datastores, contracts, flows, stakeholders, concerns, risks, and decisions from the evidence.
+5. Link architecture nodes to source files, tests, routes, classes, stakeholder concerns, and external dependencies.
 6. Mark inferred concepts as `confidence: inferred` until the architect confirms them.
 7. Do not re-read the whole codebase in every future session. Start from the atlas and persistent evidence, then open raw code only for changed files.
 
@@ -103,7 +106,8 @@ When asked to edit the architecture:
    - `architecture_level`
    - `metadata`
 5. Add or update linked files and linked tests whenever architecture changes touch implementation.
-6. Record risks and invariants for critical paths, datastores, schemas, contracts, threats, decisions, and external systems.
+6. Record stakeholders and concerns when the reason for a change comes from a user, team, quality driver, regulatory need, operational need, or business outcome.
+7. Record risks and invariants for critical paths, datastores, schemas, contracts, threats, decisions, and external systems.
 
 After editing architecture files, tell the user to check the System Atlas UI. It should auto-reload when there are no unsaved UI edits; if the UI reports external changes, the architect must choose whether the disk version or UI version should win.
 

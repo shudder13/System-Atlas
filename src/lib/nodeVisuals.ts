@@ -12,6 +12,7 @@ import {
   ScrollText,
   Server,
   ShieldAlert,
+  Target,
   UserRound,
   Workflow
 } from "lucide-react";
@@ -51,6 +52,8 @@ export const nodeColors: Record<AtlasNode["type"], string> = {
   quality_scenario: "#0f766e",
   threat: "#b91c1c",
   team: "#ea580c",
+  stakeholder: "#ea580c",
+  concern: "#4f46e5",
   flow: "#0284c7",
   risk: "#e11d48"
 };
@@ -86,6 +89,8 @@ export const nodeIcons: Record<AtlasNode["type"], NodeIcon> = {
   quality_scenario: ShieldAlert,
   threat: ShieldAlert,
   team: UserRound,
+  stakeholder: UserRound,
+  concern: Target,
   flow: Workflow,
   risk: ShieldAlert
 };

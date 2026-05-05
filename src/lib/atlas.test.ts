@@ -177,12 +177,17 @@ describe("atlas generators", () => {
     expect(viewSupportsNodeType("flows", "service")).toBe(true);
     expect(preferredViewForNodeType("deployment_node")).toBe("deployment");
     expect(preferredViewForNodeType("threat")).toBe("security");
+    expect(preferredViewForNodeType("stakeholder")).toBe("concerns");
+    expect(preferredViewForNodeType("concern")).toBe("concerns");
+    expect(viewSupportsNodeType("concerns", "stakeholder")).toBe(true);
+    expect(viewSupportsNodeType("concerns", "concern")).toBe(true);
     expect(viewSupportsNodeType("code", "code_symbol")).toBe(true);
   });
 
   it("supports the expanded architecture view families", () => {
     expect(generateMermaid(project, "deployment")).toContain("Application Cluster");
     expect(generateMermaid(project, "security")).toContain("Identity Bypass Threat");
+    expect(generateMermaid(project, "concerns")).toContain("Safe AI-Assisted Change");
     expect(generateMermaid(project, "decisions")).toContain("Use Async Job Queue");
   });
 

@@ -29,6 +29,8 @@ export const NODE_TYPES = [
   "quality_scenario",
   "threat",
   "team",
+  "stakeholder",
+  "concern",
   "flow",
   "risk"
 ] as const;
@@ -56,6 +58,8 @@ export const EDGE_TYPES = [
   "mitigates",
   "protects",
   "threatens",
+  "has_concern",
+  "addresses",
   "decides",
   "supersedes",
   "traces_to",
@@ -72,6 +76,7 @@ export const VIEW_IDS = [
   "data",
   "domain",
   "security",
+  "concerns",
   "health",
   "decisions",
   "proposals"

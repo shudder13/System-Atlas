@@ -34,19 +34,20 @@ const componentTypes = new Set<NodeType>([
   "file_group"
 ]);
 
-const overviewTypes = new Set<NodeType>(["actor", "system", "app", "container", "service", "external_system", "team", "load_balancer"]);
+const overviewTypes = new Set<NodeType>(["actor", "stakeholder", "system", "app", "container", "service", "external_system", "team", "load_balancer"]);
 const containerTypes = new Set<NodeType>(["system", "container", "app", "service", "worker", "scheduler", "load_balancer", "external_system", "api_contract", "event_contract"]);
 const codeTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract", "api_contract", "event_contract"]);
 const deploymentTypes = new Set<NodeType>(["environment", "region", "deployment_node", "load_balancer", "service", "worker", "scheduler", "datastore", "replica", "queue", "cache", "external_system"]);
 const dataTypes = new Set<NodeType>(["service", "module", "worker", "datastore", "replica", "queue", "cache", "external_system", "contract", "api_contract", "event_contract", "data_entity", "schema", "migration"]);
 const domainTypes = new Set<NodeType>(["system", "container", "component", "module", "data_entity", "schema", "api_contract", "event_contract", "decision", "team"]);
 const securityTypes = new Set<NodeType>(["actor", "app", "service", "external_system", "api_contract", "event_contract", "datastore", "data_entity", "threat", "risk"]);
+const concernTypes = new Set<NodeType>(["stakeholder", "actor", "team", "concern", "quality_scenario", "risk", "threat", "decision", "system", "container", "service", "app", "external_system"]);
 const healthTypes = new Set<NodeType>(["quality_scenario", "service", "worker", "scheduler", "load_balancer", "queue", "datastore", "replica", "cache", "external_system", "risk", "threat", "decision"]);
 const decisionTypes = new Set<NodeType>(["decision", "quality_scenario", "risk", "threat", "system", "container", "service", "component", "module"]);
 const flowTypes = new Set<NodeType>(["actor", "app", "load_balancer", "service", "container", "component", "module", "contract", "api_contract", "event_contract", "queue", "worker", "scheduler", "datastore", "external_system", "flow"]);
 
 const viewEdgeTypes: Partial<Record<ViewId, Set<EdgeType>>> = {
-  overview: new Set(["contains", "calls", "routes_to", "depends_on", "owns"]),
+  overview: new Set(["contains", "calls", "routes_to", "depends_on", "owns", "has_concern", "addresses"]),
   containers: new Set(["contains", "calls", "routes_to", "exposes", "publishes", "subscribes_to", "depends_on", "deploys_to"]),
   components: new Set(["contains", "calls", "depends_on", "implements", "routes_to", "exposes", "models"]),
   code: new Set(["contains", "implements", "tests", "depends_on", "traces_to", "models"]),
@@ -55,6 +56,7 @@ const viewEdgeTypes: Partial<Record<ViewId, Set<EdgeType>>> = {
   data: new Set(["reads", "writes", "owns", "replicates_to", "emits", "consumes", "publishes", "subscribes_to", "models"]),
   domain: new Set(["contains", "owns", "models", "publishes", "subscribes_to", "implements", "decides"]),
   security: new Set(["authenticates", "authorizes", "protects", "threatens", "mitigates", "risks", "calls", "reads", "writes"]),
+  concerns: new Set(["has_concern", "addresses", "owns", "risks", "mitigates", "protects", "decides", "traces_to", "depends_on"]),
   health: new Set(["risks", "mitigates", "tests", "depends_on", "calls", "protects", "threatens", "decides"]),
   decisions: new Set(["decides", "supersedes", "mitigates", "risks", "traces_to", "depends_on"]),
   proposals: new Set(EDGE_TYPES)
@@ -83,8 +85,8 @@ export function emptyCodeIntelligence(): CodeIntelligence {
 
 const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonly NodeType[] }>>> = {
   overview: [
-    lane(0, ["actor"]),
-    lane(1, ["system", "team"]),
+    lane(0, ["stakeholder", "actor"]),
+    lane(1, ["system", "team", "concern"]),
     lane(2, ["app", "container"]),
     lane(3, ["load_balancer", "service"])
   ],
@@ -142,15 +144,22 @@ const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonl
     lane(3, ["datastore", "data_entity"]),
     lane(4, ["risk"])
   ],
+  concerns: [
+    lane(0, ["stakeholder", "actor", "team"]),
+    lane(1, ["concern", "quality_scenario"]),
+    lane(2, ["system", "container", "app", "service", "external_system"]),
+    lane(3, ["risk", "threat"]),
+    lane(4, ["decision"])
+  ],
   health: [
-    lane(0, ["risk", "threat", "quality_scenario"]),
+    lane(0, ["concern", "risk", "threat", "quality_scenario"]),
     lane(1, ["external_system", "load_balancer", "queue", "cache"]),
     lane(2, ["service", "worker", "scheduler"]),
     lane(3, ["datastore", "replica"])
   ],
   decisions: [
     lane(0, ["decision"]),
-    lane(1, ["quality_scenario", "risk", "threat"]),
+    lane(1, ["concern", "quality_scenario", "risk", "threat"]),
     lane(2, ["system", "container", "service"]),
     lane(3, ["component", "module"])
   ]
@@ -166,6 +175,7 @@ const viewLaneFallbacks: Partial<Record<ViewId, number>> = {
   data: 6,
   domain: 4,
   security: 5,
+  concerns: 5,
   health: 4,
   decisions: 4
 };
@@ -219,6 +229,18 @@ const metadataProfiles: Partial<Record<NodeType, MetadataFieldDefinition[]>> = {
   deployment_node: deploymentMetadataFields(),
   risk: assuranceMetadataFields(),
   threat: assuranceMetadataFields(),
+  stakeholder: [
+    { key: "role", label: "Role", kind: "text", description: "Stakeholder role or persona." },
+    { key: "influence", label: "Influence", kind: "text", description: "Decision influence, accountability, or interest level." },
+    { key: "successCriteria", label: "Success criteria", kind: "list", description: "Outcomes this stakeholder expects from the system." },
+    { key: "contact", label: "Contact", kind: "text", description: "Person, group, channel, or team contact." }
+  ],
+  concern: [
+    { key: "category", label: "Category", kind: "text", description: "Functional, reliability, security, compliance, cost, usability, operability, or delivery concern." },
+    { key: "sourceStakeholder", label: "Source stakeholder", kind: "text", description: "Stakeholder or team that owns or raised this concern." },
+    { key: "priority", label: "Priority", kind: "text", description: "Priority, severity, or decision weight." },
+    { key: "acceptanceCriteria", label: "Acceptance criteria", kind: "list", description: "Evidence that the concern has been addressed." }
+  ],
   quality_scenario: assuranceMetadataFields(),
   decision: [
     { key: "adrStatus", label: "ADR status", kind: "text", description: "Proposed, accepted, superseded, or deprecated." },
@@ -236,7 +258,7 @@ export const VIEW_FAMILIES: Array<{ id: string; name: string; description: strin
   { id: "behavior", name: "Runtime", description: "Scenarios, business flows, dynamic traces, and async behavior.", views: ["flows"] },
   { id: "platform", name: "Platform", description: "Deployment, infrastructure, regions, data stores, and ownership.", views: ["deployment", "data"] },
   { id: "domain", name: "Domain", description: "Bounded contexts, entities, contracts, and domain language.", views: ["domain"] },
-  { id: "assurance", name: "Assurance", description: "Security, quality, risks, decisions, validation, and change governance.", views: ["security", "health", "decisions", "proposals"] }
+  { id: "assurance", name: "Assurance", description: "Stakeholders, concerns, security, quality, risks, decisions, validation, and change governance.", views: ["security", "concerns", "health", "decisions", "proposals"] }
 ];
 
 export function metadataFieldsForNode(type: NodeType): MetadataFieldDefinition[] {
@@ -363,6 +385,7 @@ export function defaultViews() {
     { id: "data" as const, name: "Data", family: "platform", concern: "Data ownership", scope: "data", description: "Entities, schemas, stores, queues, caches, ownership, read/write paths, replicas, and retention-sensitive paths." },
     { id: "domain" as const, name: "Domain", family: "domain", concern: "Domain model", scope: "bounded-context", description: "Bounded contexts, domain entities, contracts, events, teams, and model ownership." },
     { id: "security" as const, name: "Security", family: "assurance", concern: "Trust and threats", scope: "trust-boundary", description: "Trust boundaries, authentication, authorization, threats, mitigations, sensitive data, and controls." },
+    { id: "concerns" as const, name: "Concerns", family: "assurance", concern: "Stakeholder concerns", scope: "architecture-description", description: "Stakeholders, concerns, quality drivers, risks, decisions, and the architecture elements that address them." },
     { id: "health" as const, name: "Health", family: "assurance", concern: "Quality and reliability", scope: "quality", description: "Risks, quality scenarios, reliability concerns, stale architecture, regression exposure, and test gaps." },
     { id: "decisions" as const, name: "Decisions", family: "assurance", concern: "Architecture rationale", scope: "governance", description: "ADRs, superseded decisions, tradeoffs, quality scenarios, risks, and rationale links." },
     { id: "proposals" as const, name: "Proposals", family: "assurance", concern: "Change planning", scope: "proposal", description: "Architecture change proposals, before/after impact, migration briefs, and acceptance checks." }
@@ -377,7 +400,7 @@ export function createNode(type: NodeType, index: number): AtlasNode {
     name: titleCase(type),
     owner: "architecture",
     status: "active",
-    criticality: type === "risk" ? "high" : "medium",
+    criticality: ["risk", "concern"].includes(type) ? "high" : "medium",
     responsibilities: [],
     dependencies: [],
     invariants: [],
@@ -457,6 +480,7 @@ export function viewSupportsNodeType(viewId: ViewId, type: NodeType) {
   if (viewId === "data") return dataTypes.has(type);
   if (viewId === "domain") return domainTypes.has(type);
   if (viewId === "security") return securityTypes.has(type);
+  if (viewId === "concerns") return concernTypes.has(type);
   if (viewId === "health") return healthTypes.has(type);
   if (viewId === "decisions") return decisionTypes.has(type);
   return true;
@@ -466,6 +490,7 @@ export function preferredViewForNodeType(type: NodeType): ViewId {
   if (["environment", "region", "deployment_node"].includes(type)) return "deployment";
   if (["datastore", "replica", "queue", "cache", "data_entity", "schema", "migration"].includes(type)) return "data";
   if (["threat"].includes(type)) return "security";
+  if (["stakeholder", "concern"].includes(type)) return "concerns";
   if (["risk", "quality_scenario"].includes(type)) return "health";
   if (["decision"].includes(type)) return "decisions";
   if (["flow"].includes(type)) return "flows";
@@ -614,6 +639,7 @@ export function filterProjectForView(project: AtlasProject, viewId: ViewId): Atl
     if (viewId === "data") return dataTypes.has(node.type);
     if (viewId === "domain") return domainTypes.has(node.type);
     if (viewId === "security") return securityTypes.has(node.type) || node.risks.length > 0;
+    if (viewId === "concerns") return concernTypes.has(node.type) || node.risks.length > 0 || node.invariants.length > 0;
     if (viewId === "health") return healthTypes.has(node.type) || node.risks.length > 0 || node.invariants.length > 0 || isHighRisk(node) || node.confidence === "stale";
     if (viewId === "decisions") return decisionTypes.has(node.type);
     if (viewId === "flows") return flowTypes.has(node.type) || node.criticality === "critical" || node.linkedTests.length > 0 || project.flows.some((flow) => flow.steps.some((step) => step.nodeId === node.id));
@@ -714,6 +740,8 @@ export function generateArchitectureReview(project: AtlasProject): string {
   const hasDataModel = hasAny(nodesByType, ["datastore", "schema", "data_entity"]);
   const hasSecurityModel = hasAny(nodesByType, ["threat"]) || edgeTypes.has("authenticates") || edgeTypes.has("authorizes") || edgeTypes.has("protects");
   const hasQualityModel = hasAny(nodesByType, ["quality_scenario"]) || project.nodes.some((node) => node.invariants.length > 0);
+  const hasConcernModel = hasAny(nodesByType, ["concern"]) && (edgeTypes.has("has_concern") || edgeTypes.has("addresses"));
+  const hasStakeholderModel = hasAny(nodesByType, ["stakeholder", "actor", "team"]);
   const hasDecisionModel = hasAny(nodesByType, ["decision"]);
   const hasRuntimeModel = project.flows.length > 0;
 
@@ -765,8 +793,8 @@ export function generateArchitectureReview(project: AtlasProject): string {
     },
     {
       label: "Stakeholder concerns",
-      status: hasAny(nodesByType, ["actor", "team"]) && (hasQualityModel || project.nodes.some((node) => node.risks.length > 0)) ? "ok" : "warn",
-      detail: "Actors, teams, concerns, risks, and qualities are visible instead of implicit."
+      status: hasStakeholderModel && hasConcernModel ? "ok" : "warn",
+      detail: "Stakeholders, concerns, risks, qualities, and addressing architecture elements are visible instead of implicit."
     }
   ];
 
@@ -798,6 +826,8 @@ export function generateArchitectureReview(project: AtlasProject): string {
     `- High-impact nodes without linked files: ${nodesWithoutFiles.length}`,
     `- Flows without failure modes: ${flowsWithoutFailureModes.length}`,
     `- Flows without linked tests: ${flowsWithoutTests.length}`,
+    `- Stakeholders: ${(nodesByType.stakeholder ?? []).length}`,
+    `- Concerns: ${(nodesByType.concern ?? []).length}`,
     `- Stale nodes: ${staleNodes.length}`,
     `- Inferred nodes awaiting confirmation: ${inferredNodes.length}`,
     "",
@@ -1517,8 +1547,8 @@ function slug(value: string) {
 }
 
 function levelForNodeType(type: NodeType) {
-  if (["team"].includes(type)) return "enterprise" as const;
-  if (["system", "actor", "external_system"].includes(type)) return "system" as const;
+  if (["team", "stakeholder"].includes(type)) return "enterprise" as const;
+  if (["system", "actor", "external_system", "concern"].includes(type)) return "system" as const;
   if (["container", "app", "service", "worker", "scheduler", "load_balancer", "queue", "cache", "datastore", "replica"].includes(type)) return "container" as const;
   if (["component", "module", "contract", "api_contract", "event_contract"].includes(type)) return "component" as const;
   if (["code_symbol", "file_group"].includes(type)) return "code" as const;

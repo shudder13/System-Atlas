@@ -37,6 +37,8 @@ const conceptFolders: Record<string, string> = {
   quality_scenario: "reliability",
   threat: "security",
   team: "modules",
+  stakeholder: "stakeholders",
+  concern: "concerns",
   flow: "flows",
   risk: "reliability"
 };

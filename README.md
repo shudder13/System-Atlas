@@ -30,7 +30,7 @@ System Atlas is for medium and large projects where vibe coding starts to break 
 
 LLMs are very good at producing local code changes, but they do not automatically understand the long-term architecture of a real system. They may miss ownership boundaries, critical flows, data invariants, external integration risks, or regression-prone areas.
 
-System Atlas gives the architect a durable mental map that can be shared with AI tools. The architect updates the model, reviews proposed architecture changes, and exports a context pack that helps an LLM implement the change without drifting from the design.
+System Atlas gives the architect a durable mental map that can be shared with AI tools. The architect updates the model, reviews stakeholder concerns and proposed architecture changes, and exports a context pack that helps an LLM implement the change without drifting from the design.
 
 This is closer to **AI-assisted Model-Driven Development** than classic diagramming. The diagrams are not just pictures; they are views of a structured model that can drive review, validation, and migration work.
 
@@ -57,6 +57,8 @@ architecture/
   modules/*.md
   services/*.md
   flows/*.md
+  stakeholders/*.md
+  concerns/*.md
   datastores/*.md
   integrations/*.md
   contracts/*.md
@@ -88,6 +90,7 @@ The MVP focuses on manual architecture modeling first:
 
 - Create architecture nodes and typed edges visually.
 - Link concepts to files, folders, tests, contracts, flows, and risks.
+- Model stakeholders and concerns explicitly, then trace which architecture elements address them.
 - Switch between architecture views without duplicating the underlying model.
 - Create proposals and generate semantic before/after diffs.
 - Create and restore architecture checkpoints.

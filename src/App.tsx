@@ -19,6 +19,7 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Target,
   Undo2,
   Workflow
 } from "lucide-react";
@@ -65,7 +66,7 @@ type ProjectHistory = {
 type SyncStatus = "idle" | "dirty" | "saving" | "synced" | "external-changes" | "error";
 
 const HISTORY_LIMIT = 50;
-const CORE_VIEW_IDS = new Set<ViewId>(["overview", "containers", "components", "flows", "deployment", "data", "health", "proposals"]);
+const CORE_VIEW_IDS = new Set<ViewId>(["overview", "containers", "components", "flows", "deployment", "data", "concerns", "health", "proposals"]);
 
 const viewIcons: Record<ViewId, typeof Network> = {
   overview: Network,
@@ -77,6 +78,7 @@ const viewIcons: Record<ViewId, typeof Network> = {
   data: Database,
   domain: Boxes,
   security: ShieldCheck,
+  concerns: Target,
   health: ShieldCheck,
   decisions: FileText,
   proposals: GitCompare

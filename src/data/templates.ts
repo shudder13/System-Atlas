@@ -17,6 +17,10 @@ export const templates: AtlasTemplate[] = [
     project: {
       manifest: baseManifest("Generic Service System"),
       nodes: [
+        node("stakeholder.product", "stakeholder", "Product Owner", 40, -80, ["Owns business outcomes, priority, and acceptance for system changes."], "high"),
+        node("stakeholder.operations", "stakeholder", "Operations Team", 260, -80, ["Owns production operability, incident response, and recovery expectations."], "high"),
+        node("concern.safe_change", "concern", "Safe AI-Assisted Change", 480, -80, ["Architecture changes must be understandable, testable, and safe for AI-assisted implementation."], "critical"),
+        node("concern.operability", "concern", "Production Operability", 700, -80, ["The system must expose enough runtime evidence to debug failures and verify recovery."], "high"),
         node("actor.user", "actor", "User", 40, 80, ["Starts a user-facing workflow."], "medium"),
         node("app.client", "app", "Client App", 260, 80, ["Presents the user interface and calls backend APIs."], "high", ["src/app"]),
         node("lb.public", "load_balancer", "Load Balancer", 480, 80, ["Routes traffic to the API service."], "high"),
@@ -48,6 +52,11 @@ export const templates: AtlasTemplate[] = [
         node("threat.identity_bypass", "threat", "Identity Bypass Threat", 1220, 430, ["Tracks unauthorized access through missing or incorrect identity checks."], "critical")
       ],
       edges: [
+        edge("stakeholder.product", "concern.safe_change", "cares about safe delivery", "has_concern"),
+        edge("stakeholder.operations", "concern.operability", "cares about operability", "has_concern"),
+        edge("concern.safe_change", "quality.retryability", "requires quality scenario", "addresses"),
+        edge("concern.safe_change", "contract.public_api", "protects public behavior", "addresses"),
+        edge("concern.operability", "environment.prod", "requires production visibility", "addresses"),
         edge("system.core", "app.client", "contains client surface", "contains"),
         edge("system.core", "container.backend", "contains backend runtime", "contains"),
         edge("container.backend", "service.api", "contains API", "contains"),
