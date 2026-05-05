@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { templates } from "../data/templates";
 import {
   applyProposal,
+  commitWorkspaceEdit,
   createProposal,
   createVersion,
   defaultViews,
@@ -91,6 +92,28 @@ describe("atlas generators", () => {
     expect(updatedRoot.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
     expect(updatedRoot.proposals[0].after.nodes.find((node) => node.id === "service.api")?.owner).toBe("platform");
     expect(updatedRoot.proposals[0].before.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
+  });
+
+  it("commits proposal workspace edits through an explicit proposal boundary", () => {
+    const proposal = createProposal(project, "Route API traffic");
+    const root = { ...project, proposals: [proposal] };
+    const workspace = proposalWorkspace(root, proposal.id);
+    const editedWorkspace = {
+      ...workspace,
+      nodes: workspace.nodes.map((node) => node.id === "service.api" ? { ...node, owner: "platform" } : node),
+      views: workspace.views.map((view) =>
+        view.id === "overview"
+          ? { ...view, positions: { ...(view.positions ?? {}), "service.api": { x: 99, y: 101 } } }
+          : view
+      )
+    };
+
+    const committed = commitWorkspaceEdit(root, editedWorkspace, proposal.id, "2026-05-05T00:00:00.000Z");
+
+    expect(committed.manifest.updatedAt).toBe("2026-05-05T00:00:00.000Z");
+    expect(committed.nodes.find((node) => node.id === "service.api")?.owner).toBe("architecture");
+    expect(committed.proposals[0].after.nodes.find((node) => node.id === "service.api")?.owner).toBe("platform");
+    expect(committed.views.find((view) => view.id === "overview")?.positions?.["service.api"]).toEqual({ x: 99, y: 101 });
   });
 
   it("applies proposal after-state back to the main atlas", () => {

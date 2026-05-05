@@ -350,6 +350,25 @@ export function proposalWorkspace(project: AtlasProject, proposalId?: string): A
   return proposal ? projectFromSnapshot(project, proposal.after) : project;
 }
 
+export function commitWorkspaceEdit(project: AtlasProject, editedWorkspace: AtlasProject, proposalId?: string, updatedAt = nowIso()): AtlasProject {
+  if (!proposalId) {
+    return {
+      ...editedWorkspace,
+      manifest: { ...editedWorkspace.manifest, updatedAt }
+    };
+  }
+
+  const rootProject = {
+    ...project,
+    manifest: { ...project.manifest, updatedAt },
+    views: editedWorkspace.views,
+    evidence: editedWorkspace.evidence,
+    intelligence: editedWorkspace.intelligence
+  };
+
+  return updateProposalAfter(rootProject, proposalId, editedWorkspace);
+}
+
 export function nowIso() {
   return new Date().toISOString();
 }

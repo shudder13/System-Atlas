@@ -27,6 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "./lib/api";
 import {
   applyProposal,
+  commitWorkspaceEdit,
   CONTEXT_PACK_SCOPES,
   createNode,
   createFlow,
@@ -45,7 +46,6 @@ import {
   proposalWorkspace,
   restoreVersion,
   semanticDiff,
-  updateProposalAfter,
   validateAtlas,
   VIEW_FAMILIES,
   viewSupportsNodeType
@@ -325,19 +325,7 @@ export function App() {
 
   function updateProject(next: AtlasProject, options: { recordHistory?: boolean } = {}) {
     if (next.intelligence !== project.intelligence) markCodeIntelligenceDirty();
-    const updatedAt = new Date().toISOString();
-    const rootProject = activeProposalId
-      ? {
-          ...project,
-          manifest: { ...project.manifest, updatedAt },
-          views: next.views,
-          evidence: next.evidence,
-          intelligence: next.intelligence
-        }
-      : { ...next, manifest: { ...next.manifest, updatedAt } };
-    const withProposal = activeProposalId
-      ? updateProposalAfter(rootProject, activeProposalId, next)
-      : rootProject;
+    const withProposal = commitWorkspaceEdit(project, next, activeProposalId);
     const nextWorkingProject = proposalWorkspace(withProposal, activeProposalId);
 
     if (options.recordHistory !== false) {
