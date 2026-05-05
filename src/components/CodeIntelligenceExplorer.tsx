@@ -7,10 +7,11 @@ type CodeIntelTab = "files" | "classes" | "routes" | "dependencies" | "tests";
 interface CodeIntelligenceExplorerProps {
   project: AtlasProject;
   selectedId: string;
+  isLoading?: boolean;
   onSelect: (id: string) => void;
 }
 
-export function CodeIntelligenceExplorer({ project, selectedId, onSelect }: CodeIntelligenceExplorerProps) {
+export function CodeIntelligenceExplorer({ project, selectedId, isLoading = false, onSelect }: CodeIntelligenceExplorerProps) {
   const [tab, setTab] = useState<CodeIntelTab>("files");
   const [query, setQuery] = useState("");
   const intelligence = project.intelligence;
@@ -42,6 +43,16 @@ export function CodeIntelligenceExplorer({ project, selectedId, onSelect }: Code
       .filter((entry) => matchesQuery(normalizedQuery, entry.testFile, ...entry.targetFiles))
       .slice(0, 120),
   [intelligence.testMap, normalizedQuery]);
+
+  if (isLoading && !intelligence.generatedAt && intelligence.files.length === 0) {
+    return (
+      <div className="code-intel-empty">
+        <FileCode2 size={22} />
+        <h3>Loading Code Intelligence</h3>
+        <p>Reading saved project structure, files, classes, routes, dependencies, and tests.</p>
+      </div>
+    );
+  }
 
   if (!intelligence.generatedAt && intelligence.files.length === 0) {
     return (

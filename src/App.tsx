@@ -36,7 +36,6 @@ import {
   emptyCodeIntelligence,
   generateArchitectureReview,
   generateContextPack,
-  generateCodeIntelligenceOverview,
   generateMermaid,
   generateMigrationBrief,
   generateOverview,
@@ -54,6 +53,7 @@ import {
 import { AtlasProject, CodeIntelligence, ContextPackScope, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId } from "./types";
 import { templates as localTemplates } from "./data/templates";
 import { AtlasCanvas } from "./components/AtlasCanvas";
+import { CodeIntelligenceExplorer } from "./components/CodeIntelligenceExplorer";
 import { Inspector } from "./components/Inspector";
 import { Inventory } from "./components/Inventory";
 import { PreviewPanel } from "./components/PreviewPanel";
@@ -90,7 +90,8 @@ export function App() {
   const [viewId, setViewId] = useState<ViewId>("overview");
   const [edgeType, setEdgeType] = useState<(typeof EDGE_TYPES)[number]>("calls");
   const [nodeType, setNodeType] = useState<NodeType>("service");
-  const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "review" | "code" | "ai">("overview");
+  const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "review" | "ai">("overview");
+  const [rightPanelMode, setRightPanelMode] = useState<"inspector" | "code">("inspector");
   const [issues, setIssues] = useState<ValidationIssue[]>(validateAtlas(localTemplates[0].project));
   const [aiBrief, setAiBrief] = useState(generateContextPack(localTemplates[0].project, [], undefined, "focused"));
   const [status, setStatus] = useState("Ready");
@@ -246,14 +247,6 @@ export function App() {
   );
   const overview = useMemo(() => generateOverview(workingProject), [workingProject]);
   const architectureReview = useMemo(() => previewTab === "review" ? generateArchitectureReview(workingProject) : "", [workingProject, previewTab]);
-  const codeIntelligence = useMemo(
-    () => previewTab === "code"
-      ? codeIntelligenceLoading
-        ? "# Code Intelligence\n\nLoading saved code intelligence..."
-        : generateCodeIntelligenceOverview(workingProject)
-      : "",
-    [codeIntelligenceLoading, previewTab, workingProject]
-  );
   const mermaid = useMemo(() => generateMermaid(workingProject, viewId), [workingProject, viewId]);
   const migrationBrief = useMemo(() => {
     if (!activeProposal) return generateMigrationBrief(workingProject);
@@ -276,10 +269,10 @@ export function App() {
   }, [showAdvancedViews, viewId, workingProject.views]);
 
   useEffect(() => {
-    if (previewTab === "code" || viewId === "code") {
+    if (rightPanelMode === "code" || viewId === "code") {
       void loadSavedCodeIntelligence();
     }
-  }, [loadSavedCodeIntelligence, previewTab, viewId]);
+  }, [loadSavedCodeIntelligence, rightPanelMode, viewId]);
 
   function applyLoadedProject(next: AtlasProject, revision: string) {
     const withViews = mergeDefaultViews(next);
@@ -611,7 +604,7 @@ export function App() {
       codeIntelligenceLoadRef.current = null;
       setShowAdvancedViews(true);
       setViewId("code");
-      setPreviewTab("code");
+      setRightPanelMode("code");
       setStatus(`Scanned ${response.intelligence.files.length} files, ${response.intelligence.classes.length} classes, ${response.intelligence.routes.length} routes`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Scan failed");
@@ -762,32 +755,52 @@ export function App() {
           <PreviewPanel
             tab={previewTab}
             onTabChange={setPreviewTab}
-            project={workingProject}
-            selectedId={selectedId}
             overview={overview}
             mermaid={mermaid}
             issues={issues}
             architectureReview={architectureReview}
-            codeIntelligence={codeIntelligence}
             aiBrief={aiBrief}
             migrationBrief={migrationBrief}
             activeProposal={activeProposal}
-            onSelect={selectConcept}
           />
         </section>
 
-        <Inspector
-          project={workingProject}
-          selectedNode={selectedNode}
-          selectedEdge={selectedEdge}
-          selectedFlow={selectedFlow}
-          onSelect={setSelectedId}
-          onCreateEdge={addEdge}
-          onDeleteNode={deleteNode}
-          onDeleteEdge={deleteEdge}
-          onDeleteFlow={deleteFlow}
-          onChange={updateProject}
-        />
+        <aside className="right-rail" aria-label="Inspector and code intelligence">
+          <div className="right-rail-tabs">
+            <button type="button" className={rightPanelMode === "inspector" ? "active" : ""} onClick={() => setRightPanelMode("inspector")}>
+              <FileText size={14} /> Inspector
+            </button>
+            <button type="button" className={rightPanelMode === "code" ? "active" : ""} onClick={() => setRightPanelMode("code")}>
+              <Code2 size={14} /> Code Intel
+            </button>
+          </div>
+          {rightPanelMode === "code" ? (
+            <section className="panel code-intel-panel">
+              <CodeIntelligenceExplorer
+                project={workingProject}
+                selectedId={selectedId}
+                isLoading={codeIntelligenceLoading}
+                onSelect={(id) => {
+                  selectConcept(id);
+                  setRightPanelMode("inspector");
+                }}
+              />
+            </section>
+          ) : (
+            <Inspector
+              project={workingProject}
+              selectedNode={selectedNode}
+              selectedEdge={selectedEdge}
+              selectedFlow={selectedFlow}
+              onSelect={setSelectedId}
+              onCreateEdge={addEdge}
+              onDeleteNode={deleteNode}
+              onDeleteEdge={deleteEdge}
+              onDeleteFlow={deleteFlow}
+              onChange={updateProject}
+            />
+          )}
+        </aside>
       </main>
 
       <footer className="statusbar">
