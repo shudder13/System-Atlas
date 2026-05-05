@@ -43,7 +43,8 @@ const conceptFolders: Record<string, string> = {
   risk: "reliability"
 };
 
-export async function loadAtlas(root: string): Promise<AtlasProject | null> {
+export async function loadAtlas(root: string, options: { includeIntelligence?: boolean } = {}): Promise<AtlasProject | null> {
+  const includeIntelligence = options.includeIntelligence ?? true;
   const snapshotPath = safeJoin(root, "architecture/generated/atlas.json");
   let snapshot: AtlasProject | null = null;
   let snapshotMtime = 0;
@@ -58,10 +59,12 @@ export async function loadAtlas(root: string): Promise<AtlasProject | null> {
   }
 
   const authoredMtime = await latestFileMtime(root, "architecture", ["generated"]);
-  if (snapshot && snapshotMtime >= authoredMtime) return normalizeProject(snapshot);
+  if (snapshot && snapshotMtime >= authoredMtime) {
+    return withOptionalCodeIntelligence(root, normalizeProject(snapshot, { includeIntelligence }), includeIntelligence);
+  }
 
-  const pack = await loadAtlasFromPack(root);
-  return pack ?? (snapshot ? normalizeProject(snapshot) : null);
+  const pack = await loadAtlasFromPack(root, { includeIntelligence });
+  return pack ?? (snapshot ? withOptionalCodeIntelligence(root, normalizeProject(snapshot, { includeIntelligence }), includeIntelligence) : null);
 }
 
 export async function exportAtlas(root: string, project: AtlasProject) {
@@ -107,7 +110,7 @@ export async function exportAtlas(root: string, project: AtlasProject) {
 
   await writeFile(root, "architecture/evidence/code-map.json", JSON.stringify(project.evidence, null, 2), files);
   await writeCodeIntelligenceFiles(root, project.intelligence ?? emptyCodeIntelligence(), files);
-  await writeFile(root, "architecture/generated/atlas.json", JSON.stringify(project, null, 2), files);
+  await writeFile(root, "architecture/generated/atlas.json", JSON.stringify(projectSnapshotForAtlasJson(project), null, 2), files);
   await writeFile(root, "architecture/generated/overview.md", generateOverview(project), files);
   await writeFile(root, "architecture/generated/context-pack.md", generateContextPack(project), files);
 
@@ -130,7 +133,8 @@ export async function architectureRevision(root: string) {
   }
 }
 
-async function loadAtlasFromPack(root: string): Promise<AtlasProject | null> {
+async function loadAtlasFromPack(root: string, options: { includeIntelligence?: boolean } = {}): Promise<AtlasProject | null> {
+  const includeIntelligence = options.includeIntelligence ?? true;
   const manifestPath = safeJoin(root, "architecture/manifest.yaml");
   try {
     const rawManifest = parseStructured(await fs.readFile(manifestPath, "utf8")) as Record<string, unknown>;
@@ -153,7 +157,7 @@ async function loadAtlasFromPack(root: string): Promise<AtlasProject | null> {
 
     const views = await readJsonFiles<AtlasView>(root, "architecture/views");
     const evidence = await readEvidence(root);
-    const intelligence = await readCodeIntelligence(root);
+    const intelligence = includeIntelligence ? await readCodeIntelligence(root) : emptyCodeIntelligence();
     const proposals = await readProposals(root);
     const versions = await readJsonFiles<AtlasVersion>(root, "architecture/versions");
 
@@ -177,6 +181,10 @@ async function loadAtlasFromPack(root: string): Promise<AtlasProject | null> {
   } catch {
     return null;
   }
+}
+
+export async function loadCodeIntelligence(root: string): Promise<CodeIntelligence> {
+  return readCodeIntelligence(root);
 }
 
 export async function scanWorkspace(root: string): Promise<CodeScanResult> {
@@ -868,15 +876,44 @@ async function writeFile(root: string, relative: string, content: string, files:
   files.push(relative);
 }
 
-function normalizeProject(project: AtlasProject): AtlasProject {
+function normalizeProject(project: AtlasProject, options: { includeIntelligence?: boolean } = {}): AtlasProject {
+  const includeIntelligence = options.includeIntelligence ?? true;
   return {
     ...project,
     views: project.views ?? defaultViews(),
     proposals: project.proposals ?? [],
     versions: project.versions ?? [],
     evidence: project.evidence ?? [],
-    intelligence: project.intelligence ?? emptyCodeIntelligence()
+    intelligence: includeIntelligence ? project.intelligence ?? emptyCodeIntelligence() : emptyCodeIntelligence()
   };
+}
+
+function projectSnapshotForAtlasJson(project: AtlasProject): AtlasProject {
+  return {
+    ...project,
+    intelligence: emptyCodeIntelligence()
+  };
+}
+
+async function withOptionalCodeIntelligence(root: string, project: AtlasProject, includeIntelligence: boolean): Promise<AtlasProject> {
+  if (!includeIntelligence || hasCodeIntelligence(project.intelligence)) return project;
+  return {
+    ...project,
+    intelligence: await readCodeIntelligence(root)
+  };
+}
+
+function hasCodeIntelligence(intelligence: CodeIntelligence) {
+  return Boolean(
+    intelligence.generatedAt ||
+    intelligence.projectStructure.length ||
+    intelligence.files.length ||
+    intelligence.symbols.length ||
+    intelligence.classes.length ||
+    intelligence.routes.length ||
+    intelligence.dependencies.length ||
+    intelligence.testMap.length
+  );
 }
 
 function safeJoin(root: string, relative: string) {

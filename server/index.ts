@@ -3,7 +3,7 @@ import path from "node:path";
 import { templates } from "../src/data/templates";
 import { createProposal, emptyCodeIntelligence, generateContextPack, generateMigrationBrief, validateAtlas } from "../src/lib/atlas";
 import { AtlasProject, CodeIntelligence, ContextPackScope } from "../src/types";
-import { architectureRevision, exportAtlas, loadAtlas, scanWorkspace } from "./atlasFiles";
+import { architectureRevision, exportAtlas, loadAtlas, loadCodeIntelligence, scanWorkspace } from "./atlasFiles";
 
 const app = express();
 const port = Number(process.env.SYSTEM_ATLAS_API_PORT ?? 5174);
@@ -19,7 +19,7 @@ app.get("/api/templates", (_request, response) => {
 
 app.get("/api/project", async (_request, response, next) => {
   try {
-    const project = await loadAtlas(workspaceRoot);
+    const project = await loadAtlas(workspaceRoot, { includeIntelligence: false });
     const revision = await architectureRevision(workspaceRoot);
     response.json({
       workspace: workspaceRoot,
@@ -27,6 +27,14 @@ app.get("/api/project", async (_request, response, next) => {
       loadedFromDisk: Boolean(project),
       project: project ?? templates[0].project
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/code-intelligence", async (_request, response, next) => {
+  try {
+    response.json({ intelligence: await loadCodeIntelligence(workspaceRoot) });
   } catch (error) {
     next(error);
   }
@@ -53,10 +61,10 @@ app.post("/api/export", async (request, response, next) => {
       return;
     }
 
-    const existingProject = incomingProject.intelligence ? undefined : await loadAtlas(workspaceRoot);
+    const existingIntelligence = incomingProject.intelligence ? undefined : await loadCodeIntelligence(workspaceRoot);
     const project = {
       ...incomingProject,
-      intelligence: incomingProject.intelligence ?? existingProject?.intelligence ?? emptyCodeIntelligence()
+      intelligence: incomingProject.intelligence ?? existingIntelligence ?? emptyCodeIntelligence()
     } as AtlasProject;
 
     const result = await exportAtlas(workspaceRoot, project);
@@ -83,12 +91,16 @@ app.post("/api/scan", async (_request, response, next) => {
   }
 });
 
-app.post("/api/context-pack", (request, response) => {
-  const project = request.body.project as AtlasProject;
-  const targetIds = request.body.targetIds as string[] | undefined;
-  const goal = request.body.goal as string | undefined;
-  const scope = request.body.scope as ContextPackScope | undefined;
-  response.json({ markdown: generateContextPack(project, targetIds ?? [], goal, scope ?? "standard") });
+app.post("/api/context-pack", async (request, response, next) => {
+  try {
+    const project = await withSavedCodeIntelligence(request.body.project as AtlasProject);
+    const targetIds = request.body.targetIds as string[] | undefined;
+    const goal = request.body.goal as string | undefined;
+    const scope = request.body.scope as ContextPackScope | undefined;
+    response.json({ markdown: generateContextPack(project, targetIds ?? [], goal, scope ?? "standard") });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post("/api/proposal", (request, response) => {
@@ -97,12 +109,37 @@ app.post("/api/proposal", (request, response) => {
   response.json({ proposal: createProposal(project, name) });
 });
 
-app.post("/api/migration-brief", (request, response) => {
-  const project = request.body.project as AtlasProject;
-  const proposalId = request.body.proposalId as string | undefined;
-  const proposal = project.proposals.find((item) => item.id === proposalId);
-  response.json({ markdown: generateMigrationBrief(project, proposal) });
+app.post("/api/migration-brief", async (request, response, next) => {
+  try {
+    const project = await withSavedCodeIntelligence(request.body.project as AtlasProject);
+    const proposalId = request.body.proposalId as string | undefined;
+    const proposal = project.proposals.find((item) => item.id === proposalId);
+    response.json({ markdown: generateMigrationBrief(project, proposal) });
+  } catch (error) {
+    next(error);
+  }
 });
+
+async function withSavedCodeIntelligence(project: AtlasProject): Promise<AtlasProject> {
+  if (hasCodeIntelligence(project.intelligence ?? emptyCodeIntelligence())) return project;
+  return {
+    ...project,
+    intelligence: await loadCodeIntelligence(workspaceRoot)
+  };
+}
+
+function hasCodeIntelligence(intelligence: CodeIntelligence) {
+  return Boolean(
+    intelligence.generatedAt ||
+    intelligence.projectStructure.length ||
+    intelligence.files.length ||
+    intelligence.symbols.length ||
+    intelligence.classes.length ||
+    intelligence.routes.length ||
+    intelligence.dependencies.length ||
+    intelligence.testMap.length
+  );
+}
 
 app.use((error: Error, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
   response.status(500).json({ error: error.message });

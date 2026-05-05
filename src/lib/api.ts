@@ -43,6 +43,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   project: () => request<{ project: AtlasProject; workspace: string; revision: string; loadedFromDisk: boolean }>("/api/project"),
   projectRevision: () => request<{ revision: string }>("/api/project/revision"),
+  codeIntelligence: () => request<{ intelligence: CodeIntelligence }>("/api/code-intelligence"),
   templates: () => request<{ templates: Array<{ id: string; name: string; description: string; project: AtlasProject }> }>("/api/templates"),
   validate: (project: AtlasProject) => request<{ issues: ValidationIssue[] }>("/api/draft/validate", { method: "POST", body: JSON.stringify({ project }) }),
   export: (project: AtlasProject, options: { baseRevision?: string; force?: boolean; includeIntelligence?: boolean } = {}) => {
@@ -58,10 +59,16 @@ export const api = {
     });
   },
   scan: () => request<CodeScanResult>("/api/scan", { method: "POST" }),
-  contextPack: (project: AtlasProject, targetIds: string[], goal: string, scope: ContextPackScope) =>
-    request<{ markdown: string }>("/api/context-pack", { method: "POST", body: JSON.stringify({ project, targetIds, goal, scope }) }),
+  contextPack: (project: AtlasProject, targetIds: string[], goal: string, scope: ContextPackScope, includeIntelligence = false) =>
+    request<{ markdown: string }>("/api/context-pack", {
+      method: "POST",
+      body: JSON.stringify({ project: projectPayloadForExport(project, includeIntelligence), targetIds, goal, scope })
+    }),
   proposal: (project: AtlasProject, name: string) =>
     request<{ proposal: AtlasProposal }>("/api/proposal", { method: "POST", body: JSON.stringify({ project, name }) }),
-  migrationBrief: (project: AtlasProject, proposalId?: string) =>
-    request<{ markdown: string }>("/api/migration-brief", { method: "POST", body: JSON.stringify({ project, proposalId }) })
+  migrationBrief: (project: AtlasProject, proposalId?: string, includeIntelligence = false) =>
+    request<{ markdown: string }>("/api/migration-brief", {
+      method: "POST",
+      body: JSON.stringify({ project: projectPayloadForExport(project, includeIntelligence), proposalId })
+    })
 };

@@ -13,7 +13,7 @@ Use this skill when the user asks you to understand a system through its atlas, 
 
 Prefer these files in this order:
 
-1. `architecture/generated/atlas.json` for the full current snapshot when it exists and is fresh.
+1. `architecture/generated/atlas.json` for the lightweight current architecture snapshot when it exists and is fresh.
 2. `architecture/manifest.yaml` for system metadata and graph edges.
 3. Authored concept files:
    - `architecture/services/*.md`
@@ -53,7 +53,7 @@ When asked to understand the whole app:
 
 1. Read `architecture/generated/overview.md` if present.
 2. Read `architecture/manifest.yaml`.
-3. Read `architecture/generated/atlas.json` if present.
+3. Read `architecture/generated/atlas.json` if present. Treat it as the architecture graph snapshot; read `architecture/evidence/` for the durable code index.
 4. If the snapshot is missing or stale, read the authored concept files and reconstruct the model.
 5. Summarize the system by:
    - actors and entry points

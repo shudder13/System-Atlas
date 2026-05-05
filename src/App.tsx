@@ -51,7 +51,7 @@ import {
   VIEW_FAMILIES,
   viewSupportsNodeType
 } from "./lib/atlas";
-import { AtlasProject, ContextPackScope, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId } from "./types";
+import { AtlasProject, CodeIntelligence, ContextPackScope, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId } from "./types";
 import { templates as localTemplates } from "./data/templates";
 import { AtlasCanvas } from "./components/AtlasCanvas";
 import { Inspector } from "./components/Inspector";
@@ -103,10 +103,13 @@ export function App() {
   const [history, setHistory] = useState<ProjectHistory>({ past: [], future: [] });
   const [showAdvancedViews, setShowAdvancedViews] = useState(false);
   const [contextScope, setContextScope] = useState<ContextPackScope>("focused");
+  const [codeIntelligenceLoaded, setCodeIntelligenceLoaded] = useState(hasCodeIntelligence(localTemplates[0].project.intelligence));
+  const [codeIntelligenceLoading, setCodeIntelligenceLoading] = useState(false);
   const saveInFlightRef = useRef(false);
   const changeSeqRef = useRef(0);
   const codeIntelligenceDirtyRef = useRef(false);
   const codeIntelligenceVersionRef = useRef(0);
+  const codeIntelligenceLoadRef = useRef<Promise<CodeIntelligence | null> | null>(null);
 
   useEffect(() => {
     Promise.all([api.templates(), api.project()])
@@ -125,6 +128,33 @@ export function App() {
     applyLoadedProject(response.project, response.revision);
     setStatus(response.loadedFromDisk ? reason : "No architecture pack on disk; using starter atlas");
   }, []);
+
+  const loadSavedCodeIntelligence = useCallback(async () => {
+    if (codeIntelligenceDirtyRef.current || codeIntelligenceLoaded) return project.intelligence;
+    if (codeIntelligenceLoadRef.current) return codeIntelligenceLoadRef.current;
+
+    setCodeIntelligenceLoading(true);
+    const request = api.codeIntelligence()
+      .then(({ intelligence }) => {
+        setProject((current) => ({ ...current, intelligence }));
+        setCodeIntelligenceLoaded(true);
+        if (hasCodeIntelligence(intelligence)) {
+          setStatus(`Loaded saved code intelligence for ${intelligence.files.length} files`);
+        }
+        return intelligence;
+      })
+      .catch((error) => {
+        setStatus(error instanceof Error ? error.message : "Could not load saved code intelligence");
+        return null;
+      })
+      .finally(() => {
+        codeIntelligenceLoadRef.current = null;
+        setCodeIntelligenceLoading(false);
+      });
+
+    codeIntelligenceLoadRef.current = request;
+    return request;
+  }, [codeIntelligenceLoaded, project.intelligence]);
 
   const saveProjectToDisk = useCallback(async (mode: "auto" | "manual", force = false) => {
     if (saveInFlightRef.current) return;
@@ -216,7 +246,14 @@ export function App() {
   );
   const overview = useMemo(() => generateOverview(workingProject), [workingProject]);
   const architectureReview = useMemo(() => previewTab === "review" ? generateArchitectureReview(workingProject) : "", [workingProject, previewTab]);
-  const codeIntelligence = useMemo(() => generateCodeIntelligenceOverview(workingProject), [workingProject]);
+  const codeIntelligence = useMemo(
+    () => previewTab === "code"
+      ? codeIntelligenceLoading
+        ? "# Code Intelligence\n\nLoading saved code intelligence..."
+        : generateCodeIntelligenceOverview(workingProject)
+      : "",
+    [codeIntelligenceLoading, previewTab, workingProject]
+  );
   const mermaid = useMemo(() => generateMermaid(workingProject, viewId), [workingProject, viewId]);
   const migrationBrief = useMemo(() => {
     if (!activeProposal) return generateMigrationBrief(workingProject);
@@ -238,6 +275,12 @@ export function App() {
     }
   }, [showAdvancedViews, viewId, workingProject.views]);
 
+  useEffect(() => {
+    if (previewTab === "code" || viewId === "code") {
+      void loadSavedCodeIntelligence();
+    }
+  }, [loadSavedCodeIntelligence, previewTab, viewId]);
+
   function applyLoadedProject(next: AtlasProject, revision: string) {
     const withViews = mergeDefaultViews(next);
     changeSeqRef.current = 0;
@@ -254,6 +297,9 @@ export function App() {
     setHistory({ past: [], future: [] });
     codeIntelligenceDirtyRef.current = false;
     codeIntelligenceVersionRef.current = 0;
+    codeIntelligenceLoadRef.current = null;
+    setCodeIntelligenceLoaded(hasCodeIntelligence(withViews.intelligence));
+    setCodeIntelligenceLoading(false);
   }
 
   function markUnsaved() {
@@ -315,6 +361,7 @@ export function App() {
   function markCodeIntelligenceDirty() {
     codeIntelligenceDirtyRef.current = true;
     codeIntelligenceVersionRef.current += 1;
+    setCodeIntelligenceLoaded(true);
   }
 
   function undoProjectChange() {
@@ -348,6 +395,11 @@ export function App() {
     setAiBrief(generateContextPack(next, [], undefined, contextScope));
     markUnsaved();
     setHistory({ past: [], future: [] });
+    codeIntelligenceDirtyRef.current = false;
+    codeIntelligenceVersionRef.current = 0;
+    codeIntelligenceLoadRef.current = null;
+    setCodeIntelligenceLoaded(hasCodeIntelligence(next.intelligence));
+    setCodeIntelligenceLoading(false);
     setStatus(`Loaded template: ${template.name}`);
   }
 
@@ -554,6 +606,9 @@ export function App() {
       const response = await api.scan();
       const withCodeEvidence = mergeCodeEvidence(workingProject, response.evidence, response.intelligence);
       updateProject(withCodeEvidence);
+      setCodeIntelligenceLoaded(true);
+      setCodeIntelligenceLoading(false);
+      codeIntelligenceLoadRef.current = null;
       setShowAdvancedViews(true);
       setViewId("code");
       setPreviewTab("code");
@@ -565,10 +620,11 @@ export function App() {
 
   async function generateAiBrief() {
     const targetIds = selectedId ? [selectedId] : [];
+    const includeIntelligence = codeIntelligenceDirtyRef.current;
     try {
       const response = activeProposalId
-        ? await api.migrationBrief(project, activeProposalId)
-        : await api.contextPack(workingProject, targetIds, "Implement an architecture-safe change using this atlas.", contextScope);
+        ? await api.migrationBrief(project, activeProposalId, includeIntelligence)
+        : await api.contextPack(workingProject, targetIds, "Implement an architecture-safe change using this atlas.", contextScope, includeIntelligence);
       setAiBrief(response.markdown);
     } catch {
       setAiBrief(activeProposalId ? migrationBrief : generateContextPack(workingProject, targetIds, undefined, contextScope));
@@ -775,4 +831,17 @@ function formatSyncTime(value: string) {
     minute: "2-digit",
     second: "2-digit"
   }).format(new Date(value));
+}
+
+function hasCodeIntelligence(intelligence: CodeIntelligence) {
+  return Boolean(
+    intelligence.generatedAt ||
+    intelligence.projectStructure.length ||
+    intelligence.files.length ||
+    intelligence.symbols.length ||
+    intelligence.classes.length ||
+    intelligence.routes.length ||
+    intelligence.dependencies.length ||
+    intelligence.testMap.length
+  );
 }
