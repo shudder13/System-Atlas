@@ -249,6 +249,7 @@ export interface AtlasView {
   family?: string;
   concern?: string;
   scope?: string;
+  core?: boolean;
   nodeIds?: string[];
   edgeIds?: string[];
   positions?: Record<string, { x: number; y: number }>;

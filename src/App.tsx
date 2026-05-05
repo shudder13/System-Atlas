@@ -66,7 +66,6 @@ type ProjectHistory = {
 type SyncStatus = "idle" | "dirty" | "saving" | "synced" | "external-changes" | "error";
 
 const HISTORY_LIMIT = 50;
-const CORE_VIEW_IDS = new Set<ViewId>(["overview", "containers", "components", "flows", "deployment", "data", "concerns", "health", "proposals"]);
 
 const viewIcons: Record<ViewId, typeof Network> = {
   overview: Network,
@@ -209,7 +208,7 @@ export function App() {
     [selectedFlow]
   );
   const overview = useMemo(() => generateOverview(workingProject), [workingProject]);
-  const architectureReview = useMemo(() => generateArchitectureReview(workingProject), [workingProject]);
+  const architectureReview = useMemo(() => previewTab === "review" ? generateArchitectureReview(workingProject) : "", [workingProject, previewTab]);
   const codeIntelligence = useMemo(() => generateCodeIntelligenceOverview(workingProject), [workingProject]);
   const mermaid = useMemo(() => generateMermaid(workingProject, viewId), [workingProject, viewId]);
   const migrationBrief = useMemo(() => {
@@ -222,15 +221,15 @@ export function App() {
   const visibleViewFamilies = useMemo(() =>
     VIEW_FAMILIES.map((family) => ({
       ...family,
-      views: showAdvancedViews ? family.views : family.views.filter((id) => CORE_VIEW_IDS.has(id))
+      views: showAdvancedViews ? family.views : family.views.filter((id) => workingProject.views.find((view) => view.id === id)?.core !== false)
     })).filter((family) => family.views.length > 0),
-  [showAdvancedViews]);
+  [showAdvancedViews, workingProject.views]);
 
   useEffect(() => {
-    if (!showAdvancedViews && !CORE_VIEW_IDS.has(viewId)) {
+    if (!showAdvancedViews && workingProject.views.find((view) => view.id === viewId)?.core === false) {
       setViewId("overview");
     }
-  }, [showAdvancedViews, viewId]);
+  }, [showAdvancedViews, viewId, workingProject.views]);
 
   function applyLoadedProject(next: AtlasProject, revision: string) {
     const withViews = mergeDefaultViews(next);

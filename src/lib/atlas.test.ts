@@ -4,6 +4,7 @@ import {
   applyProposal,
   createProposal,
   createVersion,
+  defaultViews,
   generateArchitectureReview,
   generateCodeIntelligenceOverview,
   generateContextPack,
@@ -189,6 +190,10 @@ describe("atlas generators", () => {
     expect(generateMermaid(project, "security")).toContain("Identity Bypass Threat");
     expect(generateMermaid(project, "concerns")).toContain("Safe AI-Assisted Change");
     expect(generateMermaid(project, "decisions")).toContain("Use Async Job Queue");
+
+    const views = defaultViews();
+    expect(views.find((view) => view.id === "overview")?.core).toBe(true);
+    expect(views.find((view) => view.id === "code")?.core).toBe(false);
   });
 
   it("generates AI context and migration briefs", () => {

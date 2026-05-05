@@ -376,19 +376,19 @@ export function createEmptyProject(name = "Untitled System"): AtlasProject {
 
 export function defaultViews() {
   return [
-    { id: "overview" as const, name: "Context", family: "c4", concern: "System boundary", scope: "system", description: "C4-style system boundary, actors, client surfaces, owned systems, teams, and external dependencies." },
-    { id: "containers" as const, name: "Containers", family: "c4", concern: "Runtime building blocks", scope: "container", description: "Apps, services, workers, schedulers, load balancers, contracts, and external dependencies." },
-    { id: "components" as const, name: "Components", family: "c4", concern: "Internal building blocks", scope: "component", description: "Services, modules, components, contracts, and their implementation relationships." },
-    { id: "code" as const, name: "Code", family: "c4", concern: "Source structure", scope: "code", description: "Files, packages, code symbols, contracts, linked tests, and implementation evidence." },
-    { id: "flows" as const, name: "Flows", family: "behavior", concern: "Runtime behavior", scope: "scenario", description: "Critical user and system journeys, traces, failure modes, and acceptance checks." },
-    { id: "deployment" as const, name: "Deployment", family: "platform", concern: "Physical/runtime topology", scope: "environment", description: "Environments, regions, deployment nodes, replicas, routing, and operational topology." },
-    { id: "data" as const, name: "Data", family: "platform", concern: "Data ownership", scope: "data", description: "Entities, schemas, stores, queues, caches, ownership, read/write paths, replicas, and retention-sensitive paths." },
-    { id: "domain" as const, name: "Domain", family: "domain", concern: "Domain model", scope: "bounded-context", description: "Bounded contexts, domain entities, contracts, events, teams, and model ownership." },
-    { id: "security" as const, name: "Security", family: "assurance", concern: "Trust and threats", scope: "trust-boundary", description: "Trust boundaries, authentication, authorization, threats, mitigations, sensitive data, and controls." },
-    { id: "concerns" as const, name: "Concerns", family: "assurance", concern: "Stakeholder concerns", scope: "architecture-description", description: "Stakeholders, concerns, quality drivers, risks, decisions, and the architecture elements that address them." },
-    { id: "health" as const, name: "Health", family: "assurance", concern: "Quality and reliability", scope: "quality", description: "Risks, quality scenarios, reliability concerns, stale architecture, regression exposure, and test gaps." },
-    { id: "decisions" as const, name: "Decisions", family: "assurance", concern: "Architecture rationale", scope: "governance", description: "ADRs, superseded decisions, tradeoffs, quality scenarios, risks, and rationale links." },
-    { id: "proposals" as const, name: "Proposals", family: "assurance", concern: "Change planning", scope: "proposal", description: "Architecture change proposals, before/after impact, migration briefs, and acceptance checks." }
+    { id: "overview" as const, name: "Context", family: "c4", concern: "System boundary", scope: "system", core: true, description: "C4-style system boundary, actors, client surfaces, owned systems, teams, and external dependencies." },
+    { id: "containers" as const, name: "Containers", family: "c4", concern: "Runtime building blocks", scope: "container", core: true, description: "Apps, services, workers, schedulers, load balancers, contracts, and external dependencies." },
+    { id: "components" as const, name: "Components", family: "c4", concern: "Internal building blocks", scope: "component", core: true, description: "Services, modules, components, contracts, and their implementation relationships." },
+    { id: "code" as const, name: "Code", family: "c4", concern: "Source structure", scope: "code", core: false, description: "Files, packages, code symbols, contracts, linked tests, and implementation evidence." },
+    { id: "flows" as const, name: "Flows", family: "behavior", concern: "Runtime behavior", scope: "scenario", core: true, description: "Critical user and system journeys, traces, failure modes, and acceptance checks." },
+    { id: "deployment" as const, name: "Deployment", family: "platform", concern: "Physical/runtime topology", scope: "environment", core: true, description: "Environments, regions, deployment nodes, replicas, routing, and operational topology." },
+    { id: "data" as const, name: "Data", family: "platform", concern: "Data ownership", scope: "data", core: true, description: "Entities, schemas, stores, queues, caches, ownership, read/write paths, replicas, and retention-sensitive paths." },
+    { id: "domain" as const, name: "Domain", family: "domain", concern: "Domain model", scope: "bounded-context", core: false, description: "Bounded contexts, domain entities, contracts, events, teams, and model ownership." },
+    { id: "security" as const, name: "Security", family: "assurance", concern: "Trust and threats", scope: "trust-boundary", core: false, description: "Trust boundaries, authentication, authorization, threats, mitigations, sensitive data, and controls." },
+    { id: "concerns" as const, name: "Concerns", family: "assurance", concern: "Stakeholder concerns", scope: "architecture-description", core: true, description: "Stakeholders, concerns, quality drivers, risks, decisions, and the architecture elements that address them." },
+    { id: "health" as const, name: "Health", family: "assurance", concern: "Quality and reliability", scope: "quality", core: true, description: "Risks, quality scenarios, reliability concerns, stale architecture, regression exposure, and test gaps." },
+    { id: "decisions" as const, name: "Decisions", family: "assurance", concern: "Architecture rationale", scope: "governance", core: false, description: "ADRs, superseded decisions, tradeoffs, quality scenarios, risks, and rationale links." },
+    { id: "proposals" as const, name: "Proposals", family: "assurance", concern: "Change planning", scope: "proposal", core: true, description: "Architecture change proposals, before/after impact, migration briefs, and acceptance checks." }
   ];
 }
 
