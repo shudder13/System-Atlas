@@ -145,6 +145,7 @@ Do not implement an old applied proposal as if it were still a requested future 
 
 The System Atlas UI autosyncs UI edits to the `architecture/` pack after a short debounce. It also polls the pack and reloads when files change and there are no unsaved UI edits.
 Ordinary UI autosaves preserve the existing saved code intelligence from `architecture/evidence/`; a fresh Scan refreshes and persists that code index.
+Until that save finishes, AI context generation should prefer the fresh in-memory Scan result over older evidence files on disk.
 
 When editing atlas files directly:
 

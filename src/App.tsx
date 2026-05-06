@@ -108,8 +108,8 @@ export function App() {
   const [codeIntelligenceLoading, setCodeIntelligenceLoading] = useState(false);
   const saveInFlightRef = useRef(false);
   const changeSeqRef = useRef(0);
-  const codeIntelligenceDirtyRef = useRef(false);
   const codeIntelligenceVersionRef = useRef(0);
+  const persistedCodeIntelligenceVersionRef = useRef(0);
   const codeIntelligenceLoadRef = useRef<Promise<CodeIntelligence | null> | null>(null);
 
   useEffect(() => {
@@ -131,12 +131,18 @@ export function App() {
   }, []);
 
   const loadSavedCodeIntelligence = useCallback(async () => {
-    if (codeIntelligenceDirtyRef.current || codeIntelligenceLoaded) return project.intelligence;
+    if (hasUnpersistedCodeIntelligence() || codeIntelligenceLoaded) return project.intelligence;
     if (codeIntelligenceLoadRef.current) return codeIntelligenceLoadRef.current;
 
     setCodeIntelligenceLoading(true);
-    const request = api.codeIntelligence()
+    const loadStartedAtVersion = codeIntelligenceVersionRef.current;
+    let request!: Promise<CodeIntelligence | null>;
+    request = api.codeIntelligence()
       .then(({ intelligence }) => {
+        if (codeIntelligenceVersionRef.current !== loadStartedAtVersion || hasUnpersistedCodeIntelligence()) {
+          return null;
+        }
+
         setProject((current) => ({ ...current, intelligence }));
         setCodeIntelligenceLoaded(true);
         if (hasCodeIntelligence(intelligence)) {
@@ -149,8 +155,10 @@ export function App() {
         return null;
       })
       .finally(() => {
-        codeIntelligenceLoadRef.current = null;
-        setCodeIntelligenceLoading(false);
+        if (codeIntelligenceLoadRef.current === request) {
+          codeIntelligenceLoadRef.current = null;
+          setCodeIntelligenceLoading(false);
+        }
       });
 
     codeIntelligenceLoadRef.current = request;
@@ -165,7 +173,7 @@ export function App() {
     setSyncStatus("saving");
 
     try {
-      const includeIntelligence = codeIntelligenceDirtyRef.current;
+      const includeIntelligence = hasUnpersistedCodeIntelligence();
       const savingIntelligenceVersion = codeIntelligenceVersionRef.current;
       const response = await api.export(project, { baseRevision: diskRevision, force, includeIntelligence });
       setIssues(response.issues);
@@ -173,7 +181,7 @@ export function App() {
       setExternalRevision("");
       setLastSyncedAt(new Date().toISOString());
       if (includeIntelligence && codeIntelligenceVersionRef.current === savingIntelligenceVersion) {
-        codeIntelligenceDirtyRef.current = false;
+        persistedCodeIntelligenceVersionRef.current = savingIntelligenceVersion;
       }
 
       if (changeSeqRef.current === savingSeq) {
@@ -288,8 +296,8 @@ export function App() {
     setSyncStatus(revision ? "synced" : "idle");
     setLastSyncedAt(revision ? new Date().toISOString() : "");
     setHistory({ past: [], future: [] });
-    codeIntelligenceDirtyRef.current = false;
     codeIntelligenceVersionRef.current = 0;
+    persistedCodeIntelligenceVersionRef.current = 0;
     codeIntelligenceLoadRef.current = null;
     setCodeIntelligenceLoaded(hasCodeIntelligence(withViews.intelligence));
     setCodeIntelligenceLoading(false);
@@ -340,9 +348,12 @@ export function App() {
   }
 
   function markCodeIntelligenceDirty() {
-    codeIntelligenceDirtyRef.current = true;
     codeIntelligenceVersionRef.current += 1;
     setCodeIntelligenceLoaded(true);
+  }
+
+  function hasUnpersistedCodeIntelligence() {
+    return codeIntelligenceVersionRef.current !== persistedCodeIntelligenceVersionRef.current;
   }
 
   function undoProjectChange() {
@@ -376,8 +387,8 @@ export function App() {
     setAiBrief(generateContextPack(next, [], undefined, contextScope));
     markUnsaved();
     setHistory({ past: [], future: [] });
-    codeIntelligenceDirtyRef.current = false;
     codeIntelligenceVersionRef.current = 0;
+    persistedCodeIntelligenceVersionRef.current = 0;
     codeIntelligenceLoadRef.current = null;
     setCodeIntelligenceLoaded(hasCodeIntelligence(next.intelligence));
     setCodeIntelligenceLoading(false);
@@ -601,7 +612,7 @@ export function App() {
 
   async function generateAiBrief() {
     const targetIds = selectedId ? [selectedId] : [];
-    const includeIntelligence = codeIntelligenceDirtyRef.current;
+    const includeIntelligence = hasUnpersistedCodeIntelligence();
     try {
       const response = activeProposalId
         ? await api.migrationBrief(project, activeProposalId, includeIntelligence)

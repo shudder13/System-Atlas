@@ -105,6 +105,7 @@ The MVP focuses on manual architecture modeling first:
 - Sync UI edits to a repo-native architecture pack, including durable `architecture/evidence/*.json` files.
 - Preserve saved code intelligence during ordinary autosaves, and rewrite it only after a fresh Scan changes the code index.
 - Load the large saved code index on demand for Code Intel and AI context instead of putting it in every project load.
+- Use fresh in-memory Scan results for AI context until that newer code index is safely persisted.
 - Detect external edits to `architecture/` and ask the architect to reload or explicitly overwrite when there are unsaved UI changes.
 
 ## Supported Workflows
