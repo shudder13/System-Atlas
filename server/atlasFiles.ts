@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import ts from "typescript";
 import YAML from "yaml";
-import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSymbol, CodeTestMapEntry, ProjectStructureEntry } from "../src/types";
+import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSymbol, CodeTestMapEntry, PackHealth, PackMetadataSummary, ProjectStructureEntry } from "../src/types";
 import { defaultViews, emptyCodeIntelligence, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
 const conceptFolders: Record<string, string> = {
@@ -147,6 +147,70 @@ export async function architectureSourceRevision(root: string) {
   } catch {
     return "";
   }
+}
+
+export async function packHealth(root: string): Promise<PackHealth> {
+  const currentSourceRevision = await architectureSourceRevision(root);
+  const generated = await readPackMetadata(root, "architecture/generated/metadata.json");
+  const evidence = await readPackMetadata(root, "architecture/evidence/metadata.json");
+  const issues: string[] = [];
+
+  if (!generated) issues.push("Generated metadata is missing.");
+  if (!evidence) issues.push("Evidence metadata is missing.");
+
+  if (!generated || !evidence) {
+    return {
+      status: "missing",
+      message: "Pack metadata is incomplete. Export the atlas to regenerate derived files.",
+      currentSourceRevision,
+      generated,
+      evidence,
+      issues
+    };
+  }
+
+  if (generated.exportId !== evidence.exportId) {
+    issues.push("Generated files and evidence files were produced by different exports.");
+  }
+  if (generated.architectureSourceRevision !== evidence.architectureSourceRevision) {
+    issues.push("Generated files and evidence files reference different architecture source revisions.");
+  }
+
+  const staleRevision = generated.architectureSourceRevision !== currentSourceRevision || evidence.architectureSourceRevision !== currentSourceRevision;
+  if (staleRevision) {
+    issues.push("Authored architecture files changed after the last generated export.");
+  }
+
+  if (issues.some((issue) => issue.includes("different"))) {
+    return {
+      status: "misaligned",
+      message: "Generated files and evidence are misaligned.",
+      currentSourceRevision,
+      generated,
+      evidence,
+      issues
+    };
+  }
+
+  if (staleRevision) {
+    return {
+      status: "stale",
+      message: "Generated files are stale relative to authored architecture files.",
+      currentSourceRevision,
+      generated,
+      evidence,
+      issues
+    };
+  }
+
+  return {
+    status: "healthy",
+    message: "Generated files and evidence match the current architecture source revision.",
+    currentSourceRevision,
+    generated,
+    evidence,
+    issues
+  };
 }
 
 async function loadAtlasFromPack(root: string, options: { includeIntelligence?: boolean } = {}): Promise<AtlasProject | null> {
@@ -765,6 +829,14 @@ async function readEvidenceArray<T>(root: string, relative: string): Promise<T[]
     return JSON.parse(await fs.readFile(safeJoin(root, relative), "utf8")) as T[];
   } catch {
     return [];
+  }
+}
+
+async function readPackMetadata(root: string, relative: string): Promise<PackMetadataSummary | undefined> {
+  try {
+    return JSON.parse(await fs.readFile(safeJoin(root, relative), "utf8")) as PackMetadataSummary;
+  } catch {
+    return undefined;
   }
 }
 

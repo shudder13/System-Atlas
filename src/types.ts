@@ -333,6 +333,31 @@ export interface ValidationIssue {
   targetId?: string;
 }
 
+export interface PackMetadataSummary {
+  exportId?: string;
+  generatedAt?: string;
+  architectureSourceRevision?: string;
+  project?: {
+    name?: string;
+    updatedAt?: string;
+    nodes?: number;
+    edges?: number;
+    flows?: number;
+    views?: number;
+    proposals?: number;
+    versions?: number;
+  };
+}
+
+export interface PackHealth {
+  status: "missing" | "healthy" | "stale" | "misaligned";
+  message: string;
+  currentSourceRevision: string;
+  generated?: PackMetadataSummary;
+  evidence?: PackMetadataSummary;
+  issues: string[];
+}
+
 export interface SemanticDiff {
   addedNodes: AtlasNode[];
   removedNodes: AtlasNode[];

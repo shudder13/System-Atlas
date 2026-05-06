@@ -1,4 +1,4 @@
-import { AtlasProject, AtlasProposal, CodeScanResult, CodeIntelligence, ContextPackScope, ValidationIssue } from "../types";
+import { AtlasProject, AtlasProposal, CodeScanResult, CodeIntelligence, ContextPackScope, PackHealth, ValidationIssue } from "../types";
 
 type ExportProjectPayload = Omit<AtlasProject, "intelligence"> & { intelligence?: CodeIntelligence };
 
@@ -44,11 +44,12 @@ export const api = {
   project: () => request<{ project: AtlasProject; workspace: string; revision: string; loadedFromDisk: boolean }>("/api/project"),
   projectRevision: () => request<{ revision: string }>("/api/project/revision"),
   codeIntelligence: () => request<{ intelligence: CodeIntelligence }>("/api/code-intelligence"),
+  packHealth: () => request<{ packHealth: PackHealth }>("/api/pack-health"),
   templates: () => request<{ templates: Array<{ id: string; name: string; description: string; project: AtlasProject }> }>("/api/templates"),
   validate: (project: AtlasProject) => request<{ issues: ValidationIssue[] }>("/api/draft/validate", { method: "POST", body: JSON.stringify({ project }) }),
   export: (project: AtlasProject, options: { baseRevision?: string; force?: boolean; includeIntelligence?: boolean } = {}) => {
     const includeIntelligence = options.includeIntelligence ?? false;
-    return request<{ ok: boolean; revision: string; files: string[]; issues: ValidationIssue[] }>("/api/export", {
+    return request<{ ok: boolean; revision: string; files: string[]; issues: ValidationIssue[]; packHealth: PackHealth }>("/api/export", {
       method: "POST",
       body: JSON.stringify({
         project: projectPayloadForExport(project, includeIntelligence),

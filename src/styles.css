@@ -930,6 +930,34 @@ code {
   white-space: nowrap;
 }
 
+.pack-health {
+  padding: 0.1rem 0.42rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+}
+
+.pack-health.healthy {
+  border-color: #99f6e4;
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.pack-health.stale,
+.pack-health.missing {
+  border-color: #fde68a;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pack-health.misaligned {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 @media (max-width: 1500px) {
   .topbar {
     grid-template-columns: 1fr;

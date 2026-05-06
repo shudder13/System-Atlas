@@ -50,7 +50,7 @@ import {
   VIEW_FAMILIES,
   viewSupportsNodeType
 } from "./lib/atlas";
-import { AtlasProject, CodeIntelligence, ContextPackScope, EDGE_TYPES, EdgeType, NodeType, ValidationIssue, ViewId } from "./types";
+import { AtlasProject, CodeIntelligence, ContextPackScope, EDGE_TYPES, EdgeType, NodeType, PackHealth, ValidationIssue, ViewId } from "./types";
 import { templates as localTemplates } from "./data/templates";
 import { AtlasCanvas } from "./components/AtlasCanvas";
 import { CodeIntelligenceExplorer } from "./components/CodeIntelligenceExplorer";
@@ -101,6 +101,7 @@ export function App() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [externalRevision, setExternalRevision] = useState("");
   const [lastSyncedAt, setLastSyncedAt] = useState("");
+  const [packHealth, setPackHealth] = useState<PackHealth | null>(null);
   const [history, setHistory] = useState<ProjectHistory>({ past: [], future: [] });
   const [showAdvancedViews, setShowAdvancedViews] = useState(false);
   const [contextScope, setContextScope] = useState<ContextPackScope>("focused");
@@ -113,10 +114,11 @@ export function App() {
   const codeIntelligenceLoadRef = useRef<Promise<CodeIntelligence | null> | null>(null);
 
   useEffect(() => {
-    Promise.all([api.templates(), api.project()])
-      .then(([templateResponse, projectResponse]) => {
+    Promise.all([api.templates(), api.project(), api.packHealth()])
+      .then(([templateResponse, projectResponse, healthResponse]) => {
         setTemplates(templateResponse.templates);
         applyLoadedProject(projectResponse.project, projectResponse.revision);
+        setPackHealth(healthResponse.packHealth);
         setStatus(projectResponse.loadedFromDisk ? "Loaded architecture pack" : "Loaded starter atlas");
       })
       .catch(() => {
@@ -125,9 +127,10 @@ export function App() {
   }, []);
 
   const reloadProjectFromDisk = useCallback(async (reason = "Reloaded architecture pack") => {
-    const response = await api.project();
-    applyLoadedProject(response.project, response.revision);
-    setStatus(response.loadedFromDisk ? reason : "No architecture pack on disk; using starter atlas");
+    const [projectResponse, healthResponse] = await Promise.all([api.project(), api.packHealth()]);
+    applyLoadedProject(projectResponse.project, projectResponse.revision);
+    setPackHealth(healthResponse.packHealth);
+    setStatus(projectResponse.loadedFromDisk ? reason : "No architecture pack on disk; using starter atlas");
   }, []);
 
   const loadSavedCodeIntelligence = useCallback(async () => {
@@ -178,6 +181,7 @@ export function App() {
       const response = await api.export(project, { baseRevision: diskRevision, force, includeIntelligence });
       setIssues(response.issues);
       setDiskRevision(response.revision);
+      setPackHealth(response.packHealth);
       setExternalRevision("");
       setLastSyncedAt(new Date().toISOString());
       if (includeIntelligence && codeIntelligenceVersionRef.current === savingIntelligenceVersion) {
@@ -295,6 +299,7 @@ export function App() {
     setHasUnsavedChanges(false);
     setSyncStatus(revision ? "synced" : "idle");
     setLastSyncedAt(revision ? new Date().toISOString() : "");
+    setPackHealth(null);
     setHistory({ past: [], future: [] });
     codeIntelligenceVersionRef.current = 0;
     persistedCodeIntelligenceVersionRef.current = 0;
@@ -387,6 +392,7 @@ export function App() {
     setAiBrief(generateContextPack(next, [], undefined, contextScope));
     markUnsaved();
     setHistory({ past: [], future: [] });
+    setPackHealth(null);
     codeIntelligenceVersionRef.current = 0;
     persistedCodeIntelligenceVersionRef.current = 0;
     codeIntelligenceLoadRef.current = null;
@@ -807,6 +813,9 @@ export function App() {
         {activeProposal && <span>Editing proposal: {activeProposal.name}</span>}
         <span>{project.versions.length} checkpoints</span>
         <span>{prettySyncStatus(syncStatus)}{lastSyncedAt ? ` · ${formatSyncTime(lastSyncedAt)}` : ""}</span>
+        <span className={`pack-health ${packHealthClass(packHealth)}`} title={packHealthTitle(packHealth)}>
+          {packHealthLabel(packHealth)}
+        </span>
         {hasUnsavedChanges && <span>{syncStatus === "external-changes" ? "Unsaved UI changes; disk changed" : "Unsaved UI changes"}</span>}
         {externalRevision && <span>External revision waiting</span>}
         <span><FileDown size={14} /> Syncs to <code>architecture/</code></span>
@@ -835,6 +844,31 @@ function prettySyncStatus(status: SyncStatus) {
     error: "Sync error"
   };
   return labels[status];
+}
+
+function packHealthLabel(health: PackHealth | null) {
+  if (!health) return "Pack Health: unknown";
+  const labels: Record<PackHealth["status"], string> = {
+    missing: "Pack Health: missing",
+    healthy: "Pack Health: healthy",
+    stale: "Pack Health: stale",
+    misaligned: "Pack Health: misaligned"
+  };
+  return labels[health.status];
+}
+
+function packHealthClass(health: PackHealth | null) {
+  return health?.status ?? "unknown";
+}
+
+function packHealthTitle(health: PackHealth | null) {
+  if (!health) return "Generated/evidence metadata has not been loaded yet.";
+  return [
+    health.message,
+    health.generated?.generatedAt ? `Generated: ${health.generated.generatedAt}` : "",
+    health.evidence?.generatedAt ? `Evidence: ${health.evidence.generatedAt}` : "",
+    ...health.issues
+  ].filter(Boolean).join("\n");
 }
 
 function formatSyncTime(value: string) {

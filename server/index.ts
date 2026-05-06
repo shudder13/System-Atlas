@@ -3,7 +3,7 @@ import path from "node:path";
 import { templates } from "../src/data/templates";
 import { createProposal, emptyCodeIntelligence, generateContextPack, generateMigrationBrief, validateAtlas } from "../src/lib/atlas";
 import { AtlasProject, CodeIntelligence, ContextPackScope } from "../src/types";
-import { architectureRevision, exportAtlas, loadAtlas, loadCodeIntelligence, scanWorkspace } from "./atlasFiles";
+import { architectureRevision, exportAtlas, loadAtlas, loadCodeIntelligence, packHealth, scanWorkspace } from "./atlasFiles";
 
 const app = express();
 const port = Number(process.env.SYSTEM_ATLAS_API_PORT ?? 5174);
@@ -40,6 +40,14 @@ app.get("/api/code-intelligence", async (_request, response, next) => {
   }
 });
 
+app.get("/api/pack-health", async (_request, response, next) => {
+  try {
+    response.json({ packHealth: await packHealth(workspaceRoot) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/draft/validate", (request, response) => {
   const project = request.body.project as AtlasProject;
   response.json({ issues: validateAtlas(project) });
@@ -69,7 +77,7 @@ app.post("/api/export", async (request, response, next) => {
 
     const result = await exportAtlas(workspaceRoot, project);
     const revision = await architectureRevision(workspaceRoot);
-    response.json({ ok: true, revision, ...result });
+    response.json({ ok: true, revision, packHealth: await packHealth(workspaceRoot), ...result });
   } catch (error) {
     next(error);
   }
