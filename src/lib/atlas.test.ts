@@ -312,4 +312,97 @@ describe("atlas generators", () => {
     expect(layoutProjectForView(withEvidence, "code").nodes.some((node) => node.id.startsWith("code.file."))).toBe(true);
     expect(generateContextPack(withEvidence, ["code.file.src-lib-example.ts"])).toContain("Persistent Code Intelligence");
   });
+
+  it("derives class, API, and schema views from saved architecture evidence", () => {
+    const intelligence = {
+      generatedAt: "2026-05-05T00:00:00.000Z",
+      projectStructure: [],
+      files: [],
+      symbols: [
+        { id: "symbol.repo", path: "src/lib/repo.ts", name: "Repository", kind: "interface" as const, line: 1, exported: true },
+        { id: "symbol.example", path: "src/lib/example.ts", name: "ExampleService", kind: "class" as const, line: 3, exported: true }
+      ],
+      classes: [
+        {
+          id: "class.example",
+          path: "src/lib/example.ts",
+          name: "ExampleService",
+          line: 3,
+          exported: true,
+          extends: "BaseService",
+          implements: ["Repository"],
+          attributes: [{ name: "repo", kind: "attribute" as const, visibility: "private" as const, type: "Repository" }],
+          methods: [{ name: "list", kind: "method" as const, parameters: [], returnType: "Item[]" }]
+        }
+      ],
+      routes: [{ id: "route.example", method: "GET", path: "/examples", sourceFile: "src/lib/example.ts", line: 18 }],
+      dependencies: [],
+      testMap: [{ testFile: "src/lib/example.test.ts", targetFiles: ["src/lib/example.ts"], inferred: false }]
+    };
+    const projectWithOwner = {
+      ...project,
+      nodes: project.nodes.map((node) => node.id === "service.api" ? { ...node, linkedFiles: ["src/lib/example.ts"] } : node)
+    };
+    const withEvidence = mergeCodeEvidence(projectWithOwner, [
+      {
+        path: "src/lib/example.ts",
+        kind: "source",
+        language: "typescript",
+        lines: 42,
+        symbols: [{ name: "ExampleService", kind: "class", line: 3 }],
+        routes: ["GET /examples"]
+      },
+      {
+        path: "db/migrations/001_create_examples.sql",
+        kind: "migration",
+        language: "sql",
+        lines: 24
+      }
+    ], intelligence);
+    const withSchema = {
+      ...withEvidence,
+      nodes: [
+        ...withEvidence.nodes,
+        {
+          id: "schema.examples",
+          type: "schema" as const,
+          name: "Examples Schema",
+          owner: "data",
+          status: "active" as const,
+          criticality: "high" as const,
+          responsibilities: ["Persists example records."],
+          dependencies: [],
+          invariants: ["Example ids are immutable."],
+          linkedFiles: ["db/migrations/001_create_examples.sql"],
+          linkedTests: [],
+          risks: [],
+          confidence: "manual" as const,
+          architectureLevel: "data" as const,
+          metadata: {
+            databaseEngine: "Postgres",
+            columns: ["id uuid primary key", "name text not null"],
+            indexes: ["examples_name_idx"],
+            relations: ["examples.owner_id -> users.id"]
+          }
+        }
+      ]
+    };
+
+    const classGraph = layoutProjectForView(withSchema, "class_diagram");
+    const apiGraph = layoutProjectForView(withSchema, "api_surface");
+    const schemaGraph = layoutProjectForView(withSchema, "schema_model");
+
+    const classNode = classGraph.nodes.find((node) => node.name === "ExampleService");
+    expect(classNode?.metadata?.methods).toContain("list(): Item[]");
+    expect(classNode?.metadata?.attributes).toContain("private repo: Repository");
+    expect(classGraph.edges.some((edge) => edge.type === "implements" && edge.label === "implements")).toBe(true);
+    expect(generateMermaid(withSchema, "class_diagram")).toContain("classDiagram");
+
+    expect(apiGraph.nodes.some((node) => node.name === "GET /examples" && node.type === "api_contract")).toBe(true);
+    expect(apiGraph.edges.some((edge) => edge.source === "service.api" && edge.type === "exposes")).toBe(true);
+
+    expect(schemaGraph.nodes.some((node) => node.id === "schema.examples")).toBe(true);
+    expect(schemaGraph.nodes.some((node) => node.type === "migration" && node.linkedFiles.includes("db/migrations/001_create_examples.sql"))).toBe(true);
+    expect(metadataFieldsForNode("schema").some((field) => field.key === "columns")).toBe(true);
+  });
 });

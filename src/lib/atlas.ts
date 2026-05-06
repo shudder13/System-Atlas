@@ -37,8 +37,11 @@ const componentTypes = new Set<NodeType>([
 const overviewTypes = new Set<NodeType>(["actor", "stakeholder", "system", "app", "container", "service", "external_system", "team", "load_balancer"]);
 const containerTypes = new Set<NodeType>(["system", "container", "app", "service", "worker", "scheduler", "load_balancer", "external_system", "api_contract", "event_contract"]);
 const codeTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract", "api_contract", "event_contract"]);
+const classDiagramTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract"]);
+const apiSurfaceTypes = new Set<NodeType>(["actor", "app", "container", "service", "module", "load_balancer", "external_system", "contract", "api_contract", "quality_scenario", "risk"]);
 const deploymentTypes = new Set<NodeType>(["environment", "region", "deployment_node", "load_balancer", "service", "worker", "scheduler", "datastore", "replica", "queue", "cache", "external_system"]);
 const dataTypes = new Set<NodeType>(["service", "module", "worker", "datastore", "replica", "queue", "cache", "external_system", "contract", "api_contract", "event_contract", "data_entity", "schema", "migration"]);
+const schemaModelTypes = new Set<NodeType>(["service", "module", "worker", "datastore", "replica", "data_entity", "schema", "migration", "decision", "quality_scenario", "risk"]);
 const domainTypes = new Set<NodeType>(["system", "container", "component", "module", "data_entity", "schema", "api_contract", "event_contract", "decision", "team"]);
 const securityTypes = new Set<NodeType>(["actor", "app", "service", "external_system", "api_contract", "event_contract", "datastore", "data_entity", "threat", "risk"]);
 const concernTypes = new Set<NodeType>(["stakeholder", "actor", "team", "concern", "quality_scenario", "risk", "threat", "decision", "system", "container", "service", "app", "external_system"]);
@@ -51,9 +54,12 @@ const viewEdgeTypes: Partial<Record<ViewId, Set<EdgeType>>> = {
   containers: new Set(["contains", "calls", "routes_to", "exposes", "publishes", "subscribes_to", "depends_on", "deploys_to"]),
   components: new Set(["contains", "calls", "depends_on", "implements", "routes_to", "exposes", "models"]),
   code: new Set(["contains", "implements", "tests", "depends_on", "traces_to", "models"]),
+  class_diagram: new Set(["contains", "implements", "depends_on", "tests", "models", "traces_to"]),
+  api_surface: new Set(["exposes", "routes_to", "calls", "implements", "tests", "depends_on", "authenticates", "authorizes", "risks", "mitigates", "addresses"]),
   flows: new Set(["calls", "routes_to", "emits", "consumes", "publishes", "subscribes_to", "reads", "writes", "tests", "authenticates", "authorizes"]),
   deployment: new Set(["contains", "deploys_to", "routes_to", "replicates_to", "depends_on", "calls"]),
   data: new Set(["reads", "writes", "owns", "replicates_to", "emits", "consumes", "publishes", "subscribes_to", "models"]),
+  schema_model: new Set(["owns", "models", "reads", "writes", "replicates_to", "depends_on", "tests", "risks", "mitigates", "decides"]),
   domain: new Set(["contains", "owns", "models", "publishes", "subscribes_to", "implements", "decides"]),
   security: new Set(["authenticates", "authorizes", "protects", "threatens", "mitigates", "risks", "calls", "reads", "writes"]),
   concerns: new Set(["has_concern", "addresses", "owns", "risks", "mitigates", "protects", "decides", "traces_to", "depends_on"]),
@@ -109,6 +115,18 @@ const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonl
     lane(2, ["code_symbol"]),
     lane(3, ["contract", "api_contract", "event_contract"])
   ],
+  class_diagram: [
+    lane(0, ["file_group", "module", "component"]),
+    lane(1, ["code_symbol"]),
+    lane(2, ["contract"])
+  ],
+  api_surface: [
+    lane(0, ["actor", "app", "load_balancer"]),
+    lane(1, ["container", "service", "module"]),
+    lane(2, ["api_contract", "contract"]),
+    lane(3, ["external_system"]),
+    lane(4, ["quality_scenario", "risk"])
+  ],
   flows: [
     lane(0, ["actor", "app"]),
     lane(1, ["container", "load_balancer", "service"]),
@@ -129,6 +147,14 @@ const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonl
     lane(3, ["datastore"]),
     lane(4, ["replica"]),
     lane(5, ["migration"])
+  ],
+  schema_model: [
+    lane(0, ["service", "module", "worker"]),
+    lane(1, ["datastore", "replica"]),
+    lane(2, ["schema"]),
+    lane(3, ["data_entity"]),
+    lane(4, ["migration"]),
+    lane(5, ["quality_scenario", "risk", "decision"])
   ],
   domain: [
     lane(0, ["team", "system"]),
@@ -170,9 +196,12 @@ const viewLaneFallbacks: Partial<Record<ViewId, number>> = {
   containers: 3,
   components: 5,
   code: 4,
+  class_diagram: 3,
+  api_surface: 5,
   flows: 4,
   deployment: 5,
   data: 6,
+  schema_model: 6,
   domain: 4,
   security: 5,
   concerns: 5,
@@ -209,8 +238,8 @@ const metadataProfiles: Partial<Record<NodeType, MetadataFieldDefinition[]>> = {
   ],
   datastore: dataMetadataFields(),
   replica: dataMetadataFields(),
-  schema: dataMetadataFields(),
-  data_entity: dataMetadataFields(),
+  schema: schemaMetadataFields(),
+  data_entity: dataEntityMetadataFields(),
   queue: asyncMetadataFields(),
   cache: [
     { key: "ttl", label: "TTL", kind: "text", description: "Cache expiration policy." },
@@ -254,9 +283,9 @@ const metadataProfiles: Partial<Record<NodeType, MetadataFieldDefinition[]>> = {
 };
 
 export const VIEW_FAMILIES: Array<{ id: string; name: string; description: string; views: ViewId[] }> = [
-  { id: "c4", name: "C4", description: "System context, containers, components, and code-level structure.", views: ["overview", "containers", "components", "code"] },
-  { id: "behavior", name: "Runtime", description: "Scenarios, business flows, dynamic traces, and async behavior.", views: ["flows"] },
-  { id: "platform", name: "Platform", description: "Deployment, infrastructure, regions, data stores, and ownership.", views: ["deployment", "data"] },
+  { id: "c4", name: "C4", description: "System context, containers, components, code-level structure, and class relationships.", views: ["overview", "containers", "components", "code", "class_diagram"] },
+  { id: "behavior", name: "Runtime", description: "Scenarios, business flows, dynamic traces, API surfaces, and async behavior.", views: ["flows", "api_surface"] },
+  { id: "platform", name: "Platform", description: "Deployment, infrastructure, regions, data stores, database schemas, and ownership.", views: ["deployment", "data", "schema_model"] },
   { id: "domain", name: "Domain", description: "Bounded contexts, entities, contracts, and domain language.", views: ["domain"] },
   { id: "assurance", name: "Assurance", description: "Stakeholders, concerns, security, quality, risks, decisions, validation, and change governance.", views: ["security", "concerns", "health", "decisions", "proposals"] }
 ];
@@ -289,6 +318,34 @@ function dataMetadataFields(): MetadataFieldDefinition[] {
     { key: "rto", label: "RTO", kind: "text", description: "Maximum acceptable recovery time." },
     { key: "rpo", label: "RPO", kind: "text", description: "Maximum acceptable data loss window." },
     { key: "containsPii", label: "Contains PII", kind: "boolean", description: "Whether this data includes personal or sensitive data." }
+  ];
+}
+
+function schemaMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    ...dataMetadataFields(),
+    { key: "databaseEngine", label: "Database engine", kind: "text", description: "Postgres, MySQL, SQLite, MongoDB, Redis, or another storage engine." },
+    { key: "schemaName", label: "Schema name", kind: "text", description: "Physical schema, namespace, collection group, or database name." },
+    { key: "tables", label: "Tables/entities", kind: "list", description: "Tables, collections, event streams, or persisted entity sets in this schema." },
+    { key: "columns", label: "Columns", kind: "list", description: "Important columns or fields, optionally with type and nullability." },
+    { key: "primaryKeys", label: "Primary keys", kind: "list", description: "Primary key fields or identity rules." },
+    { key: "indexes", label: "Indexes", kind: "list", description: "Important indexes, unique constraints, and lookup paths." },
+    { key: "foreignKeys", label: "Foreign keys", kind: "list", description: "Foreign-key relationships and referential actions." },
+    { key: "constraints", label: "Constraints", kind: "list", description: "Uniqueness, checks, exclusion constraints, validation rules, or business constraints." },
+    { key: "relations", label: "Relations", kind: "list", description: "Entity/table relationships that should be visible in schema diagrams." },
+    { key: "migrationPolicy", label: "Migration policy", kind: "text", description: "How schema changes are rolled out, backfilled, and rolled back." }
+  ];
+}
+
+function dataEntityMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    ...dataMetadataFields(),
+    { key: "entityName", label: "Entity name", kind: "text", description: "Physical table, collection, aggregate, or document name." },
+    { key: "columns", label: "Fields/columns", kind: "list", description: "Important attributes, columns, or document fields." },
+    { key: "primaryKeys", label: "Primary keys", kind: "list", description: "Identity fields for this entity." },
+    { key: "indexes", label: "Indexes", kind: "list", description: "Lookup paths or indexes that define performance and uniqueness assumptions." },
+    { key: "relations", label: "Relations", kind: "list", description: "Relationships to other data entities or schemas." },
+    { key: "accessPatterns", label: "Access patterns", kind: "list", description: "Queries, commands, or workflows that read or write this entity." }
   ];
 }
 
@@ -399,9 +456,12 @@ export function defaultViews() {
     { id: "containers" as const, name: "Containers", family: "c4", concern: "Runtime building blocks", scope: "container", core: true, description: "Apps, services, workers, schedulers, load balancers, contracts, and external dependencies." },
     { id: "components" as const, name: "Components", family: "c4", concern: "Internal building blocks", scope: "component", core: true, description: "Services, modules, components, contracts, and their implementation relationships." },
     { id: "code" as const, name: "Code", family: "c4", concern: "Source structure", scope: "code", core: false, description: "Files, packages, code symbols, contracts, linked tests, and implementation evidence." },
+    { id: "class_diagram" as const, name: "Classes", family: "c4", concern: "Object model", scope: "code", core: false, description: "Saved class and interface model from code intelligence, including attributes, methods, inheritance, implementation, and test links." },
     { id: "flows" as const, name: "Flows", family: "behavior", concern: "Runtime behavior", scope: "scenario", core: true, description: "Critical user and system journeys, traces, failure modes, and acceptance checks." },
+    { id: "api_surface" as const, name: "API Surface", family: "behavior", concern: "Public contracts", scope: "contract", core: true, description: "API contracts, discovered routes, exposed endpoints, auth concerns, linked tests, and services that implement or depend on them." },
     { id: "deployment" as const, name: "Deployment", family: "platform", concern: "Physical/runtime topology", scope: "environment", core: true, description: "Environments, regions, deployment nodes, replicas, routing, and operational topology." },
     { id: "data" as const, name: "Data", family: "platform", concern: "Data ownership", scope: "data", core: true, description: "Entities, schemas, stores, queues, caches, ownership, read/write paths, replicas, and retention-sensitive paths." },
+    { id: "schema_model" as const, name: "Schema Model", family: "platform", concern: "Database model", scope: "data", core: true, description: "Database schemas, entities, tables, columns, keys, indexes, relations, replicas, migrations, and read/write ownership." },
     { id: "domain" as const, name: "Domain", family: "domain", concern: "Domain model", scope: "bounded-context", core: false, description: "Bounded contexts, domain entities, contracts, events, teams, and model ownership." },
     { id: "security" as const, name: "Security", family: "assurance", concern: "Trust and threats", scope: "trust-boundary", core: false, description: "Trust boundaries, authentication, authorization, threats, mitigations, sensitive data, and controls." },
     { id: "concerns" as const, name: "Concerns", family: "assurance", concern: "Stakeholder concerns", scope: "architecture-description", core: true, description: "Stakeholders, concerns, quality drivers, risks, decisions, and the architecture elements that address them." },
@@ -494,9 +554,12 @@ export function viewSupportsNodeType(viewId: ViewId, type: NodeType) {
   if (viewId === "containers") return containerTypes.has(type);
   if (viewId === "components") return componentTypes.has(type);
   if (viewId === "code") return codeTypes.has(type);
+  if (viewId === "class_diagram") return classDiagramTypes.has(type);
+  if (viewId === "api_surface") return apiSurfaceTypes.has(type);
   if (viewId === "flows") return flowTypes.has(type);
   if (viewId === "deployment") return deploymentTypes.has(type);
   if (viewId === "data") return dataTypes.has(type);
+  if (viewId === "schema_model") return schemaModelTypes.has(type);
   if (viewId === "domain") return domainTypes.has(type);
   if (viewId === "security") return securityTypes.has(type);
   if (viewId === "concerns") return concernTypes.has(type);
@@ -507,14 +570,17 @@ export function viewSupportsNodeType(viewId: ViewId, type: NodeType) {
 
 export function preferredViewForNodeType(type: NodeType): ViewId {
   if (["environment", "region", "deployment_node"].includes(type)) return "deployment";
-  if (["datastore", "replica", "queue", "cache", "data_entity", "schema", "migration"].includes(type)) return "data";
+  if (["schema", "data_entity", "migration"].includes(type)) return "schema_model";
+  if (["datastore", "replica", "queue", "cache"].includes(type)) return "data";
   if (["threat"].includes(type)) return "security";
   if (["stakeholder", "concern"].includes(type)) return "concerns";
   if (["risk", "quality_scenario"].includes(type)) return "health";
   if (["decision"].includes(type)) return "decisions";
   if (["flow"].includes(type)) return "flows";
-  if (["code_symbol", "file_group"].includes(type)) return "code";
-  if (["module", "component", "contract", "api_contract", "event_contract"].includes(type)) return "components";
+  if (["api_contract"].includes(type)) return "api_surface";
+  if (["code_symbol"].includes(type)) return "class_diagram";
+  if (["file_group"].includes(type)) return "code";
+  if (["module", "component", "contract", "event_contract"].includes(type)) return "components";
   if (["worker", "scheduler", "container"].includes(type)) return "containers";
   return "overview";
 }
@@ -697,9 +763,259 @@ export function validateAtlas(project: AtlasProject): ValidationIssue[] {
   return issues;
 }
 
+function classDiagramSnapshot(project: AtlasProject): AtlasProjectSnapshot {
+  const intelligence = project.intelligence ?? emptyCodeIntelligence();
+  const nodeMap = new Map<string, AtlasNode>();
+  const classIdsByName = new Map<string, string>();
+  const interfaceIdsByName = new Map<string, string>();
+  const testFiles = testFilesByTarget(intelligence);
+
+  for (const node of project.nodes.filter(isClassDiagramNode)) {
+    nodeMap.set(node.id, structuredClone(node));
+    if (node.type === "code_symbol" && typeof node.metadata?.symbolKind === "string") {
+      if (node.metadata.symbolKind === "class") classIdsByName.set(node.name, node.id);
+      if (["interface", "type"].includes(node.metadata.symbolKind)) interfaceIdsByName.set(node.name, node.id);
+    }
+  }
+
+  for (const item of intelligence.symbols.filter((symbol) => ["interface", "type"].includes(symbol.kind)).slice(0, 80)) {
+    const id = symbolNodeId(item.path, item.name);
+    const existing = nodeMap.get(id);
+    const node = enrichDiagramNode(existing, {
+      id,
+      type: "code_symbol",
+      name: item.name,
+      owner: "code",
+      status: "active",
+      criticality: item.exported ? "high" : "medium",
+      responsibilities: [`${prettySymbolKind(item.kind)} discovered in ${item.path}.`],
+      dependencies: [],
+      invariants: [],
+      linkedFiles: [item.path],
+      linkedTests: testFiles.get(item.path) ?? [],
+      risks: [],
+      confidence: "observed",
+      notes: `${prettySymbolKind(item.kind)}${item.line ? ` at line ${item.line}` : ""}.`,
+      architectureLevel: "code",
+      tags: ["generated", "class-diagram", item.kind],
+      metadata: {
+        generatedBy: "class-diagram",
+        evidencePath: item.path,
+        symbolKind: item.kind,
+        line: item.line,
+        exported: Boolean(item.exported)
+      },
+      position: { x: 0, y: 0 }
+    });
+    nodeMap.set(id, node);
+    interfaceIdsByName.set(item.name, id);
+  }
+
+  for (const item of intelligence.classes.slice(0, 120)) {
+    const id = symbolNodeId(item.path, item.name);
+    const existing = nodeMap.get(id);
+    const node = enrichDiagramNode(existing, {
+      id,
+      type: "code_symbol",
+      name: item.name,
+      owner: "code",
+      status: "active",
+      criticality: item.exported ? "high" : "medium",
+      responsibilities: [`Class discovered in ${item.path}.`],
+      dependencies: [item.extends, ...(item.implements ?? [])].filter(Boolean) as string[],
+      invariants: [],
+      linkedFiles: [item.path],
+      linkedTests: testFiles.get(item.path) ?? [],
+      risks: [],
+      confidence: "observed",
+      notes: [
+        `Class${item.line ? ` at line ${item.line}` : ""}.`,
+        item.extends ? `Extends ${item.extends}.` : "",
+        item.implements?.length ? `Implements ${item.implements.join(", ")}.` : ""
+      ].filter(Boolean).join(" "),
+      architectureLevel: "code",
+      tags: ["generated", "class-diagram", "class"],
+      metadata: {
+        generatedBy: "class-diagram",
+        evidencePath: item.path,
+        symbolKind: "class",
+        line: item.line,
+        exported: Boolean(item.exported),
+        extends: item.extends,
+        implements: item.implements ?? [],
+        attributes: item.attributes.map(memberLabel),
+        methods: item.methods.map(memberLabel)
+      },
+      position: { x: 0, y: 0 }
+    });
+    nodeMap.set(id, node);
+    classIdsByName.set(item.name, id);
+  }
+
+  const nodes = Array.from(nodeMap.values());
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const manualEdges = project.edges.filter((edge) =>
+    nodeIds.has(edge.source) &&
+    nodeIds.has(edge.target) &&
+    viewEdgeTypes.class_diagram?.has(edge.type)
+  );
+  const generatedEdges: AtlasEdge[] = [];
+
+  for (const item of intelligence.classes.slice(0, 120)) {
+    const sourceId = classIdsByName.get(item.name);
+    if (!sourceId) continue;
+    if (item.extends) {
+      const targetId = classIdsByName.get(item.extends) ?? interfaceIdsByName.get(item.extends);
+      if (targetId && targetId !== sourceId) generatedEdges.push(generatedDiagramEdge(sourceId, targetId, "depends_on", "extends", "class-diagram"));
+    }
+    for (const implemented of item.implements ?? []) {
+      const targetId = interfaceIdsByName.get(implemented) ?? classIdsByName.get(implemented);
+      if (targetId && targetId !== sourceId) generatedEdges.push(generatedDiagramEdge(sourceId, targetId, "implements", "implements", "class-diagram"));
+    }
+  }
+
+  return { nodes, edges: dedupeEdges([...manualEdges, ...generatedEdges]), flows: project.flows };
+}
+
+function apiSurfaceSnapshot(project: AtlasProject): AtlasProjectSnapshot {
+  const intelligence = project.intelligence ?? emptyCodeIntelligence();
+  const nodeMap = new Map<string, AtlasNode>();
+  const testFiles = testFilesByTarget(intelligence);
+
+  for (const node of project.nodes.filter((item) => apiSurfaceTypes.has(item.type))) {
+    nodeMap.set(node.id, structuredClone(node));
+  }
+
+  for (const route of intelligence.routes.slice(0, 160)) {
+    const id = routeNodeId(route.sourceFile, route.method, route.path);
+    const existing = nodeMap.get(id);
+    const mutates = !["GET", "HEAD", "OPTIONS"].includes(route.method.toUpperCase());
+    nodeMap.set(id, enrichDiagramNode(existing, {
+      id,
+      type: "api_contract",
+      name: `${route.method.toUpperCase()} ${route.path}`,
+      owner: "code",
+      status: "active",
+      criticality: mutates ? "high" : "medium",
+      responsibilities: [`Route discovered in ${route.sourceFile}.`],
+      dependencies: [],
+      invariants: [],
+      linkedFiles: [route.sourceFile],
+      linkedTests: testFiles.get(route.sourceFile) ?? [],
+      risks: [],
+      confidence: "observed",
+      notes: `Discovered route${route.line ? ` at line ${route.line}` : ""}.`,
+      architectureLevel: "runtime",
+      tags: ["generated", "api-surface", "route"],
+      metadata: {
+        generatedBy: "api-surface",
+        evidencePath: route.sourceFile,
+        symbolKind: "route",
+        routeMethod: route.method.toUpperCase(),
+        routePath: route.path,
+        sourceFile: route.sourceFile,
+        line: route.line
+      },
+      position: { x: 0, y: 0 }
+    }));
+  }
+
+  const nodes = Array.from(nodeMap.values());
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const manualEdges = project.edges.filter((edge) =>
+    nodeIds.has(edge.source) &&
+    nodeIds.has(edge.target) &&
+    viewEdgeTypes.api_surface?.has(edge.type)
+  );
+  const generatedEdges: AtlasEdge[] = [];
+
+  for (const route of intelligence.routes.slice(0, 160)) {
+    const routeId = routeNodeId(route.sourceFile, route.method, route.path);
+    const owner = routeOwnerNode(project.nodes, route.sourceFile);
+    if (owner && nodeIds.has(owner.id)) {
+      generatedEdges.push(generatedDiagramEdge(owner.id, routeId, "exposes", route.method.toUpperCase(), "api-surface"));
+    }
+    for (const contract of matchingContractNodes(project.nodes, route)) {
+      if (nodeIds.has(contract.id) && contract.id !== routeId) {
+        generatedEdges.push(generatedDiagramEdge(routeId, contract.id, "implements", "matches contract", "api-surface"));
+      }
+    }
+  }
+
+  return { nodes, edges: dedupeEdges([...manualEdges, ...generatedEdges]), flows: project.flows };
+}
+
+function schemaModelSnapshot(project: AtlasProject): AtlasProjectSnapshot {
+  const nodeMap = new Map<string, AtlasNode>();
+  for (const node of project.nodes.filter((item) => schemaModelTypes.has(item.type))) {
+    nodeMap.set(node.id, structuredClone(node));
+  }
+
+  for (const item of project.evidence.filter((evidence) => evidence.kind === "migration").slice(0, 80)) {
+    const id = migrationNodeId(item.path);
+    const existing = nodeMap.get(id);
+    nodeMap.set(id, enrichDiagramNode(existing, {
+      id,
+      type: "migration",
+      name: basename(item.path),
+      owner: "code",
+      status: "active",
+      criticality: "medium",
+      responsibilities: [`Database migration evidence at ${item.path}.`],
+      dependencies: [],
+      invariants: [],
+      linkedFiles: [item.path],
+      linkedTests: [],
+      risks: [],
+      confidence: "observed",
+      notes: item.lines ? `${item.lines} lines.` : "",
+      architectureLevel: "data",
+      tags: ["generated", "schema-model", "migration"],
+      metadata: {
+        generatedBy: "schema-model",
+        evidencePath: item.path,
+        evidenceKind: item.kind,
+        language: item.language,
+        lines: item.lines
+      },
+      position: { x: 0, y: 0 }
+    }));
+  }
+
+  const nodes = Array.from(nodeMap.values());
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const allowedEdges = viewEdgeTypes.schema_model;
+  const edges = project.edges.filter((edge) =>
+    nodeIds.has(edge.source) &&
+    nodeIds.has(edge.target) &&
+    (!allowedEdges || allowedEdges.has(edge.type))
+  );
+
+  return { nodes, edges, flows: project.flows };
+}
+
+function isClassDiagramNode(node: AtlasNode) {
+  if (!classDiagramTypes.has(node.type)) return false;
+  if (node.type !== "code_symbol") return true;
+  const symbolKind = typeof node.metadata?.symbolKind === "string" ? node.metadata.symbolKind : "";
+  return !symbolKind || ["class", "interface", "type"].includes(symbolKind);
+}
+
 export function filterProjectForView(project: AtlasProject, viewId: ViewId): AtlasProjectSnapshot {
   if (viewId === "proposals") {
     return cloneProjectSnapshot(project);
+  }
+
+  if (viewId === "class_diagram") {
+    return classDiagramSnapshot(project);
+  }
+
+  if (viewId === "api_surface") {
+    return apiSurfaceSnapshot(project);
+  }
+
+  if (viewId === "schema_model") {
+    return schemaModelSnapshot(project);
   }
 
   const nodePredicate = (node: AtlasNode) => {
@@ -745,6 +1061,8 @@ export function layoutProjectForView(project: AtlasProject, viewId: ViewId): Atl
 }
 
 export function generateMermaid(project: AtlasProject, viewId: ViewId = "overview"): string {
+  if (viewId === "class_diagram") return generateClassMermaid(project);
+
   const graph = filterProjectForView(project, viewId);
   const lines = ["flowchart LR"];
 
@@ -757,6 +1075,43 @@ export function generateMermaid(project: AtlasProject, viewId: ViewId = "overvie
     lines.push(`  ${mermaidId(edge.source)} -->|"${escapeMermaid(label)}"| ${mermaidId(edge.target)}`);
   }
 
+  return lines.join("\n");
+}
+
+function generateClassMermaid(project: AtlasProject): string {
+  const graph = filterProjectForView(project, "class_diagram");
+  const classNodes = graph.nodes.filter((node) => node.type === "code_symbol");
+  const classNodeIds = new Set(classNodes.map((node) => node.id));
+  const lines = ["classDiagram"];
+
+  for (const node of classNodes) {
+    const id = mermaidId(node.id);
+    const metadata = node.metadata ?? {};
+    const attributes = asStringList(metadata.attributes).slice(0, 12);
+    const methods = asStringList(metadata.methods).slice(0, 16);
+    const isInterface = ["interface", "type"].includes(String(metadata.symbolKind ?? ""));
+    lines.push(`  class ${id} {`);
+    if (isInterface) lines.push("    <<interface>>");
+    lines.push(`    ${escapeClassMember(node.name)}`);
+    for (const attribute of attributes) lines.push(`    ${escapeClassMember(attribute)}`);
+    for (const method of methods) lines.push(`    ${escapeClassMember(method)}`);
+    lines.push("  }");
+  }
+
+  for (const edge of graph.edges) {
+    if (!classNodeIds.has(edge.source) || !classNodeIds.has(edge.target)) continue;
+    const source = mermaidId(edge.source);
+    const target = mermaidId(edge.target);
+    if (edge.type === "implements") {
+      lines.push(`  ${source} ..|> ${target} : implements`);
+    } else if (edge.label === "extends") {
+      lines.push(`  ${source} --|> ${target} : extends`);
+    } else if (edge.type === "depends_on") {
+      lines.push(`  ${source} ..> ${target} : depends`);
+    }
+  }
+
+  if (lines.length === 1) lines.push("  %% Run Scan or model code_symbol nodes to populate this class diagram.");
   return lines.join("\n");
 }
 
@@ -808,8 +1163,14 @@ export function generateArchitectureReview(project: AtlasProject): string {
   const staleNodes = project.nodes.filter((node) => node.confidence === "stale");
   const inferredNodes = project.nodes.filter((node) => node.confidence === "inferred");
   const hasCodeEvidence = project.evidence.length > 0 || project.intelligence.files.length > 0;
+  const hasClassModel = project.intelligence.classes.length > 0 || project.nodes.some((node) => node.type === "code_symbol" && node.metadata?.symbolKind === "class");
+  const hasApiSurface = project.intelligence.routes.length > 0 || project.nodes.some((node) => node.type === "api_contract");
   const hasDeployment = hasAny(nodesByType, ["environment", "region", "deployment_node"]);
   const hasDataModel = hasAny(nodesByType, ["datastore", "schema", "data_entity"]);
+  const hasSchemaDetail = project.nodes.some((node) =>
+    ["schema", "data_entity"].includes(node.type) &&
+    (hasListMetadata(node, "columns") || hasListMetadata(node, "tables") || hasListMetadata(node, "relations") || hasListMetadata(node, "indexes"))
+  );
   const hasSecurityModel = hasAny(nodesByType, ["threat"]) || edgeTypes.has("authenticates") || edgeTypes.has("authorizes") || edgeTypes.has("protects");
   const hasQualityModel = hasAny(nodesByType, ["quality_scenario"]) || project.nodes.some((node) => node.invariants.length > 0);
   const hasConcernModel = hasAny(nodesByType, ["concern"]) && (edgeTypes.has("has_concern") || edgeTypes.has("addresses"));
@@ -834,9 +1195,19 @@ export function generateArchitectureReview(project: AtlasProject): string {
       detail: "Connects high-level design to code-level implementation evidence."
     },
     {
+      label: "Class model",
+      status: hasClassModel ? "ok" : "warn",
+      detail: "Persisted class/interface facts show attributes, methods, inheritance, and linked files."
+    },
+    {
       label: "Runtime scenarios",
       status: hasRuntimeModel ? "ok" : "missing",
       detail: "Important flows or use cases explain dynamic behavior and failure paths."
+    },
+    {
+      label: "API surface",
+      status: hasApiSurface ? "ok" : "warn",
+      detail: "API routes, contracts, auth expectations, and tests are explicit instead of buried in handlers."
     },
     {
       label: "Deployment view",
@@ -847,6 +1218,11 @@ export function generateArchitectureReview(project: AtlasProject): string {
       label: "Data view",
       status: hasDataModel && (edgeTypes.has("reads") || edgeTypes.has("writes") || edgeTypes.has("owns")) ? "ok" : "warn",
       detail: "Datastores, schemas, owners, and read/write paths."
+    },
+    {
+      label: "Database schema model",
+      status: hasSchemaDetail ? "ok" : "warn",
+      detail: "Tables/entities, columns, keys, indexes, constraints, relations, and migration policy are modeled."
     },
     {
       label: "Security and threats",
@@ -1364,6 +1740,16 @@ function escapeMermaid(value: string) {
   return value.replace(/"/g, "'");
 }
 
+function escapeClassMember(value: string) {
+  return value.replace(/[{}]/g, "").replace(/"/g, "'");
+}
+
+function asStringList(value: unknown) {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string" && value.trim()) return [value];
+  return [];
+}
+
 function titleCase(value: string) {
   return value
     .replace(/[_-]/g, " ")
@@ -1395,6 +1781,14 @@ function symbolNodeId(filePath: string, symbolName: string) {
   return `code.symbol.${slug(filePath)}.${slug(symbolName)}`;
 }
 
+function routeNodeId(filePath: string, method: string, routePath: string) {
+  return `api.route.${slug(filePath)}.${slug(method)}.${slug(routePath)}`;
+}
+
+function migrationNodeId(filePath: string) {
+  return `schema.migration.${slug(filePath)}`;
+}
+
 function generatedEdge(source: string, target: string, type: EdgeType, label: string): AtlasEdge {
   return {
     id: `${source}-${type}-${target}`,
@@ -1404,6 +1798,75 @@ function generatedEdge(source: string, target: string, type: EdgeType, label: st
     label,
     tags: ["generated:workspace-scan"]
   };
+}
+
+function generatedDiagramEdge(source: string, target: string, type: EdgeType, label: string, view: string): AtlasEdge {
+  return {
+    id: `${source}-${type}-${target}-${slug(label)}`,
+    source,
+    target,
+    type,
+    label,
+    tags: [`generated:${view}`]
+  };
+}
+
+function enrichDiagramNode(existing: AtlasNode | undefined, derived: AtlasNode): AtlasNode {
+  if (!existing) return derived;
+  return {
+    ...structuredClone(existing),
+    responsibilities: existing.responsibilities.length ? existing.responsibilities : derived.responsibilities,
+    dependencies: unique([...existing.dependencies, ...derived.dependencies]),
+    linkedFiles: unique([...existing.linkedFiles, ...derived.linkedFiles]),
+    linkedTests: unique([...existing.linkedTests, ...derived.linkedTests]),
+    tags: unique([...(existing.tags ?? []), ...(derived.tags ?? [])]),
+    notes: existing.notes?.trim() ? existing.notes : derived.notes,
+    confidence: existing.confidence === "manual" ? existing.confidence : derived.confidence,
+    architectureLevel: existing.architectureLevel ?? derived.architectureLevel,
+    metadata: {
+      ...derived.metadata,
+      ...(existing.metadata ?? {})
+    }
+  };
+}
+
+function testFilesByTarget(intelligence: CodeIntelligence) {
+  const byTarget = new Map<string, string[]>();
+  for (const entry of intelligence.testMap) {
+    for (const target of entry.targetFiles) {
+      byTarget.set(target, unique([...(byTarget.get(target) ?? []), entry.testFile]));
+    }
+  }
+  return byTarget;
+}
+
+function memberLabel(member: { name: string; visibility?: string; type?: string; parameters?: string[]; returnType?: string }) {
+  const prefix = member.visibility && member.visibility !== "public" ? `${member.visibility} ` : "";
+  const params = member.parameters?.length ? `(${member.parameters.join(", ")})` : member.returnType !== undefined ? "()" : "";
+  const type = member.returnType ?? member.type;
+  return `${prefix}${member.name}${params}${type ? `: ${type}` : ""}`;
+}
+
+function routeOwnerNode(nodes: AtlasNode[], filePath: string) {
+  const candidates = nodes.filter((node) => ["service", "app", "container", "module", "component"].includes(node.type));
+  return candidates.find((node) => node.linkedFiles.some((file) => pathMatches(filePath, file)));
+}
+
+function matchingContractNodes(nodes: AtlasNode[], route: { method: string; path: string; sourceFile: string }) {
+  return nodes.filter((node) => {
+    if (!["api_contract", "contract"].includes(node.type)) return false;
+    const metadata = node.metadata ?? {};
+    const method = String(metadata.routeMethod ?? metadata.method ?? "").toUpperCase();
+    const path = String(metadata.routePath ?? metadata.path ?? metadata.endpoint ?? "");
+    if (method && method !== route.method.toUpperCase()) return false;
+    if (path && path === route.path) return true;
+    if (node.name.includes(route.path)) return true;
+    return node.linkedFiles.some((file) => pathMatches(route.sourceFile, file));
+  });
+}
+
+function pathMatches(filePath: string, candidate: string) {
+  return filePath === candidate || filePath.startsWith(`${candidate.replace(/\/$/, "")}/`);
 }
 
 function dedupeEdges(edges: AtlasEdge[]) {
@@ -1475,6 +1938,11 @@ function codeIntelligenceContextLines(intelligence: CodeIntelligence, files: str
 
 function hasAny(groups: Record<string, AtlasNode[]>, types: string[]) {
   return types.some((type) => (groups[type]?.length ?? 0) > 0);
+}
+
+function hasListMetadata(node: AtlasNode, key: string) {
+  const value = node.metadata?.[key];
+  return Array.isArray(value) ? value.length > 0 : Boolean(value);
 }
 
 function reviewStatusLabel(status: "ok" | "warn" | "missing") {

@@ -7,6 +7,7 @@ interface InspectorProps {
   selectedNode?: AtlasNode;
   selectedEdge?: AtlasEdge;
   selectedFlow?: AtlasFlow;
+  readOnly?: boolean;
   onSelect: (id: string) => void;
   onCreateEdge: (source: string, target: string, type: EdgeType, label?: string) => void;
   onDeleteNode: (id: string) => void;
@@ -20,6 +21,7 @@ export function Inspector({
   selectedNode,
   selectedEdge,
   selectedFlow,
+  readOnly = false,
   onSelect,
   onCreateEdge,
   onDeleteNode,
@@ -27,6 +29,10 @@ export function Inspector({
   onDeleteFlow,
   onChange
 }: InspectorProps) {
+  if (selectedNode && readOnly) {
+    return <ReadOnlyNodeInspector project={project} node={selectedNode} />;
+  }
+
   if (selectedNode) {
     return (
       <aside className="panel inspector">
@@ -129,6 +135,45 @@ export function Inspector({
     <aside className="panel inspector empty-state">
       <h2>No selection</h2>
       <p>Select a node, edge, or flow to edit architecture meaning, linked evidence, invariants, and risks.</p>
+    </aside>
+  );
+}
+
+function ReadOnlyNodeInspector({ project, node }: { project: AtlasProject; node: AtlasNode }) {
+  const metadata = Object.entries(node.metadata ?? {}).filter(([, value]) =>
+    value !== undefined &&
+    value !== "" &&
+    (!Array.isArray(value) || value.length > 0)
+  );
+
+  return (
+    <aside className="panel inspector">
+      <Header title={node.name} subtitle={`${node.type} · generated view fact`} />
+      <section className="metadata-editor">
+        <div className="section-heading">
+          <h3>Saved Evidence</h3>
+          <span>read only</span>
+        </div>
+        <p className="helper-copy">
+          This item is rendered from saved code intelligence or evidence files. Run Scan to refresh it, or create a manual atlas node if you want to edit architecture meaning.
+        </p>
+        {metadata.slice(0, 12).map(([key, value]) => (
+          <div className="evidence-card" key={key}>
+            <strong>{pretty(key)}</strong>
+            <small>{Array.isArray(value) ? value.join(", ") : String(value)}</small>
+          </div>
+        ))}
+      </section>
+      <NodeEvidence project={project} node={node} />
+      {node.responsibilities.length > 0 && (
+        <TextareaList label="Responsibilities" values={node.responsibilities} onChange={() => undefined} readOnly />
+      )}
+      {node.linkedFiles.length > 0 && (
+        <TextareaList label="Linked files" values={node.linkedFiles} onChange={() => undefined} readOnly />
+      )}
+      {node.linkedTests.length > 0 && (
+        <TextareaList label="Linked tests" values={node.linkedTests} onChange={() => undefined} readOnly />
+      )}
     </aside>
   );
 }
@@ -400,12 +445,13 @@ function Header({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-function TextareaList({ label, values, onChange }: { label: string; values: string[]; onChange: (values: string[]) => void }) {
+function TextareaList({ label, values, onChange, readOnly = false }: { label: string; values: string[]; onChange: (values: string[]) => void; readOnly?: boolean }) {
   return (
     <label className="field">
       {label}
       <textarea
         rows={4}
+        readOnly={readOnly}
         value={values.join("\n")}
         onChange={(event) => onChange(event.target.value.split("\n").map((item) => item.trim()).filter(Boolean))}
       />

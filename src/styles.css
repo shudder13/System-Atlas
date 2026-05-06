@@ -507,6 +507,21 @@ code {
   letter-spacing: 0;
 }
 
+.node-details {
+  display: grid;
+  gap: 0.08rem;
+  padding-top: 0.1rem;
+}
+
+.node-details span {
+  color: #475569;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .preview-panel {
   border-top: 1px solid #e2e8f0;
   min-height: 0;

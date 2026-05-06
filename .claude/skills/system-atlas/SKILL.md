@@ -65,6 +65,9 @@ When asked to understand the whole app:
    - deployment environments, regions, nodes, and replicas
    - datastores, schemas, entities, queues, caches, replicas
    - external systems, API contracts, and event contracts
+   - class diagram facts: classes, interfaces, attributes, methods, inheritance, implementation, files, and tests
+   - API surface facts: route methods, paths, handlers/source files, contracts, auth metadata, and linked tests
+   - schema model facts: tables/entities, columns, primary keys, indexes, constraints, relations, migrations, and ownership
    - critical flows
    - security threats, invariants, risks, decisions, and linked tests
    - linked source files
@@ -79,8 +82,8 @@ When asked to create an atlas for an existing project:
 1. Run or ask the user to run Scan in System Atlas.
 2. Treat `architecture/evidence/code-intelligence.json` as the first durable code memory.
 3. Use project structure, file summaries, classes, routes, dependencies, and tests to draft the initial architecture model.
-4. Create high-level systems, containers, modules, datastores, contracts, flows, stakeholders, concerns, risks, and decisions from the evidence.
-5. Link architecture nodes to source files, tests, routes, classes, stakeholder concerns, and external dependencies.
+4. Create high-level systems, containers, modules, datastores, schemas/entities, API/event contracts, flows, stakeholders, concerns, risks, and decisions from the evidence.
+5. Link architecture nodes to source files, tests, routes, classes, stakeholder concerns, external dependencies, and database migrations.
 6. Mark inferred concepts as `confidence: inferred` until the architect confirms them.
 7. Do not re-read the whole codebase in every future session. Start from the atlas and persistent evidence, then open raw code only for changed files.
 

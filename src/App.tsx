@@ -72,9 +72,12 @@ const viewIcons: Record<ViewId, typeof Network> = {
   containers: Boxes,
   components: Boxes,
   code: Code2,
+  class_diagram: Code2,
   flows: Workflow,
+  api_surface: FileText,
   deployment: Cloud,
   data: Database,
+  schema_model: Database,
   domain: Boxes,
   security: ShieldCheck,
   concerns: Target,
@@ -249,10 +252,12 @@ export function App() {
 
   const activeProposal = project.proposals.find((proposal) => proposal.id === activeProposalId);
   const workingProject = useMemo(() => proposalWorkspace(project, activeProposalId), [project, activeProposalId]);
-  const selectedNode = workingProject.nodes.find((node) => node.id === selectedId);
+  const graph = useMemo(() => layoutProjectForView(workingProject, viewId), [workingProject, viewId]);
+  const persistedSelectedNode = workingProject.nodes.find((node) => node.id === selectedId);
+  const selectedNode = persistedSelectedNode ?? graph.nodes.find((node) => node.id === selectedId);
+  const selectedNodeReadOnly = Boolean(selectedNode && !persistedSelectedNode);
   const selectedEdge = workingProject.edges.find((edge) => edge.id === selectedId);
   const selectedFlow = workingProject.flows.find((flow) => flow.id === selectedId);
-  const graph = useMemo(() => layoutProjectForView(workingProject, viewId), [workingProject, viewId]);
   const selectedFlowNodeIds = useMemo(
     () => selectedFlow?.steps.map((step) => step.nodeId).filter((id): id is string => Boolean(id)) ?? [],
     [selectedFlow]
@@ -281,7 +286,7 @@ export function App() {
   }, [showAdvancedViews, viewId, workingProject.views]);
 
   useEffect(() => {
-    if (rightPanelMode === "code" || viewId === "code") {
+    if (rightPanelMode === "code" || ["code", "class_diagram", "api_surface"].includes(viewId)) {
       void loadSavedCodeIntelligence();
     }
   }, [loadSavedCodeIntelligence, rightPanelMode, viewId]);
@@ -734,6 +739,7 @@ export function App() {
             </div>
           </div>
           <AtlasCanvas
+            viewId={viewId}
             nodes={graph.nodes}
             edges={graph.edges}
             selectedId={selectedId}
@@ -797,6 +803,7 @@ export function App() {
               selectedNode={selectedNode}
               selectedEdge={selectedEdge}
               selectedFlow={selectedFlow}
+              readOnly={selectedNodeReadOnly}
               onSelect={setSelectedId}
               onCreateEdge={addEdge}
               onDeleteNode={deleteNode}
