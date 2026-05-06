@@ -104,6 +104,9 @@ The MVP focuses on manual architecture modeling first:
 - Use the Classes view to inspect saved class/interface facts, attributes, methods, inheritance, implementation edges, files, and tests from code intelligence.
 - Use the API Surface view to inspect modeled API contracts alongside discovered routes, handlers, auth metadata, linked tests, and implementing services.
 - Use the Schema Model view to model database schemas, entities, columns, keys, indexes, constraints, relations, migrations, replicas, and read/write ownership.
+- Promote generated class, route, and migration facts into authored atlas nodes when the architect wants them to become durable source-of-truth concepts.
+- Edit API contracts with structured endpoint fields for method, path, auth, request, response, status codes, handler, and tests.
+- Edit schemas/entities with structured columns, keys, indexes, constraints, foreign keys, relations, and migration policy.
 - Browse scanned code intelligence without rereading the whole codebase every AI session.
 - Sync UI edits to a repo-native architecture pack, including durable `architecture/evidence/*.json` files.
 - Preserve saved code intelligence during ordinary autosaves, and rewrite it only after a fresh Scan changes the code index.
@@ -133,7 +136,7 @@ For an existing system:
 
 1. Run Scan to index the repository into the current atlas.
 2. Review the Code view and Code Intel preview.
-3. Review the Classes, API Surface, and Schema Model views, then model important files, classes, routes, datastores, queues, contracts, flows, risks, and decisions as explicit architecture concepts.
+3. Review the Classes, API Surface, and Schema Model views, then promote or manually model important files, classes, routes, datastores, queues, contracts, flows, risks, and decisions as explicit architecture concepts.
 4. Mark inferred concepts as `confidence: inferred` until an architect confirms them.
 5. Let autosync write the architecture pack, or use Export for an immediate save, so future AI sessions can load the saved model and code intelligence first.
 6. Use proposals and migration briefs for future changes instead of asking an AI to rediscover the whole codebase each time.

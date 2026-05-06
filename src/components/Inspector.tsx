@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { MetadataFieldDefinition, metadataFieldsForNode } from "../lib/atlas";
+import { MetadataFieldDefinition, metadataFieldsForNode, promoteGeneratedNode } from "../lib/atlas";
 import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, CodeEvidence, EDGE_TYPES, EdgeType, MetadataValue, NODE_TYPES } from "../types";
+import { StructuredNodeEditor, structuredMetadataKeysForNode } from "./StructuredEditors";
 
 interface InspectorProps {
   project: AtlasProject;
@@ -30,7 +31,7 @@ export function Inspector({
   onChange
 }: InspectorProps) {
   if (selectedNode && readOnly) {
-    return <ReadOnlyNodeInspector project={project} node={selectedNode} />;
+    return <ReadOnlyNodeInspector project={project} node={selectedNode} onSelect={onSelect} onChange={onChange} />;
   }
 
   if (selectedNode) {
@@ -57,6 +58,11 @@ export function Inspector({
         <MetadataEditor
           node={selectedNode}
           onChange={(metadata) => updateNode(project, selectedNode.id, { metadata }, onChange)}
+        />
+        <StructuredNodeEditor
+          project={project}
+          node={selectedNode}
+          onChange={(patch) => updateNode(project, selectedNode.id, patch, onChange)}
         />
         <NodeRelationships
           project={project}
@@ -139,7 +145,17 @@ export function Inspector({
   );
 }
 
-function ReadOnlyNodeInspector({ project, node }: { project: AtlasProject; node: AtlasNode }) {
+function ReadOnlyNodeInspector({
+  project,
+  node,
+  onSelect,
+  onChange
+}: {
+  project: AtlasProject;
+  node: AtlasNode;
+  onSelect: (id: string) => void;
+  onChange: (project: AtlasProject) => void;
+}) {
   const metadata = Object.entries(node.metadata ?? {}).filter(([, value]) =>
     value !== undefined &&
     value !== "" &&
@@ -157,6 +173,16 @@ function ReadOnlyNodeInspector({ project, node }: { project: AtlasProject; node:
         <p className="helper-copy">
           This item is rendered from saved code intelligence or evidence files. Run Scan to refresh it, or create a manual atlas node if you want to edit architecture meaning.
         </p>
+        <button
+          type="button"
+          className="stretch"
+          onClick={() => {
+            onChange(promoteGeneratedNode(project, node));
+            onSelect(node.id);
+          }}
+        >
+          Promote to Atlas Node
+        </button>
         {metadata.slice(0, 12).map(([key, value]) => (
           <div className="evidence-card" key={key}>
             <strong>{pretty(key)}</strong>
@@ -185,7 +211,8 @@ function MetadataEditor({
   node: AtlasNode;
   onChange: (metadata: AtlasNode["metadata"]) => void;
 }) {
-  const fields = metadataFieldsForNode(node.type);
+  const structuredKeys = structuredMetadataKeysForNode(node.type);
+  const fields = metadataFieldsForNode(node.type).filter((field) => !structuredKeys.has(field.key));
   const metadata = node.metadata ?? {};
 
   function updateMetadata(key: string, value: MetadataValue) {

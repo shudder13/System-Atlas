@@ -247,7 +247,7 @@ const metadataProfiles: Partial<Record<NodeType, MetadataFieldDefinition[]>> = {
     { key: "containsPii", label: "Contains PII", kind: "boolean", description: "Whether cached data includes personal or sensitive data." }
   ],
   external_system: contractMetadataFields(),
-  api_contract: contractMetadataFields(),
+  api_contract: apiContractMetadataFields(),
   event_contract: [
     { key: "version", label: "Version", kind: "text", description: "Contract or event schema version." },
     { key: "deliveryGuarantee", label: "Delivery guarantee", kind: "text", description: "At-most-once, at-least-once, exactly-once, or best-effort semantics." },
@@ -364,6 +364,19 @@ function contractMetadataFields(): MetadataFieldDefinition[] {
     { key: "auth", label: "Auth", kind: "text", description: "Authentication and authorization mechanism." },
     { key: "rateLimit", label: "Rate limit", kind: "text", description: "Quota, throttling, or burst policy." },
     { key: "sla", label: "SLA/SLO", kind: "text", description: "Availability or response-time commitment." }
+  ];
+}
+
+function apiContractMetadataFields(): MetadataFieldDefinition[] {
+  return [
+    ...contractMetadataFields(),
+    { key: "routeMethod", label: "Route method", kind: "text", description: "HTTP method or RPC operation kind." },
+    { key: "routePath", label: "Route path", kind: "text", description: "Public path, operation name, or route pattern." },
+    { key: "statusCodes", label: "Status codes", kind: "list", description: "Expected success and error status codes." },
+    { key: "requestBody", label: "Request body", kind: "text", description: "Request schema, DTO, command, or payload shape." },
+    { key: "responseBody", label: "Response body", kind: "text", description: "Response schema, DTO, event, or payload shape." },
+    { key: "handlerFile", label: "Handler file", kind: "text", description: "Source file or module that implements this contract." },
+    { key: "endpoints", label: "Endpoints", kind: "list", description: "Structured endpoint rows managed by the API contract editor." }
   ];
 }
 
@@ -1505,6 +1518,39 @@ export function generateMigrationBrief(project: AtlasProject, proposal?: AtlasPr
 
 export function mergeEvidence(project: AtlasProject, evidence: CodeEvidence[]): AtlasProject {
   return { ...project, evidence };
+}
+
+export function promoteGeneratedNode(project: AtlasProject, generatedNode: AtlasNode, owner = "architecture"): AtlasProject {
+  if (project.nodes.some((node) => node.id === generatedNode.id)) return project;
+
+  const metadata = { ...(generatedNode.metadata ?? {}) };
+  const promotedFrom = typeof metadata.generatedBy === "string" ? metadata.generatedBy : "generated-view";
+  delete metadata.generatedBy;
+
+  const promotedNode: AtlasNode = {
+    ...structuredClone(generatedNode),
+    owner,
+    status: "active",
+    confidence: "manual",
+    tags: unique([...(generatedNode.tags ?? []).filter((tag) => tag !== "generated"), "promoted"]),
+    metadata: {
+      ...metadata,
+      promotedFrom,
+      promotedAt: nowIso()
+    }
+  };
+
+  const linkedNodeId = promotedNode.id;
+  const evidence = project.evidence.map((item) => {
+    if (!promotedNode.linkedFiles.some((file) => item.path === file || item.path.startsWith(`${file}/`))) return item;
+    return { ...item, linkedNodeIds: unique([...(item.linkedNodeIds ?? []), linkedNodeId]) };
+  });
+
+  return {
+    ...project,
+    nodes: [...project.nodes, promotedNode],
+    evidence
+  };
 }
 
 export function mergeCodeEvidence(project: AtlasProject, evidence: CodeEvidence[], intelligence: CodeIntelligence = project.intelligence ?? emptyCodeIntelligence()): AtlasProject {

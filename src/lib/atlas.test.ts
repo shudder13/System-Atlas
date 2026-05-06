@@ -15,6 +15,7 @@ import {
   mergeCodeEvidence,
   metadataFieldsForNode,
   preferredViewForNodeType,
+  promoteGeneratedNode,
   proposalWorkspace,
   restoreVersion,
   semanticDiff,
@@ -404,5 +405,30 @@ describe("atlas generators", () => {
     expect(schemaGraph.nodes.some((node) => node.id === "schema.examples")).toBe(true);
     expect(schemaGraph.nodes.some((node) => node.type === "migration" && node.linkedFiles.includes("db/migrations/001_create_examples.sql"))).toBe(true);
     expect(metadataFieldsForNode("schema").some((field) => field.key === "columns")).toBe(true);
+  });
+
+  it("promotes generated view facts into authored atlas nodes", () => {
+    const generated = layoutProjectForView({
+      ...project,
+      intelligence: {
+        generatedAt: "2026-05-05T00:00:00.000Z",
+        projectStructure: [],
+        files: [],
+        symbols: [],
+        classes: [],
+        routes: [{ id: "route.example", method: "POST", path: "/orders", sourceFile: "src/api/orders.ts", line: 12 }],
+        dependencies: [],
+        testMap: [{ testFile: "src/api/orders.test.ts", targetFiles: ["src/api/orders.ts"], inferred: false }]
+      }
+    }, "api_surface").nodes.find((node) => node.name === "POST /orders");
+
+    expect(generated).toBeTruthy();
+    const promoted = promoteGeneratedNode(project, generated!);
+    const promotedNode = promoted.nodes.find((node) => node.id === generated!.id);
+
+    expect(promotedNode?.confidence).toBe("manual");
+    expect(promotedNode?.metadata?.generatedBy).toBeUndefined();
+    expect(promotedNode?.metadata?.promotedFrom).toBe("api-surface");
+    expect(promotedNode?.linkedFiles).toContain("src/api/orders.ts");
   });
 });

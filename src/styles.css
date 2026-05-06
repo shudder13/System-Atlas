@@ -740,7 +740,8 @@ code {
 
 .relationship-editor,
 .metadata-editor,
-.flow-step-editor {
+.flow-step-editor,
+.structured-editor {
   display: grid;
   gap: 0.65rem;
   padding: 0.65rem;
@@ -752,6 +753,7 @@ code {
 .relationship-editor h3,
 .metadata-editor h3,
 .flow-step-editor h3,
+.structured-editor h3,
 .code-evidence h3 {
   margin: 0;
   color: #475569;
@@ -817,6 +819,75 @@ code {
 
 .flow-step-row button {
   justify-self: start;
+}
+
+.structured-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.structured-row {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.55rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+}
+
+.api-endpoint-row,
+.schema-column-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.schema-relation-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.structured-row button {
+  justify-self: start;
+}
+
+.compact-list-editor {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.compact-list-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.28rem 0.38rem;
+  color: #334155;
+  background: #eef6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.chip button {
+  width: auto;
+  min-height: auto;
+  padding: 0.1rem 0.25rem;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  font-size: 0.66rem;
 }
 
 .code-evidence {
@@ -1029,6 +1100,12 @@ code {
 }
 
 @media (max-width: 760px) {
+  .structured-grid,
+  .api-endpoint-row,
+  .schema-column-row {
+    grid-template-columns: 1fr;
+  }
+
   .toolbar button,
   .toolbar select {
     flex: 1 1 9.5rem;

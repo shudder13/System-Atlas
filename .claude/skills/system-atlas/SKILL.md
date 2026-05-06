@@ -85,7 +85,8 @@ When asked to create an atlas for an existing project:
 4. Create high-level systems, containers, modules, datastores, schemas/entities, API/event contracts, flows, stakeholders, concerns, risks, and decisions from the evidence.
 5. Link architecture nodes to source files, tests, routes, classes, stakeholder concerns, external dependencies, and database migrations.
 6. Mark inferred concepts as `confidence: inferred` until the architect confirms them.
-7. Do not re-read the whole codebase in every future session. Start from the atlas and persistent evidence, then open raw code only for changed files.
+7. Promote generated class, route, or migration facts only when they should become authored source-of-truth architecture nodes.
+8. Do not re-read the whole codebase in every future session. Start from the atlas and persistent evidence, then open raw code only for changed files.
 
 ## Update The Atlas
 
@@ -113,6 +114,8 @@ When asked to edit the architecture:
 5. Add or update linked files and linked tests whenever architecture changes touch implementation.
 6. Record stakeholders and concerns when the reason for a change comes from a user, team, quality driver, regulatory need, operational need, or business outcome.
 7. Record risks and invariants for critical paths, datastores, schemas, contracts, threats, decisions, and external systems.
+8. Preserve structured API metadata when changing public contracts: endpoint method, path, auth, request, response, status codes, handler, and tests.
+9. Preserve structured schema metadata when changing persistence: columns, primary keys, indexes, constraints, foreign keys, relations, and migration policy.
 
 After editing architecture files, tell the user to check the System Atlas UI. It should auto-reload when there are no unsaved UI edits; if the UI reports external changes, the architect must choose whether the disk version or UI version should win.
 
