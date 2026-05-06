@@ -69,6 +69,7 @@ architecture/
   views/*.yaml
   versions/*.yaml
   proposals/*/
+  evidence/metadata.json
   evidence/code-map.json
   evidence/code-intelligence.json
   evidence/project-structure.json
@@ -78,11 +79,14 @@ architecture/
   evidence/routes.json
   evidence/dependencies.json
   evidence/test-map.json
+  generated/metadata.json
+  generated/atlas.json
   generated/overview.md
   generated/diagrams/*.mmd
 ```
 
 Each concept file uses structured frontmatter plus Markdown notes, so it can be reviewed in Git, passed to AI agents, or edited outside the app.
+The generated and evidence metadata files share an `exportId`, `generatedAt`, and `architectureSourceRevision` so humans and AI agents can tell which derived files were produced together.
 
 ## Current MVP
 

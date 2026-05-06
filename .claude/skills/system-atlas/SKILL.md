@@ -13,9 +13,10 @@ Use this skill when the user asks you to understand a system through its atlas, 
 
 Prefer these files in this order:
 
-1. `architecture/generated/atlas.json` for the lightweight current architecture snapshot when it exists and is fresh.
-2. `architecture/manifest.yaml` for system metadata and graph edges.
-3. Authored concept files:
+1. `architecture/generated/metadata.json` and `architecture/evidence/metadata.json` to check export id, generation time, source revision, and evidence/generation alignment.
+2. `architecture/generated/atlas.json` for the lightweight current architecture snapshot when it exists and is fresh.
+3. `architecture/manifest.yaml` for system metadata and graph edges.
+4. Authored concept files:
    - `architecture/services/*.md`
    - `architecture/modules/*.md`
    - `architecture/flows/*.md`
@@ -28,9 +29,9 @@ Prefer these files in this order:
    - `architecture/security/*.md`
    - `architecture/reliability/*.md`
    - `architecture/decisions/*.md`
-4. `architecture/views/*.yaml` for per-view layout and view-specific information.
-5. `architecture/evidence/code-map.json` for flat file evidence.
-6. Persistent code intelligence files:
+5. `architecture/views/*.yaml` for per-view layout and view-specific information.
+6. `architecture/evidence/code-map.json` for flat file evidence.
+7. Persistent code intelligence files:
    - `architecture/evidence/code-intelligence.json`
    - `architecture/evidence/project-structure.json`
    - `architecture/evidence/file-summaries.json`
@@ -39,8 +40,8 @@ Prefer these files in this order:
    - `architecture/evidence/routes.json`
    - `architecture/evidence/dependencies.json`
    - `architecture/evidence/test-map.json`
-7. `architecture/proposals/*` for before/after architecture changes and migration briefs.
-8. `architecture/versions/*.yaml` for named architecture checkpoints.
+8. `architecture/proposals/*` for before/after architecture changes and migration briefs.
+9. `architecture/versions/*.yaml` for named architecture checkpoints.
 
 Do not treat generated diagrams as the only source of truth. Mermaid files under `architecture/generated/diagrams/` are derived views.
 `architecture/evidence/code-map.json` may include scanned imports, exports, routes, symbols, line counts, and generated node links for Code view context. The richer `code-intelligence.json` and split evidence files are the durable memory for project structure, classes, methods, routes, dependencies, and tests.
@@ -51,11 +52,12 @@ Version checkpoints capture accepted architecture states. Use them to compare hi
 
 When asked to understand the whole app:
 
-1. Read `architecture/generated/overview.md` if present.
-2. Read `architecture/manifest.yaml`.
-3. Read `architecture/generated/atlas.json` if present. Treat it as the architecture graph snapshot; read `architecture/evidence/` for the durable code index.
-4. If the snapshot is missing or stale, read the authored concept files and reconstruct the model.
-5. Summarize the system by:
+1. Read `architecture/generated/metadata.json` and `architecture/evidence/metadata.json` if present. Matching `exportId` values mean the generated snapshot and saved code evidence were produced together.
+2. Read `architecture/generated/overview.md` if present.
+3. Read `architecture/manifest.yaml`.
+4. Read `architecture/generated/atlas.json` if present. Treat it as the architecture graph snapshot; read `architecture/evidence/` for the durable code index.
+5. If the snapshot is missing or stale, read the authored concept files and reconstruct the model.
+6. Summarize the system by:
    - actors and entry points
    - stakeholders, concerns, quality drivers, and what architecture elements address them
    - systems, containers, components, and code evidence

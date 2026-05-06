@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import ts from "typescript";
 import YAML from "yaml";
 import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSymbol, CodeTestMapEntry, ProjectStructureEntry } from "../src/types";
@@ -110,6 +110,8 @@ export async function exportAtlas(root: string, project: AtlasProject) {
 
   await writeFile(root, "architecture/evidence/code-map.json", JSON.stringify(project.evidence, null, 2), files);
   await writeCodeIntelligenceFiles(root, project.intelligence ?? emptyCodeIntelligence(), files);
+  const metadata = await exportMetadata(root, project);
+  await writeFile(root, "architecture/evidence/metadata.json", JSON.stringify(metadata.evidence, null, 2), files);
   await writeFile(root, "architecture/generated/atlas.json", JSON.stringify(projectSnapshotForAtlasJson(project), null, 2), files);
   await writeFile(root, "architecture/generated/overview.md", generateOverview(project), files);
   await writeFile(root, "architecture/generated/context-pack.md", generateContextPack(project), files);
@@ -117,6 +119,8 @@ export async function exportAtlas(root: string, project: AtlasProject) {
   for (const view of project.views) {
     await writeFile(root, `architecture/generated/diagrams/${slug(view.id)}.mmd`, generateMermaid(project, view.id), files);
   }
+
+  await writeFile(root, "architecture/generated/metadata.json", JSON.stringify(metadata.generated, null, 2), files);
 
   return { files, issues: validateAtlas(project) };
 }
@@ -127,6 +131,18 @@ export async function architectureRevision(root: string) {
 
   try {
     await collectRevision(architectureRoot, architectureRoot, hash);
+    return hash.digest("hex");
+  } catch {
+    return "";
+  }
+}
+
+export async function architectureSourceRevision(root: string) {
+  const architectureRoot = safeJoin(root, "architecture");
+  const hash = createHash("sha1");
+
+  try {
+    await collectRevision(architectureRoot, architectureRoot, hash, ["generated", "evidence/metadata.json"]);
     return hash.digest("hex");
   } catch {
     return "";
@@ -763,6 +779,75 @@ async function writeCodeIntelligenceFiles(root: string, intelligence: CodeIntell
   await writeFile(root, "architecture/evidence/test-map.json", JSON.stringify(intelligence.testMap, null, 2), files);
 }
 
+async function exportMetadata(root: string, project: AtlasProject) {
+  const generatedAt = new Date().toISOString();
+  const exportId = randomUUID();
+  const sourceRevision = await architectureSourceRevision(root);
+  const intelligence = project.intelligence ?? emptyCodeIntelligence();
+  const shared = {
+    schemaVersion: 1,
+    exportId,
+    generatedAt,
+    architectureSourceRevision: sourceRevision,
+    project: {
+      name: project.manifest.name,
+      updatedAt: project.manifest.updatedAt,
+      nodes: project.nodes.length,
+      edges: project.edges.length,
+      flows: project.flows.length,
+      views: project.views.length,
+      proposals: project.proposals.length,
+      versions: project.versions.length
+    }
+  };
+
+  const evidence = {
+    ...shared,
+    kind: "evidence",
+    artifacts: {
+      codeMap: "architecture/evidence/code-map.json",
+      codeIntelligence: "architecture/evidence/code-intelligence.json",
+      splitFiles: [
+        "architecture/evidence/project-structure.json",
+        "architecture/evidence/file-summaries.json",
+        "architecture/evidence/classes.json",
+        "architecture/evidence/code-symbols.json",
+        "architecture/evidence/routes.json",
+        "architecture/evidence/dependencies.json",
+        "architecture/evidence/test-map.json"
+      ]
+    },
+    codeEvidence: {
+      items: project.evidence.length
+    },
+    codeIntelligence: {
+      generatedAt: intelligence.generatedAt,
+      projectStructure: intelligence.projectStructure.length,
+      files: intelligence.files.length,
+      symbols: intelligence.symbols.length,
+      classes: intelligence.classes.length,
+      routes: intelligence.routes.length,
+      dependencies: intelligence.dependencies.length,
+      testMap: intelligence.testMap.length
+    }
+  };
+
+  const generated = {
+    ...shared,
+    kind: "generated",
+    artifacts: {
+      atlasSnapshot: "architecture/generated/atlas.json",
+      overview: "architecture/generated/overview.md",
+      contextPack: "architecture/generated/context-pack.md",
+      diagrams: project.views.map((view) => `architecture/generated/diagrams/${slug(view.id)}.mmd`)
+    },
+    relatedEvidenceMetadata: "architecture/evidence/metadata.json",
+    note: "Generated atlas.json is a lightweight architecture snapshot. Persistent code intelligence is stored under architecture/evidence/."
+  };
+
+  return { evidence, generated };
+}
+
 async function readProposals(root: string) {
   const proposalsRoot = safeJoin(root, "architecture/proposals");
   try {
@@ -814,16 +899,17 @@ async function latestFileMtime(root: string, relativeFolder: string, excludedFol
   return latest;
 }
 
-async function collectRevision(root: string, current: string, hash: ReturnType<typeof createHash>) {
+async function collectRevision(root: string, current: string, hash: ReturnType<typeof createHash>, excludedPaths: string[] = []) {
   const entries = await fs.readdir(current, { withFileTypes: true });
 
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     if (entry.name === ".DS_Store") continue;
     const absolute = path.join(current, entry.name);
     const relative = path.relative(root, absolute).replace(/\\/g, "/");
+    if (excludedPaths.some((excluded) => relative === excluded || relative.startsWith(`${excluded}/`))) continue;
 
     if (entry.isDirectory()) {
-      await collectRevision(root, absolute, hash);
+      await collectRevision(root, absolute, hash, excludedPaths);
       continue;
     }
 
