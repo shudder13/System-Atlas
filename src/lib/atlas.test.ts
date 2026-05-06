@@ -7,7 +7,6 @@ import {
   createVersion,
   defaultViews,
   generateArchitectureReview,
-  generateCodeIntelligenceOverview,
   generateContextPack,
   generateMermaid,
   generateMigrationBrief,
@@ -30,6 +29,47 @@ describe("atlas generators", () => {
   it("validates a realistic starter atlas", () => {
     const issues = validateAtlas(project);
     expect(issues.some((issue) => issue.severity === "error")).toBe(false);
+  });
+
+  it("warns when stakeholder concerns are not addressed by architecture elements", () => {
+    const withoutAddressingEdges = {
+      ...project,
+      edges: project.edges.filter((edge) => !(edge.type === "addresses" && edge.target === "concern.safe_change"))
+    };
+
+    const issues = validateAtlas(withoutAddressingEdges);
+
+    expect(issues.some((issue) =>
+      issue.code === "concern-without-addressing-element" &&
+      issue.targetId === "concern.safe_change"
+    )).toBe(true);
+  });
+
+  it("warns about concern traceability edges with invalid direction", () => {
+    const invalid = {
+      ...project,
+      edges: [
+        ...project.edges,
+        {
+          id: "invalid-has-concern",
+          source: "service.api",
+          target: "concern.safe_change",
+          type: "has_concern" as const
+        },
+        {
+          id: "invalid-addresses",
+          source: "concern.safe_change",
+          target: "service.api",
+          type: "addresses" as const
+        }
+      ]
+    };
+
+    const codes = validateAtlas(invalid).map((issue) => issue.code);
+
+    expect(codes).toContain("invalid-has-concern-source");
+    expect(codes).toContain("concern-addresses-element");
+    expect(codes).toContain("invalid-addresses-target");
   });
 
   it("generates mermaid from the typed graph", () => {
@@ -271,6 +311,5 @@ describe("atlas generators", () => {
     expect(withEvidence.intelligence.classes[0].name).toBe("ExampleService");
     expect(layoutProjectForView(withEvidence, "code").nodes.some((node) => node.id.startsWith("code.file."))).toBe(true);
     expect(generateContextPack(withEvidence, ["code.file.src-lib-example.ts"])).toContain("Persistent Code Intelligence");
-    expect(generateCodeIntelligenceOverview(withEvidence)).toContain("GET /examples");
   });
 });

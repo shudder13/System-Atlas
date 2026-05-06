@@ -522,6 +522,7 @@ export function preferredViewForNodeType(type: NodeType): ViewId {
 export function validateAtlas(project: AtlasProject): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const nodeIds = new Set(project.nodes.map((node) => node.id));
+  const nodesById = new Map(project.nodes.map((node) => [node.id, node]));
   const edgeIds = new Set<string>();
 
   for (const node of project.nodes) {
@@ -605,8 +606,60 @@ export function validateAtlas(project: AtlasProject): ValidationIssue[] {
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
       issues.push({ severity: "error", code: "dangling-edge", message: `${edge.id} points at a missing node.`, targetId: edge.id });
     }
+    if (edge.type === "has_concern") {
+      const source = nodesById.get(edge.source);
+      const target = nodesById.get(edge.target);
+      if (source && !["stakeholder", "team", "actor"].includes(source.type)) {
+        issues.push({
+          severity: "warning",
+          code: "invalid-has-concern-source",
+          message: `${edge.id} uses has_concern from ${source.type}; use a stakeholder, team, or actor as the source.`,
+          targetId: edge.id
+        });
+      }
+      if (target && target.type !== "concern") {
+        issues.push({
+          severity: "warning",
+          code: "invalid-has-concern-target",
+          message: `${edge.id} uses has_concern toward ${target.type}; target a concern node.`,
+          targetId: edge.id
+        });
+      }
+    }
+    if (edge.type === "addresses") {
+      const source = nodesById.get(edge.source);
+      const target = nodesById.get(edge.target);
+      if (source?.type === "concern") {
+        issues.push({
+          severity: "warning",
+          code: "concern-addresses-element",
+          message: `${edge.id} has a concern addressing another element; model architecture elements as addressing concerns instead.`,
+          targetId: edge.id
+        });
+      }
+      if (target && !["concern", "quality_scenario", "risk", "threat"].includes(target.type)) {
+        issues.push({
+          severity: "warning",
+          code: "invalid-addresses-target",
+          message: `${edge.id} uses addresses toward ${target.type}; target a concern, quality scenario, risk, or threat.`,
+          targetId: edge.id
+        });
+      }
+    }
     if (!edge.label && ["risks", "mitigates", "tests"].includes(edge.type)) {
       issues.push({ severity: "info", code: "edge-needs-label", message: `${edge.type} edge ${edge.id} should describe what it means.`, targetId: edge.id });
+    }
+  }
+
+  for (const concern of project.nodes.filter((node) => node.type === "concern")) {
+    const addressingEdges = project.edges.filter((edge) => edge.type === "addresses" && edge.target === concern.id);
+    if (addressingEdges.length === 0) {
+      issues.push({
+        severity: "warning",
+        code: "concern-without-addressing-element",
+        message: `${concern.name} has no architecture element addressing it.`,
+        targetId: concern.id
+      });
     }
   }
 
@@ -861,58 +914,6 @@ export function generateArchitectureReview(project: AtlasProject): string {
     "## Suggested Next Actions",
     "",
     ...(nextActions.length ? nextActions.map((item) => `- ${item}`) : ["- No obvious architecture documentation gaps found by the heuristic review."])
-  ].join("\n");
-}
-
-export function generateCodeIntelligenceOverview(project: AtlasProject): string {
-  const intelligence = project.intelligence ?? emptyCodeIntelligence();
-  const largestFiles = [...intelligence.files]
-    .sort((left, right) => (right.lines ?? 0) - (left.lines ?? 0))
-    .slice(0, 12);
-  const busiestClasses = [...intelligence.classes]
-    .sort((left, right) => (right.methods.length + right.attributes.length) - (left.methods.length + left.attributes.length))
-    .slice(0, 16);
-  const internalDeps = intelligence.dependencies.filter((item) => item.kind === "internal").slice(0, 30);
-  const externalDeps = unique(intelligence.dependencies.filter((item) => item.kind === "external").map((item) => item.target)).slice(0, 30);
-
-  return [
-    `# Code Intelligence: ${project.manifest.name}`,
-    "",
-    intelligence.generatedAt ? `Generated at: ${intelligence.generatedAt}` : "No scan persisted yet.",
-    "",
-    "## Inventory",
-    "",
-    `- Structure entries: ${intelligence.projectStructure.length}`,
-    `- Files: ${intelligence.files.length}`,
-    `- Symbols: ${intelligence.symbols.length}`,
-    `- Classes: ${intelligence.classes.length}`,
-    `- Routes: ${intelligence.routes.length}`,
-    `- Dependencies: ${intelligence.dependencies.length}`,
-    `- Test map entries: ${intelligence.testMap.length}`,
-    "",
-    "## Largest Files",
-    "",
-    ...(largestFiles.length ? largestFiles.map((item) => `- ${item.path}: ${item.lines ?? "?"} lines, ${item.symbols.length} symbols`) : ["- No files indexed."]),
-    "",
-    "## Classes",
-    "",
-    ...(busiestClasses.length ? busiestClasses.map((item) => `- ${item.name} (${item.path}): ${item.attributes.length} attrs, ${item.methods.length} methods`) : ["- No classes indexed."]),
-    "",
-    "## Routes",
-    "",
-    ...(intelligence.routes.length ? intelligence.routes.slice(0, 40).map((item) => `- ${item.method} ${item.path} -> ${item.sourceFile}${item.line ? `:${item.line}` : ""}`) : ["- No routes indexed."]),
-    "",
-    "## Internal Dependencies",
-    "",
-    ...(internalDeps.length ? internalDeps.map((item) => `- ${item.source} -> ${item.target}`) : ["- No internal dependencies indexed."]),
-    "",
-    "## External Dependencies",
-    "",
-    ...(externalDeps.length ? externalDeps.map((item) => `- ${item}`) : ["- No external dependencies indexed."]),
-    "",
-    "## Tests",
-    "",
-    ...(intelligence.testMap.length ? intelligence.testMap.slice(0, 40).map((item) => `- ${item.testFile} -> ${item.targetFiles.join(", ") || "unknown"}`) : ["- No test map indexed."])
   ].join("\n");
 }
 

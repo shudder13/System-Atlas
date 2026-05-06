@@ -54,9 +54,9 @@ export const templates: AtlasTemplate[] = [
       edges: [
         edge("stakeholder.product", "concern.safe_change", "cares about safe delivery", "has_concern"),
         edge("stakeholder.operations", "concern.operability", "cares about operability", "has_concern"),
-        edge("concern.safe_change", "quality.retryability", "requires quality scenario", "addresses"),
-        edge("concern.safe_change", "contract.public_api", "protects public behavior", "addresses"),
-        edge("concern.operability", "environment.prod", "requires production visibility", "addresses"),
+        edge("quality.retryability", "concern.safe_change", "supports safe delivery", "addresses"),
+        edge("contract.public_api", "concern.safe_change", "protects public behavior", "addresses"),
+        edge("environment.prod", "concern.operability", "provides production visibility", "addresses"),
         edge("system.core", "app.client", "contains client surface", "contains"),
         edge("system.core", "container.backend", "contains backend runtime", "contains"),
         edge("container.backend", "service.api", "contains API", "contains"),
