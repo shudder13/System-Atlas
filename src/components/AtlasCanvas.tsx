@@ -24,6 +24,8 @@ interface AtlasCanvasProps {
   onPositionChange: (positions: Map<string, { x: number; y: number } | undefined>) => void;
 }
 
+type NodeIconComponent = (typeof nodeIcons)[AtlasNode["type"]];
+
 export function AtlasCanvas({ viewId, nodes, edges, selectedId, highlightedNodeIds = [], onSelect, onConnect, onPositionChange }: AtlasCanvasProps) {
   const highlightedNodes = useMemo(() => new Set(highlightedNodeIds), [highlightedNodeIds]);
   const hasFlowHighlight = highlightedNodes.size > 0;
@@ -34,37 +36,19 @@ export function AtlasCanvas({ viewId, nodes, edges, selectedId, highlightedNodeI
     const isHighlighted = !hasFlowHighlight || highlightedNodes.has(node.id);
     const isSelected = selectedId === node.id;
     const details = viewDetails(node, viewId);
-    const nodeHeight = details.length ? 118 : 84;
+    const dimensions = nodeDimensions(node, viewId, details.length);
 
     return {
       id: node.id,
       position: node.position ?? { x: 0, y: 0 },
-      width: 196,
-      height: nodeHeight,
-      initialWidth: 196,
-      initialHeight: nodeHeight,
+      width: dimensions.width,
+      height: dimensions.height,
+      initialWidth: dimensions.width,
+      initialHeight: dimensions.height,
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       data: {
-        label: (
-          <div className="atlas-node-content">
-            <div className="node-title-row">
-              <span className="node-icon" style={{ color, borderColor: color, background: `${color}12` }}>
-                <Icon size={15} strokeWidth={2.2} />
-              </span>
-              <div className="node-text">
-                <span className="node-kicker">{prettyType(node.type)}</span>
-                <strong>{node.name}</strong>
-              </div>
-            </div>
-            <small>{node.owner} · {node.criticality}</small>
-            {details.length > 0 && (
-              <div className="node-details">
-                {details.map((detail) => <span key={detail}>{detail}</span>)}
-              </div>
-            )}
-          </div>
-        )
+        label: renderNodeLabel(node, viewId, details, Icon, color)
       },
       selected: isSelected,
       style: {
@@ -72,8 +56,8 @@ export function AtlasCanvas({ viewId, nodes, edges, selectedId, highlightedNodeI
         borderWidth: isSelected || isHighlighted ? 2 : 1,
         borderRadius: 8,
         color: "#111827",
-        width: 196,
-        minHeight: nodeHeight,
+        width: dimensions.width,
+        minHeight: dimensions.height,
         opacity: isHighlighted ? 1 : 0.34,
         boxShadow: isSelected
           ? "0 12px 30px rgba(17, 24, 39, 0.16)"
@@ -184,6 +168,120 @@ function viewDetails(node: AtlasNode, viewId: ViewId) {
   }
 
   return [];
+}
+
+function renderNodeLabel(node: AtlasNode, viewId: ViewId, details: string[], Icon: NodeIconComponent, color: string) {
+  const metadata = node.metadata ?? {};
+  if (viewId === "class_diagram" && node.type === "code_symbol") {
+    const attributes = listValue(metadata.attributes).slice(0, 5);
+    const methods = listValue(metadata.methods).slice(0, 5);
+    const relation = [
+      textValue(metadata.extends) ? `extends ${textValue(metadata.extends)}` : "",
+      listValue(metadata.implements).length ? `implements ${listValue(metadata.implements).slice(0, 2).join(", ")}` : ""
+    ].filter(Boolean).join(" · ");
+
+    return (
+      <div className="atlas-node-content uml-node">
+        <NodeHeader node={node} Icon={Icon} color={color} />
+        {relation ? <div className="uml-relation">{relation}</div> : null}
+        <NodeCompartment title="Attributes" items={attributes} empty="No attributes indexed" />
+        <NodeCompartment title="Methods" items={methods} empty="No methods indexed" />
+      </div>
+    );
+  }
+
+  if (viewId === "api_surface" && node.type === "api_contract") {
+    const route = routeLabel(node);
+    return (
+      <div className="atlas-node-content api-node">
+        <NodeHeader node={node} Icon={Icon} color={color} />
+        <div className="api-route-line">
+          <span className="method-badge">{route.method}</span>
+          <strong>{route.path}</strong>
+        </div>
+        <div className="node-details">
+          {[
+            textValue(metadata.auth) ? `auth: ${textValue(metadata.auth)}` : "",
+            textValue(metadata.handlerFile) || textValue(metadata.sourceFile),
+            statusLabel(metadata)
+          ].filter(Boolean).map((detail) => <span key={detail}>{detail}</span>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (viewId === "schema_model" && ["schema", "data_entity"].includes(node.type)) {
+    const columns = listValue(metadata.columns).slice(0, 6);
+    const keys = listValue(metadata.primaryKeys);
+    const relations = listValue(metadata.relations);
+    return (
+      <div className="atlas-node-content schema-node">
+        <NodeHeader node={node} Icon={Icon} color={color} />
+        <div className="schema-summary">
+          {keys.length ? <span>PK {keys.slice(0, 2).join(", ")}</span> : null}
+          {listValue(metadata.indexes).length ? <span>{listValue(metadata.indexes).length} indexes</span> : null}
+          {relations.length ? <span>{relations.length} relations</span> : null}
+        </div>
+        <NodeCompartment title="Columns" items={columns} empty="No columns modeled" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="atlas-node-content">
+      <NodeHeader node={node} Icon={Icon} color={color} />
+      <small>{node.owner} · {node.criticality}</small>
+      {details.length > 0 && (
+        <div className="node-details">
+          {details.map((detail) => <span key={detail}>{detail}</span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NodeHeader({ node, Icon, color }: { node: AtlasNode; Icon: NodeIconComponent; color: string }) {
+  return (
+    <div className="node-title-row">
+      <span className="node-icon" style={{ color, borderColor: color, background: `${color}12` }}>
+        <Icon size={15} strokeWidth={2.2} />
+      </span>
+      <div className="node-text">
+        <span className="node-kicker">{prettyType(node.type)}</span>
+        <strong>{node.name}</strong>
+      </div>
+    </div>
+  );
+}
+
+function NodeCompartment({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return (
+    <div className="uml-compartment">
+      <span>{title}</span>
+      {(items.length ? items : [empty]).map((item) => <small key={item}>{item}</small>)}
+    </div>
+  );
+}
+
+function nodeDimensions(node: AtlasNode, viewId: ViewId, detailCount: number) {
+  if (viewId === "class_diagram" && node.type === "code_symbol") return { width: 252, height: 184 };
+  if (viewId === "api_surface" && node.type === "api_contract") return { width: 244, height: 138 };
+  if (viewId === "schema_model" && ["schema", "data_entity"].includes(node.type)) return { width: 252, height: 184 };
+  return { width: 196, height: detailCount ? 118 : 84 };
+}
+
+function routeLabel(node: AtlasNode) {
+  const metadata = node.metadata ?? {};
+  const method = textValue(metadata.routeMethod);
+  const path = textValue(metadata.routePath);
+  if (method && path) return { method, path };
+  const match = node.name.match(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ALL|USE)\s+(.+)$/i);
+  return { method: match?.[1]?.toUpperCase() ?? "API", path: match?.[2] ?? node.name };
+}
+
+function statusLabel(metadata: Record<string, MetadataValue>) {
+  const statuses = listValue(metadata.statusCodes);
+  return statuses.length ? `status: ${statuses.slice(0, 4).join(", ")}` : "";
 }
 
 function listValue(value: MetadataValue) {

@@ -522,6 +522,73 @@ code {
   white-space: nowrap;
 }
 
+.uml-node,
+.api-node,
+.schema-node {
+  gap: 0.36rem;
+}
+
+.uml-relation,
+.schema-summary,
+.api-route-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #334155;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.api-route-line strong {
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.method-badge,
+.schema-summary span {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.15rem;
+  padding: 0 0.36rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.uml-compartment {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+  padding-top: 0.28rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.uml-compartment > span {
+  color: #475569;
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.uml-compartment small {
+  min-width: 0;
+  color: #1f2937;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.63rem;
+  line-height: 1.18;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .preview-panel {
   border-top: 1px solid #e2e8f0;
   min-height: 0;
