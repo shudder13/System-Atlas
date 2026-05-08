@@ -116,6 +116,7 @@ export interface CodeFileSummary {
   exports: string[];
   routes: string[];
   symbols: string[];
+  schemas?: string[];
   summary: string;
 }
 
@@ -159,6 +160,19 @@ export interface CodeRoute {
   line?: number;
 }
 
+export interface CodeSchema {
+  id: string;
+  path: string;
+  name: string;
+  kind: "table" | "model" | "schema";
+  line?: number;
+  columns: string[];
+  primaryKeys: string[];
+  indexes: string[];
+  foreignKeys: string[];
+  relations: string[];
+}
+
 export interface CodeDependency {
   source: string;
   target: string;
@@ -179,6 +193,7 @@ export interface CodeIntelligence {
   symbols: CodeSymbol[];
   classes: CodeClass[];
   routes: CodeRoute[];
+  schemas: CodeSchema[];
   dependencies: CodeDependency[];
   testMap: CodeTestMapEntry[];
 }
@@ -265,6 +280,7 @@ export interface CodeEvidence {
   linkedNodeIds?: string[];
   symbols?: Array<{ name: string; kind: "class" | "function" | "method" | "interface" | "type" | "constant" | "route"; line?: number }>;
   classes?: CodeClass[];
+  schemas?: CodeSchema[];
   imports?: string[];
   exports?: string[];
   routes?: string[];

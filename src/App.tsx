@@ -894,6 +894,7 @@ function hasCodeIntelligence(intelligence: CodeIntelligence) {
     intelligence.symbols.length ||
     intelligence.classes.length ||
     intelligence.routes.length ||
+    (intelligence.schemas?.length ?? 0) ||
     intelligence.dependencies.length ||
     intelligence.testMap.length
   );

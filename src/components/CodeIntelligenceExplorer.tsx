@@ -1,8 +1,8 @@
-import { Boxes, FileCode2, GitBranch, Network, Route, Search, TestTube2 } from "lucide-react";
+import { Boxes, Database, FileCode2, GitBranch, Network, Route, Search, TestTube2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { AtlasNode, AtlasProject, CodeClass, CodeDependency, CodeFileSummary, CodeRoute, CodeTestMapEntry } from "../types";
+import { AtlasNode, AtlasProject, CodeClass, CodeDependency, CodeFileSummary, CodeRoute, CodeSchema, CodeTestMapEntry } from "../types";
 
-type CodeIntelTab = "files" | "classes" | "routes" | "dependencies" | "tests";
+type CodeIntelTab = "files" | "classes" | "routes" | "schemas" | "dependencies" | "tests";
 
 interface CodeIntelligenceExplorerProps {
   project: AtlasProject;
@@ -33,6 +33,11 @@ export function CodeIntelligenceExplorer({ project, selectedId, isLoading = fals
       .filter((route) => matchesQuery(normalizedQuery, route.method, route.path, route.sourceFile))
       .slice(0, 120),
   [intelligence.routes, normalizedQuery]);
+  const schemas = useMemo(() =>
+    intelligence.schemas
+      .filter((schema) => matchesQuery(normalizedQuery, schema.name, schema.path, schema.kind, ...schema.columns, ...schema.relations))
+      .slice(0, 120),
+  [intelligence.schemas, normalizedQuery]);
   const dependencies = useMemo(() =>
     intelligence.dependencies
       .filter((dependency) => matchesQuery(normalizedQuery, dependency.source, dependency.target, dependency.importPath, dependency.kind))
@@ -49,7 +54,7 @@ export function CodeIntelligenceExplorer({ project, selectedId, isLoading = fals
       <div className="code-intel-empty">
         <FileCode2 size={22} />
         <h3>Loading Code Intelligence</h3>
-        <p>Reading saved project structure, files, classes, routes, dependencies, and tests.</p>
+        <p>Reading saved project structure, files, classes, routes, schemas, dependencies, and tests.</p>
       </div>
     );
   }
@@ -59,7 +64,7 @@ export function CodeIntelligenceExplorer({ project, selectedId, isLoading = fals
       <div className="code-intel-empty">
         <FileCode2 size={22} />
         <h3>No Code Intelligence Yet</h3>
-        <p>Run Scan to index files, classes, routes, dependencies, and tests into the atlas.</p>
+        <p>Run Scan to index files, classes, routes, schemas, dependencies, and tests into the atlas.</p>
       </div>
     );
   }
@@ -69,7 +74,7 @@ export function CodeIntelligenceExplorer({ project, selectedId, isLoading = fals
       <div className="code-intel-toolbar">
         <div className="code-intel-summary">
           <strong>Code Intelligence</strong>
-          <span>{intelligence.files.length} files · {intelligence.classes.length} classes · {intelligence.routes.length} routes · {intelligence.dependencies.length} deps · {intelligence.testMap.length} tests</span>
+          <span>{intelligence.files.length} files · {intelligence.classes.length} classes · {intelligence.routes.length} routes · {intelligence.schemas.length} schemas · {intelligence.dependencies.length} deps · {intelligence.testMap.length} tests</span>
         </div>
         <label className="code-intel-search">
           <Search size={14} />
@@ -81,6 +86,7 @@ export function CodeIntelligenceExplorer({ project, selectedId, isLoading = fals
         <ExplorerTab id="files" tab={tab} count={files.length} label="Files" icon={FileCode2} onSelect={setTab} />
         <ExplorerTab id="classes" tab={tab} count={classes.length} label="Classes" icon={Boxes} onSelect={setTab} />
         <ExplorerTab id="routes" tab={tab} count={routes.length} label="Routes" icon={Route} onSelect={setTab} />
+        <ExplorerTab id="schemas" tab={tab} count={schemas.length} label="Schemas" icon={Database} onSelect={setTab} />
         <ExplorerTab id="dependencies" tab={tab} count={dependencies.length} label="Deps" icon={GitBranch} onSelect={setTab} />
         <ExplorerTab id="tests" tab={tab} count={tests.length} label="Tests" icon={TestTube2} onSelect={setTab} />
       </div>
@@ -89,6 +95,7 @@ export function CodeIntelligenceExplorer({ project, selectedId, isLoading = fals
         {tab === "files" && <FilesView files={files} links={links} selectedId={selectedId} onSelect={onSelect} />}
         {tab === "classes" && <ClassesView classes={classes} links={links} selectedId={selectedId} onSelect={onSelect} />}
         {tab === "routes" && <RoutesView routes={routes} links={links} selectedId={selectedId} onSelect={onSelect} />}
+        {tab === "schemas" && <SchemasView schemas={schemas} links={links} selectedId={selectedId} onSelect={onSelect} />}
         {tab === "dependencies" && <DependenciesView dependencies={dependencies} links={links} selectedId={selectedId} onSelect={onSelect} />}
         {tab === "tests" && <TestsView tests={tests} links={links} selectedId={selectedId} onSelect={onSelect} />}
       </div>
@@ -110,6 +117,7 @@ function FilesView({ files, links, selectedId, onSelect }: { files: CodeFileSumm
             <div className="code-intel-pills">
               <span>{file.symbols.length} symbols</span>
               <span>{file.routes.length} routes</span>
+              <span>{file.schemas?.length ?? 0} schemas</span>
               <span>{file.imports.length} imports</span>
             </div>
             <OpenNodeButton node={node} onSelect={onSelect} />
@@ -161,6 +169,32 @@ function RoutesView({ routes, links, selectedId, onSelect }: { routes: CodeRoute
           </article>
         );
       }) : <EmptyList label="No routes match this filter." />}
+    </div>
+  );
+}
+
+function SchemasView({ schemas, links, selectedId, onSelect }: { schemas: CodeSchema[]; links: CodeLinks; selectedId: string; onSelect: (id: string) => void }) {
+  return (
+    <div className="code-intel-grid">
+      {schemas.length ? schemas.map((schema) => {
+        const node = links.schemaNode(schema.path, schema.name) ?? links.fileNode(schema.path);
+        return (
+          <article className={node?.id === selectedId ? "code-intel-card active" : "code-intel-card"} key={schema.id}>
+            <div>
+              <strong>{schema.name}</strong>
+              <span>{schema.kind} · {schema.path}{schema.line ? `:${schema.line}` : ""}</span>
+            </div>
+            <div className="code-intel-pills">
+              <span>{schema.columns.length} fields</span>
+              <span>{schema.primaryKeys.length} keys</span>
+              <span>{schema.indexes.length} indexes</span>
+              <span>{schema.relations.length} relations</span>
+            </div>
+            {schema.relations.length ? <small>Relations: {schema.relations.slice(0, 6).join(", ")}</small> : null}
+            <OpenNodeButton node={node} onSelect={onSelect} />
+          </article>
+        );
+      }) : <EmptyList label="No schemas match this filter." />}
     </div>
   );
 }
@@ -236,6 +270,7 @@ function EmptyList({ label }: { label: string }) {
 type CodeLinks = {
   fileNode: (path: string) => AtlasNode | undefined;
   symbolNode: (path: string, name: string) => AtlasNode | undefined;
+  schemaNode: (path: string, name: string) => AtlasNode | undefined;
 };
 
 function codeLinks(project: AtlasProject): CodeLinks {
@@ -243,6 +278,7 @@ function codeLinks(project: AtlasProject): CodeLinks {
   const evidenceLinks = new Map(project.evidence.map((item) => [item.path, item.linkedNodeIds ?? []]));
   const fileNodes = new Map<string, AtlasNode>();
   const symbolNodes = new Map<string, AtlasNode>();
+  const schemaNodes = new Map<string, AtlasNode>();
 
   for (const node of project.nodes) {
     for (const file of node.linkedFiles) {
@@ -253,6 +289,11 @@ function codeLinks(project: AtlasProject): CodeLinks {
     if (evidencePath && node.type === "code_symbol") {
       symbolNodes.set(symbolKey(evidencePath, node.name), node);
     }
+
+    if (evidencePath && ["schema", "data_entity"].includes(node.type)) {
+      const entityName = typeof node.metadata?.entityName === "string" ? node.metadata.entityName : node.name;
+      schemaNodes.set(symbolKey(evidencePath, entityName), node);
+    }
   }
 
   return {
@@ -260,7 +301,8 @@ function codeLinks(project: AtlasProject): CodeLinks {
       const evidenceNode = evidenceLinks.get(path)?.map((id) => nodesById.get(id)).find(Boolean);
       return evidenceNode ?? fileNodes.get(path);
     },
-    symbolNode: (path, name) => symbolNodes.get(symbolKey(path, name))
+    symbolNode: (path, name) => symbolNodes.get(symbolKey(path, name)),
+    schemaNode: (path, name) => schemaNodes.get(symbolKey(path, name))
   };
 }
 

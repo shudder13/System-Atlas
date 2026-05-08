@@ -38,13 +38,14 @@ Prefer these files in this order:
    - `architecture/evidence/classes.json`
    - `architecture/evidence/code-symbols.json`
    - `architecture/evidence/routes.json`
+   - `architecture/evidence/schemas.json`
    - `architecture/evidence/dependencies.json`
    - `architecture/evidence/test-map.json`
 8. `architecture/proposals/*` for before/after architecture changes and migration briefs.
 9. `architecture/versions/*.yaml` for named architecture checkpoints.
 
 Do not treat generated diagrams as the only source of truth. Mermaid files under `architecture/generated/diagrams/` are derived views.
-`architecture/evidence/code-map.json` may include scanned imports, exports, routes, symbols, line counts, and generated node links for Code view context. The richer `code-intelligence.json` and split evidence files are the durable memory for project structure, classes, methods, routes, dependencies, and tests.
+`architecture/evidence/code-map.json` may include scanned imports, exports, routes, schemas, symbols, line counts, and generated node links for Code view context. The richer `code-intelligence.json` and split evidence files are the durable memory for project structure, classes, methods, routes, SQL/Prisma schemas, dependencies, and tests.
 Proposal records may have `status: draft`, `status: applied`, or `status: superseded`. Draft proposals describe a future architecture; applied proposals are historical evidence of how the main atlas moved.
 Version checkpoints capture accepted architecture states. Use them to compare historical/current architecture before assuming the latest files describe the requested baseline.
 
@@ -71,7 +72,7 @@ When asked to understand the whole app:
    - critical flows
    - security threats, invariants, risks, decisions, and linked tests
    - linked source files
-   - scanned symbols, imports, exports, routes, classes, dependencies, and tests from persistent code intelligence
+   - scanned symbols, imports, exports, routes, classes, schemas, dependencies, and tests from persistent code intelligence
 
 Keep the summary compact. For large systems, prefer critical and high-risk paths first.
 
@@ -81,7 +82,7 @@ When asked to create an atlas for an existing project:
 
 1. Run or ask the user to run Scan in System Atlas.
 2. Treat `architecture/evidence/code-intelligence.json` as the first durable code memory.
-3. Use project structure, file summaries, classes, routes, dependencies, and tests to draft the initial architecture model.
+3. Use project structure, file summaries, classes, routes, schemas, dependencies, and tests to draft the initial architecture model.
 4. Create high-level systems, containers, modules, datastores, schemas/entities, API/event contracts, flows, stakeholders, concerns, risks, and decisions from the evidence.
 5. Link architecture nodes to source files, tests, routes, classes, stakeholder concerns, external dependencies, and database migrations.
 6. Mark inferred concepts as `confidence: inferred` until the architect confirms them.

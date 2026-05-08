@@ -8,6 +8,7 @@ import {
   AtlasVersion,
   CodeEvidence,
   CodeIntelligence,
+  CodeSchema,
   ContextPackScope,
   Criticality,
   EDGE_TYPES,
@@ -84,6 +85,7 @@ export function emptyCodeIntelligence(): CodeIntelligence {
     symbols: [],
     classes: [],
     routes: [],
+    schemas: [],
     dependencies: [],
     testMap: []
   };
@@ -964,6 +966,42 @@ function schemaModelSnapshot(project: AtlasProject): AtlasProjectSnapshot {
     nodeMap.set(node.id, structuredClone(node));
   }
 
+  const schemaNodeIdsByName = new Map<string, string>();
+  for (const schema of project.intelligence.schemas ?? []) {
+    const id = schemaNodeId(schema);
+    const existing = nodeMap.get(id);
+    nodeMap.set(id, enrichDiagramNode(existing, {
+      id,
+      type: schema.kind === "schema" ? "schema" : "data_entity",
+      name: schema.name,
+      owner: "code",
+      status: "active",
+      criticality: schema.primaryKeys.length || schema.foreignKeys.length ? "high" : "medium",
+      responsibilities: [`${schema.kind === "model" ? "Model" : "Table"} discovered in ${schema.path}.`],
+      dependencies: schema.relations,
+      invariants: schema.primaryKeys.map((key) => `Primary key: ${key}`),
+      linkedFiles: [schema.path],
+      linkedTests: [],
+      risks: [],
+      confidence: "observed",
+      notes: `${schema.kind} with ${schema.columns.length} columns/fields${schema.line ? ` at line ${schema.line}` : ""}.`,
+      architectureLevel: "data",
+      tags: ["generated", "schema-model", schema.kind],
+      metadata: {
+        generatedBy: "schema-model",
+        evidencePath: schema.path,
+        entityName: schema.name,
+        columns: schema.columns,
+        primaryKeys: schema.primaryKeys,
+        indexes: schema.indexes,
+        foreignKeys: schema.foreignKeys,
+        relations: schema.relations
+      },
+      position: { x: 0, y: 0 }
+    }));
+    schemaNodeIdsByName.set(schema.name, id);
+  }
+
   for (const item of project.evidence.filter((evidence) => evidence.kind === "migration").slice(0, 80)) {
     const id = migrationNodeId(item.path);
     const existing = nodeMap.get(id);
@@ -1004,7 +1042,20 @@ function schemaModelSnapshot(project: AtlasProject): AtlasProjectSnapshot {
     (!allowedEdges || allowedEdges.has(edge.type))
   );
 
-  return { nodes, edges, flows: project.flows };
+  const generatedEdges: AtlasEdge[] = [];
+  for (const schema of project.intelligence.schemas ?? []) {
+    const sourceId = schemaNodeIdsByName.get(schema.name);
+    if (!sourceId) continue;
+    for (const relation of schema.relations) {
+      const targetName = relationTargetName(relation);
+      const targetId = targetName ? schemaNodeIdsByName.get(targetName) : undefined;
+      if (targetId && targetId !== sourceId) {
+        generatedEdges.push(generatedDiagramEdge(sourceId, targetId, "models", relation, "schema-model"));
+      }
+    }
+  }
+
+  return { nodes, edges: dedupeEdges([...edges, ...generatedEdges]), flows: project.flows };
 }
 
 function isClassDiagramNode(node: AtlasNode) {
@@ -1835,6 +1886,10 @@ function migrationNodeId(filePath: string) {
   return `schema.migration.${slug(filePath)}`;
 }
 
+function schemaNodeId(schema: CodeSchema) {
+  return `schema.entity.${slug(schema.path)}.${slug(schema.name)}`;
+}
+
 function generatedEdge(source: string, target: string, type: EdgeType, label: string): AtlasEdge {
   return {
     id: `${source}-${type}-${target}`,
@@ -1915,6 +1970,13 @@ function pathMatches(filePath: string, candidate: string) {
   return filePath === candidate || filePath.startsWith(`${candidate.replace(/\/$/, "")}/`);
 }
 
+function relationTargetName(relation: string) {
+  const arrowTarget = relation.match(/->\s*([A-Za-z_][\w.]*)/);
+  if (arrowTarget?.[1]) return arrowTarget[1].split(".")[0];
+  const words = relation.match(/\b[A-Z][A-Za-z0-9_]*\b/g);
+  return words?.at(-1);
+}
+
 function dedupeEdges(edges: AtlasEdge[]) {
   const seen = new Set<string>();
   return edges.filter((edge) => {
@@ -1969,6 +2031,7 @@ function codeIntelligenceContextLines(intelligence: CodeIntelligence, files: str
   const fileSet = new Set(files);
   const classes = intelligence.classes.filter((item) => fileSet.has(item.path)).slice(0, limit);
   const routes = intelligence.routes.filter((item) => fileSet.has(item.sourceFile)).slice(0, limit);
+  const schemas = intelligence.schemas.filter((item) => fileSet.has(item.path)).slice(0, limit);
   const dependencies = intelligence.dependencies.filter((item) => fileSet.has(item.source) || fileSet.has(item.target)).slice(0, limit);
   const tests = intelligence.testMap.filter((item) => fileSet.has(item.testFile) || item.targetFiles.some((target) => fileSet.has(target))).slice(0, limit);
   const symbols = intelligence.symbols.filter((item) => fileSet.has(item.path) && item.kind !== "method").slice(0, limit);
@@ -1976,6 +2039,7 @@ function codeIntelligenceContextLines(intelligence: CodeIntelligence, files: str
   return [
     ...classes.map((item) => `- class ${item.name} in ${item.path}: ${item.attributes.length} attrs, ${item.methods.length} methods${item.extends ? `, extends ${item.extends}` : ""}`),
     ...routes.map((item) => `- route ${item.method} ${item.path} in ${item.sourceFile}${item.line ? `:${item.line}` : ""}`),
+    ...schemas.map((item) => `- schema ${item.name} in ${item.path}: ${item.columns.length} columns, ${item.primaryKeys.length} primary keys, ${item.relations.length} relations`),
     ...symbols.map((item) => `- symbol ${item.kind} ${item.name} in ${item.path}${item.line ? `:${item.line}` : ""}`),
     ...dependencies.map((item) => `- dependency ${item.source} -> ${item.target} (${item.kind})`),
     ...tests.map((item) => `- test ${item.testFile} covers ${item.targetFiles.join(", ") || "unknown targets"}`)

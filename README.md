@@ -77,6 +77,7 @@ architecture/
   evidence/classes.json
   evidence/code-symbols.json
   evidence/routes.json
+  evidence/schemas.json
   evidence/dependencies.json
   evidence/test-map.json
   generated/metadata.json
@@ -100,14 +101,15 @@ The MVP focuses on manual architecture modeling first:
 - Create and restore architecture checkpoints.
 - Generate AI migration briefs for implementation work.
 - Generate focused, standard, or expanded AI context packs depending on available model context.
-- Run Scan to index the repository into the current in-memory atlas: project structure, file summaries, classes, symbols, routes, dependencies, and test maps.
+- Run Scan to index the repository into the current in-memory atlas: project structure, file summaries, classes, symbols, API routes/contracts, SQL/Prisma schemas, dependencies, and test maps.
 - Use the Classes view to inspect saved class/interface facts, attributes, methods, inheritance, implementation edges, files, and tests from code intelligence.
 - Use the API Surface view to inspect modeled API contracts alongside discovered routes, handlers, auth metadata, linked tests, and implementing services.
-- Use the Schema Model view to model database schemas, entities, columns, keys, indexes, constraints, relations, migrations, replicas, and read/write ownership.
+- Use the Schema Model view to inspect discovered SQL/Prisma schema facts and model database schemas, entities, columns, keys, indexes, constraints, relations, migrations, replicas, and read/write ownership.
 - Promote generated class, route, and migration facts into authored atlas nodes when the architect wants them to become durable source-of-truth concepts.
 - Edit API contracts with structured endpoint fields for method, path, auth, request, response, status codes, handler, and tests.
 - Edit schemas/entities with structured columns, keys, indexes, constraints, foreign keys, relations, and migration policy.
 - Browse scanned code intelligence without rereading the whole codebase every AI session.
+- Keep API routes from OpenAPI files, common TypeScript route conventions, and database schema evidence from SQL migrations or Prisma schemas in persistent evidence files.
 - Sync UI edits to a repo-native architecture pack, including durable `architecture/evidence/*.json` files.
 - Preserve saved code intelligence during ordinary autosaves, and rewrite it only after a fresh Scan changes the code index.
 - Load the large saved code index on demand for Code Intel and AI context instead of putting it in every project load.
@@ -150,7 +152,7 @@ When Claude Code, Codex, or another AI agent needs to understand the project, it
 3. Read `architecture/generated/overview.md` for quick orientation when it exists.
 4. Read the relevant concept files under `architecture/services/`, `architecture/modules/`, `architecture/flows/`, `architecture/contracts/`, `architecture/datastores/`, `architecture/integrations/`, `architecture/deployment/`, `architecture/security/`, `architecture/reliability/`, and `architecture/decisions/`.
 5. Read `architecture/views/*.yaml` for view-specific layouts and navigation.
-6. Read `architecture/evidence/code-intelligence.json` or the split files under `architecture/evidence/` for saved project structure, files, classes, routes, dependencies, and tests.
+6. Read `architecture/evidence/code-intelligence.json` or the split files under `architecture/evidence/` for saved project structure, files, classes, routes, schemas, dependencies, and tests.
 7. Read `architecture/proposals/*` when implementing a planned before/after change.
 8. Open raw source files only for the specific files affected by the requested change.
 
@@ -175,7 +177,7 @@ architect updates atlas
 - **Invariant**: a rule that must remain true, such as ownership boundaries, consistency rules, security requirements, or data retention constraints.
 - **Proposal**: a planned architecture change with before/after state and a migration brief.
 - **Checkpoint**: a named accepted architecture version.
-- **Code intelligence**: saved repository evidence such as files, classes, methods, routes, dependencies, tests, and summaries.
+- **Code intelligence**: saved repository evidence such as files, classes, methods, API routes, SQL/Prisma schemas, dependencies, tests, and summaries.
 
 ## Current Limitations
 
@@ -184,12 +186,12 @@ architect updates atlas
 - Scan is lightweight evidence indexing, not a full compiler-grade reverse-engineering engine.
 - Scan updates the in-app atlas; autosync and Export write durable architecture files.
 - Built-in AI chat and hosted LLM calls are out of scope for the current MVP.
-- Deep database reverse engineering, runtime telemetry, cloud inventory, and external documentation syncers are not fully implemented yet.
+- Runtime telemetry, cloud inventory, external documentation syncers, and deep cross-language reverse engineering are not fully implemented yet.
 
 ## Roadmap
 
 - Richer conflict resolution for simultaneous UI edits and direct `architecture/` file edits.
-- Database reverse-engineering from SQL/ORM schemas, richer API contract import, infrastructure inventory, and dependency diagrams.
+- Deeper database reverse-engineering beyond SQL/Prisma, richer API contract import, infrastructure inventory, and dependency diagrams.
 - Brownfield import wizard that turns scanned code intelligence into a reviewed initial atlas.
 - Schema-aware metadata for SLAs, RTO/RPO, auth, scaling assumptions, ownership, compliance, and operational concerns.
 - First-class AI agent instructions for understanding the atlas, implementing proposal diffs, and updating architecture files with code changes.

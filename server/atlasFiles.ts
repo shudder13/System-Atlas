@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import ts from "typescript";
 import YAML from "yaml";
-import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSymbol, CodeTestMapEntry, PackHealth, PackMetadataSummary, ProjectStructureEntry } from "../src/types";
+import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSchema, CodeSymbol, CodeTestMapEntry, PackHealth, PackMetadataSummary, ProjectStructureEntry } from "../src/types";
 import { defaultViews, emptyCodeIntelligence, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
 const conceptFolders: Record<string, string> = {
@@ -319,6 +319,27 @@ async function indexFile(
     const lines = text.split(/\r?\n/).length;
     const withLines = { ...base, lines };
 
+    if (isOpenApiFile(relative)) {
+      return {
+        ...withLines,
+        ...indexOpenApiContract(relative, text)
+      };
+    }
+
+    if (relative.endsWith(".sql")) {
+      return {
+        ...withLines,
+        ...indexSqlSchema(relative, text)
+      };
+    }
+
+    if (relative.endsWith(".prisma")) {
+      return {
+        ...withLines,
+        ...indexPrismaSchema(relative, text)
+      };
+    }
+
     if (!/\.(ts|tsx|js|jsx)$/.test(relative)) return withLines;
 
     return {
@@ -370,11 +391,17 @@ function indexTypeScriptSource(relative: string, text: string): Pick<CodeEvidenc
       const className = node.name?.text;
       addSymbol(className, "class", node, exported);
       if (className) classes.push(extractClass(relative, className, node, source, exported));
+      const controllerPrefix = controllerPrefixFromDecorators(node, source);
 
       node.members.forEach((member) => {
         if (ts.isMethodDeclaration(member) && member.name && ts.isIdentifier(member.name)) {
           const isPrivate = ts.canHaveModifiers(member) && ts.getModifiers(member)?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword);
           if (!isPrivate) addSymbol(`${className ?? "Anonymous"}.${member.name.text}`, "method", member, exported);
+          const decoratedRoute = routeFromDecorators(member, source, controllerPrefix);
+          if (decoratedRoute) {
+            routes.push(decoratedRoute);
+            symbols.push({ name: decoratedRoute, kind: "route", line: lineOf(member) });
+          }
         }
       });
     }
@@ -410,6 +437,10 @@ function indexTypeScriptSource(relative: string, text: string): Pick<CodeEvidenc
   }
 
   visit(source);
+  for (const route of routesFromFileConvention(relative, symbols)) {
+    routes.push(route.route);
+    symbols.push({ name: route.route, kind: "route", line: route.line });
+  }
 
   return {
     symbols: uniqueSymbols(symbols).slice(0, 80),
@@ -418,6 +449,88 @@ function indexTypeScriptSource(relative: string, text: string): Pick<CodeEvidenc
     exports: unique(exports).slice(0, 80),
     routes: unique(routes).slice(0, 80)
   };
+}
+
+function indexOpenApiContract(relative: string, text: string): Pick<CodeEvidence, "symbols" | "exports" | "routes"> {
+  const parsed = parseStructured(text) as { paths?: Record<string, Record<string, { operationId?: string }>> };
+  const symbols: NonNullable<CodeEvidence["symbols"]> = [];
+  const exports: string[] = [];
+  const routes: string[] = [];
+  const methods = new Set(["get", "post", "put", "patch", "delete", "head", "options", "trace"]);
+
+  for (const [routePath, operations] of Object.entries(parsed.paths ?? {})) {
+    for (const [method, operation] of Object.entries(operations ?? {})) {
+      if (!methods.has(method.toLowerCase())) continue;
+      const route = `${method.toUpperCase()} ${routePath}`;
+      routes.push(route);
+      symbols.push({ name: route, kind: "route", line: lineOfText(text, routePath) });
+      if (operation?.operationId) exports.push(operation.operationId);
+    }
+  }
+
+  return {
+    symbols: uniqueSymbols(symbols).slice(0, 200),
+    exports: unique(exports).slice(0, 200),
+    routes: unique(routes).slice(0, 200)
+  };
+}
+
+function indexSqlSchema(relative: string, text: string): Pick<CodeEvidence, "schemas" | "symbols"> {
+  const schemas: CodeSchema[] = [];
+  const symbols: NonNullable<CodeEvidence["symbols"]> = [];
+  const tableIndexes = indexesByTable(text);
+  const tablePattern = /create\s+table\s+(?:if\s+not\s+exists\s+)?["`[]?([\w.]+)["`\]]?\s*\(([\s\S]*?)\);/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = tablePattern.exec(text))) {
+    const tableName = normalizeSqlIdentifier(match[1]);
+    const body = match[2];
+    const parsed = parseSqlTableBody(body);
+    const schema: CodeSchema = {
+      id: schemaId(relative, tableName),
+      path: relative,
+      name: tableName,
+      kind: "table",
+      line: lineOfText(text, match[0]),
+      columns: parsed.columns,
+      primaryKeys: parsed.primaryKeys,
+      indexes: tableIndexes.get(tableName) ?? [],
+      foreignKeys: parsed.foreignKeys,
+      relations: parsed.relations
+    };
+    schemas.push(schema);
+    symbols.push({ name: tableName, kind: "type", line: schema.line });
+  }
+
+  return { schemas, symbols };
+}
+
+function indexPrismaSchema(relative: string, text: string): Pick<CodeEvidence, "schemas" | "symbols"> {
+  const schemas: CodeSchema[] = [];
+  const symbols: NonNullable<CodeEvidence["symbols"]> = [];
+  const modelPattern = /model\s+(\w+)\s*\{([\s\S]*?)\}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = modelPattern.exec(text))) {
+    const modelName = match[1];
+    const parsed = parsePrismaModelBody(match[2]);
+    const schema: CodeSchema = {
+      id: schemaId(relative, modelName),
+      path: relative,
+      name: modelName,
+      kind: "model",
+      line: lineOfText(text, match[0]),
+      columns: parsed.columns,
+      primaryKeys: parsed.primaryKeys,
+      indexes: parsed.indexes,
+      foreignKeys: parsed.foreignKeys,
+      relations: parsed.relations
+    };
+    schemas.push(schema);
+    symbols.push({ name: modelName, kind: "type", line: schema.line });
+  }
+
+  return { schemas, symbols };
 }
 
 function extractClass(relative: string, className: string, node: ts.ClassDeclaration, source: ts.SourceFile, exported: boolean): CodeClass {
@@ -503,10 +616,272 @@ function scriptKind(relative: string) {
 function routeFromCall(node: ts.CallExpression) {
   if (!ts.isPropertyAccessExpression(node.expression)) return null;
   const method = node.expression.name.text.toLowerCase();
+  if (method === "route") return routeFromObjectCall(node);
   if (!["get", "post", "put", "patch", "delete", "all", "use"].includes(method)) return null;
   const [firstArg] = node.arguments;
   if (!firstArg || !ts.isStringLiteral(firstArg)) return null;
   return `${method.toUpperCase()} ${firstArg.text}`;
+}
+
+function routeFromObjectCall(node: ts.CallExpression) {
+  const [firstArg] = node.arguments;
+  if (!firstArg || !ts.isObjectLiteralExpression(firstArg)) return null;
+  const method = objectStringProperty(firstArg, "method");
+  const routePath = objectStringProperty(firstArg, "url") ?? objectStringProperty(firstArg, "path");
+  if (!method || !routePath) return null;
+  return `${method.toUpperCase()} ${routePath}`;
+}
+
+function objectStringProperty(node: ts.ObjectLiteralExpression, name: string) {
+  for (const property of node.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    const propertyName = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : "";
+    if (propertyName !== name) continue;
+    if (ts.isStringLiteral(property.initializer)) return property.initializer.text;
+  }
+  return undefined;
+}
+
+function controllerPrefixFromDecorators(node: ts.Node, source: ts.SourceFile) {
+  const controller = decoratorCall(node, "Controller");
+  return controller ? firstDecoratorStringArg(controller, source) ?? "" : "";
+}
+
+function routeFromDecorators(node: ts.Node, source: ts.SourceFile, prefix = "") {
+  const methods = ["Get", "Post", "Put", "Patch", "Delete", "All"];
+  for (const name of methods) {
+    const decorator = decoratorCall(node, name);
+    if (!decorator) continue;
+    const routePath = firstDecoratorStringArg(decorator, source) ?? "";
+    const method = name === "All" ? "ALL" : name.toUpperCase();
+    return `${method} ${joinRoutePath(prefix, routePath)}`;
+  }
+  return null;
+}
+
+function decoratorCall(node: ts.Node, name: string) {
+  const decorators = ts.canHaveDecorators(node) ? ts.getDecorators(node) ?? [] : [];
+  for (const decorator of decorators) {
+    const expression = decorator.expression;
+    if (ts.isCallExpression(expression) && decoratorName(expression.expression) === name) return expression;
+    if (decoratorName(expression) === name) return undefined;
+  }
+  return undefined;
+}
+
+function decoratorName(expression: ts.Expression) {
+  if (ts.isIdentifier(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  return "";
+}
+
+function firstDecoratorStringArg(call: ts.CallExpression, source: ts.SourceFile) {
+  const [firstArg] = call.arguments;
+  if (!firstArg) return "";
+  if (ts.isStringLiteral(firstArg) || ts.isNoSubstitutionTemplateLiteral(firstArg)) return firstArg.text;
+  return firstArg.getText(source).replace(/^['"`]|['"`]$/g, "");
+}
+
+function joinRoutePath(prefix: string, routePath: string) {
+  const joined = [prefix, routePath]
+    .filter((part) => part !== undefined && part !== "")
+    .map((part) => part.replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean)
+    .join("/");
+  return `/${joined}`;
+}
+
+function routesFromFileConvention(relative: string, symbols: NonNullable<CodeEvidence["symbols"]>) {
+  const routes: Array<{ route: string; line?: number }> = [];
+  const exportedMethods = new Set(symbols.filter((symbol) => symbol.kind === "function").map((symbol) => symbol.name.toUpperCase()));
+  const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+
+  if (/app\/api\/.+\/route\.(ts|tsx|js|jsx)$/.test(relative)) {
+    const routePath = `/${relative.replace(/^.*app\/api\//, "api/").replace(/\/route\.(ts|tsx|js|jsx)$/, "").replace(/\[([^\]]+)\]/g, ":$1")}`;
+    for (const method of methods) {
+      if (!exportedMethods.has(method)) continue;
+      const symbol = symbols.find((item) => item.name.toUpperCase() === method);
+      routes.push({ route: `${method} ${routePath}`, line: symbol?.line });
+    }
+  }
+
+  if (/pages\/api\/.+\.(ts|tsx|js|jsx)$/.test(relative)) {
+    const routePath = `/${relative.replace(/^.*pages\/api\//, "api/").replace(/\.(ts|tsx|js|jsx)$/, "").replace(/\/index$/, "").replace(/\[([^\]]+)\]/g, ":$1")}`;
+    routes.push({ route: `ALL ${routePath}` });
+  }
+
+  return routes;
+}
+
+function schemaId(relative: string, name: string) {
+  return `schema.${slug(relative)}.${slug(name)}`;
+}
+
+function lineOfText(text: string, needle: string) {
+  const index = text.indexOf(needle);
+  if (index < 0) return undefined;
+  return text.slice(0, index).split(/\r?\n/).length;
+}
+
+function indexesByTable(text: string) {
+  const indexes = new Map<string, string[]>();
+  const pattern = /create\s+(?:unique\s+)?index\s+(?:if\s+not\s+exists\s+)?["`[]?([\w.]+)["`\]]?\s+on\s+["`[]?([\w.]+)["`\]]?\s*\(([^)]*)\)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    const indexName = normalizeSqlIdentifier(match[1]);
+    const tableName = normalizeSqlIdentifier(match[2]);
+    indexes.set(tableName, [...(indexes.get(tableName) ?? []), `${indexName} (${match[3].trim()})`]);
+  }
+  return indexes;
+}
+
+function parseSqlTableBody(body: string) {
+  const columns: string[] = [];
+  const primaryKeys: string[] = [];
+  const foreignKeys: string[] = [];
+  const relations: string[] = [];
+
+  for (const rawPart of splitSqlList(body)) {
+    const part = rawPart.trim().replace(/\s+/g, " ");
+    if (!part) continue;
+    const lower = part.toLowerCase();
+
+    if (lower.startsWith("primary key")) {
+      primaryKeys.push(...identifiersInParens(part));
+      continue;
+    }
+
+    if (lower.includes("foreign key") || lower.startsWith("constraint")) {
+      const relation = foreignKeyRelation(part);
+      if (relation) {
+        foreignKeys.push(part);
+        relations.push(relation);
+      }
+      continue;
+    }
+
+    if (lower.startsWith("unique") || lower.startsWith("check") || lower.startsWith("constraint")) continue;
+
+    const [nameToken, ...typeParts] = part.split(" ");
+    const columnName = normalizeSqlIdentifier(nameToken);
+    if (!columnName) continue;
+    const typeEnd = typeParts.findIndex((token) => /^(not|null|default|primary|references|constraint|unique|check)$/i.test(token));
+    const type = (typeEnd >= 0 ? typeParts.slice(0, typeEnd) : typeParts).join(" ");
+    const details = [
+      columnName,
+      type,
+      /not\s+null/i.test(part) ? "not null" : "",
+      /primary\s+key/i.test(part) ? "primary key" : "",
+      defaultExpression(part)
+    ].filter(Boolean).join(" ");
+    columns.push(details);
+    if (/primary\s+key/i.test(part)) primaryKeys.push(columnName);
+    const relation = inlineReferenceRelation(columnName, part);
+    if (relation) {
+      foreignKeys.push(part);
+      relations.push(relation);
+    }
+  }
+
+  return {
+    columns: unique(columns),
+    primaryKeys: unique(primaryKeys),
+    foreignKeys: unique(foreignKeys),
+    relations: unique(relations)
+  };
+}
+
+function parsePrismaModelBody(body: string) {
+  const columns: string[] = [];
+  const primaryKeys: string[] = [];
+  const indexes: string[] = [];
+  const foreignKeys: string[] = [];
+  const relations: string[] = [];
+
+  for (const rawLine of body.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("//")) continue;
+    if (line.startsWith("@@")) {
+      if (/@@(id|index|unique)/.test(line)) indexes.push(line);
+      if (/@@id/.test(line)) primaryKeys.push(...identifiersInBrackets(line));
+      continue;
+    }
+
+    const [name, type, ...attributes] = line.split(/\s+/);
+    if (!name || !type) continue;
+    const attrText = attributes.join(" ");
+    const details = [name, type, attrText.includes("@id") ? "primary key" : "", attrText.includes("@unique") ? "unique" : ""].filter(Boolean).join(" ");
+    columns.push(details);
+    if (attrText.includes("@id")) primaryKeys.push(name);
+    if (attrText.includes("@unique")) indexes.push(`${name} unique`);
+    if (attrText.includes("@relation")) {
+      foreignKeys.push(line);
+      relations.push(`${name} -> ${basePrismaType(type)}`);
+    }
+  }
+
+  return {
+    columns: unique(columns),
+    primaryKeys: unique(primaryKeys),
+    indexes: unique(indexes),
+    foreignKeys: unique(foreignKeys),
+    relations: unique(relations)
+  };
+}
+
+function splitSqlList(value: string) {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+  for (const char of value) {
+    if (char === "(") depth += 1;
+    if (char === ")") depth = Math.max(0, depth - 1);
+    if (char === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) parts.push(current);
+  return parts;
+}
+
+function identifiersInParens(value: string) {
+  const match = value.match(/\(([^)]*)\)/);
+  return match ? match[1].split(",").map((item) => normalizeSqlIdentifier(item.trim())).filter(Boolean) : [];
+}
+
+function identifiersInBrackets(value: string) {
+  const match = value.match(/\[([^\]]*)\]/);
+  return match ? match[1].split(",").map((item) => item.trim()).filter(Boolean) : [];
+}
+
+function foreignKeyRelation(value: string) {
+  const local = identifiersInParens(value)[0];
+  const references = value.match(/references\s+["`[]?([\w.]+)["`\]]?\s*\(([^)]*)\)/i);
+  if (!local || !references) return null;
+  return `${local} -> ${normalizeSqlIdentifier(references[1])}.${normalizeSqlIdentifier(references[2])}`;
+}
+
+function inlineReferenceRelation(columnName: string, value: string) {
+  const references = value.match(/references\s+["`[]?([\w.]+)["`\]]?\s*(?:\(([^)]*)\))?/i);
+  if (!references) return null;
+  const targetColumn = references[2] ? `.${normalizeSqlIdentifier(references[2])}` : "";
+  return `${columnName} -> ${normalizeSqlIdentifier(references[1])}${targetColumn}`;
+}
+
+function defaultExpression(value: string) {
+  const match = value.match(/\bdefault\s+([^,]+)$/i);
+  return match ? `default ${match[1].trim()}` : "";
+}
+
+function normalizeSqlIdentifier(value: string) {
+  return value.replace(/["`\[\]]/g, "").trim();
+}
+
+function basePrismaType(value: string) {
+  return value.replace(/[?\[\]]/g, "");
 }
 
 function variableSymbolKind(declaration: ts.VariableDeclaration): NonNullable<CodeEvidence["symbols"]>[number]["kind"] {
@@ -588,6 +963,7 @@ function buildCodeIntelligence(evidence: CodeEvidence[]): CodeIntelligence {
     symbols: files.flatMap(codeSymbolsForFile).slice(0, 8000),
     classes: files.flatMap((item) => item.classes ?? []).slice(0, 2000),
     routes: files.flatMap(codeRoutesForFile).slice(0, 2000),
+    schemas: files.flatMap((item) => item.schemas ?? []).slice(0, 2000),
     dependencies,
     testMap: buildTestMap(files, dependencies)
   };
@@ -617,6 +993,7 @@ function fileSummary(item: CodeEvidence): CodeFileSummary {
     exports: item.exports ?? [],
     routes: item.routes ?? [],
     symbols: (item.symbols ?? []).map((symbol) => `${symbol.kind}:${symbol.name}${symbol.line ? `@${symbol.line}` : ""}`),
+    schemas: (item.schemas ?? []).map((schema) => `${schema.kind}:${schema.name}`),
     summary: codeEvidenceSummary(item)
   };
 }
@@ -761,6 +1138,7 @@ function codeEvidenceSummary(item: CodeEvidence) {
     item.lines ? `${item.lines} lines` : "",
     item.exports?.length ? `exports: ${item.exports.slice(0, 8).join(", ")}` : "",
     item.routes?.length ? `routes: ${item.routes.slice(0, 8).join(", ")}` : "",
+    item.schemas?.length ? `schemas: ${item.schemas.slice(0, 8).map((schema) => schema.name).join(", ")}` : "",
     item.imports?.length ? `imports: ${item.imports.slice(0, 10).join(", ")}` : ""
   ].filter(Boolean);
   return parts.join("\n");
@@ -809,7 +1187,7 @@ async function readEvidence(root: string) {
 
 async function readCodeIntelligence(root: string): Promise<CodeIntelligence> {
   try {
-    return JSON.parse(await fs.readFile(safeJoin(root, "architecture/evidence/code-intelligence.json"), "utf8")) as CodeIntelligence;
+    return normalizeCodeIntelligence(JSON.parse(await fs.readFile(safeJoin(root, "architecture/evidence/code-intelligence.json"), "utf8")) as Partial<CodeIntelligence>);
   } catch {
     return {
       generatedAt: "",
@@ -818,6 +1196,7 @@ async function readCodeIntelligence(root: string): Promise<CodeIntelligence> {
       symbols: await readEvidenceArray<CodeSymbol>(root, "architecture/evidence/code-symbols.json"),
       classes: await readEvidenceArray<CodeClass>(root, "architecture/evidence/classes.json"),
       routes: await readEvidenceArray<CodeRoute>(root, "architecture/evidence/routes.json"),
+      schemas: await readEvidenceArray<CodeSchema>(root, "architecture/evidence/schemas.json"),
       dependencies: await readEvidenceArray<CodeDependency>(root, "architecture/evidence/dependencies.json"),
       testMap: await readEvidenceArray<CodeTestMapEntry>(root, "architecture/evidence/test-map.json")
     };
@@ -841,12 +1220,14 @@ async function readPackMetadata(root: string, relative: string): Promise<PackMet
 }
 
 async function writeCodeIntelligenceFiles(root: string, intelligence: CodeIntelligence, files: string[]) {
+  intelligence = normalizeCodeIntelligence(intelligence);
   await writeFile(root, "architecture/evidence/code-intelligence.json", JSON.stringify(intelligence, null, 2), files);
   await writeFile(root, "architecture/evidence/project-structure.json", JSON.stringify(intelligence.projectStructure, null, 2), files);
   await writeFile(root, "architecture/evidence/file-summaries.json", JSON.stringify(intelligence.files, null, 2), files);
   await writeFile(root, "architecture/evidence/code-symbols.json", JSON.stringify(intelligence.symbols, null, 2), files);
   await writeFile(root, "architecture/evidence/classes.json", JSON.stringify(intelligence.classes, null, 2), files);
   await writeFile(root, "architecture/evidence/routes.json", JSON.stringify(intelligence.routes, null, 2), files);
+  await writeFile(root, "architecture/evidence/schemas.json", JSON.stringify(intelligence.schemas ?? [], null, 2), files);
   await writeFile(root, "architecture/evidence/dependencies.json", JSON.stringify(intelligence.dependencies, null, 2), files);
   await writeFile(root, "architecture/evidence/test-map.json", JSON.stringify(intelligence.testMap, null, 2), files);
 }
@@ -855,7 +1236,7 @@ async function exportMetadata(root: string, project: AtlasProject) {
   const generatedAt = new Date().toISOString();
   const exportId = randomUUID();
   const sourceRevision = await architectureSourceRevision(root);
-  const intelligence = project.intelligence ?? emptyCodeIntelligence();
+  const intelligence = normalizeCodeIntelligence(project.intelligence);
   const shared = {
     schemaVersion: 1,
     exportId,
@@ -885,6 +1266,7 @@ async function exportMetadata(root: string, project: AtlasProject) {
         "architecture/evidence/classes.json",
         "architecture/evidence/code-symbols.json",
         "architecture/evidence/routes.json",
+        "architecture/evidence/schemas.json",
         "architecture/evidence/dependencies.json",
         "architecture/evidence/test-map.json"
       ]
@@ -899,6 +1281,7 @@ async function exportMetadata(root: string, project: AtlasProject) {
       symbols: intelligence.symbols.length,
       classes: intelligence.classes.length,
       routes: intelligence.routes.length,
+      schemas: intelligence.schemas?.length ?? 0,
       dependencies: intelligence.dependencies.length,
       testMap: intelligence.testMap.length
     }
@@ -1042,7 +1425,7 @@ function normalizeProject(project: AtlasProject, options: { includeIntelligence?
     proposals: project.proposals ?? [],
     versions: project.versions ?? [],
     evidence: project.evidence ?? [],
-    intelligence: includeIntelligence ? project.intelligence ?? emptyCodeIntelligence() : emptyCodeIntelligence()
+    intelligence: includeIntelligence ? normalizeCodeIntelligence(project.intelligence) : emptyCodeIntelligence()
   };
 }
 
@@ -1069,9 +1452,25 @@ function hasCodeIntelligence(intelligence: CodeIntelligence) {
     intelligence.symbols.length ||
     intelligence.classes.length ||
     intelligence.routes.length ||
+    (intelligence.schemas?.length ?? 0) ||
     intelligence.dependencies.length ||
     intelligence.testMap.length
   );
+}
+
+function normalizeCodeIntelligence(intelligence?: Partial<CodeIntelligence>): CodeIntelligence {
+  const empty = emptyCodeIntelligence();
+  return {
+    generatedAt: intelligence?.generatedAt ?? empty.generatedAt,
+    projectStructure: intelligence?.projectStructure ?? empty.projectStructure,
+    files: intelligence?.files ?? empty.files,
+    symbols: intelligence?.symbols ?? empty.symbols,
+    classes: intelligence?.classes ?? empty.classes,
+    routes: intelligence?.routes ?? empty.routes,
+    schemas: intelligence?.schemas ?? empty.schemas,
+    dependencies: intelligence?.dependencies ?? empty.dependencies,
+    testMap: intelligence?.testMap ?? empty.testMap
+  };
 }
 
 function safeJoin(root: string, relative: string) {
@@ -1093,13 +1492,18 @@ function slug(value: string) {
 }
 
 function classify(relative: string): Pick<CodeEvidence, "kind" | "language"> | null {
-  if (/(openapi|asyncapi|swagger)\.(json|ya?ml)$/.test(relative) || /\.(graphql|proto)$/.test(relative)) return { kind: "contract", language: language(relative) };
+  if (isOpenApiFile(relative) || /\.(graphql|proto)$/i.test(relative)) return { kind: "contract", language: language(relative) };
+  if (/\.prisma$/i.test(relative)) return { kind: "source", language: "prisma" };
   if (/\.(test|spec)\.(ts|tsx|js|jsx|py|rb|go|rs)$/.test(relative)) return { kind: "test", language: language(relative) };
   if (/migrations?\//.test(relative) || /migrations?.*\.(sql|ts|js)$/.test(relative)) return { kind: "migration", language: language(relative) };
   if (/\.(ts|tsx|js|jsx|py|rb|go|rs|java|cs|php|sql)$/.test(relative)) return { kind: "source", language: language(relative) };
   if (/\.(json|yaml|yml|toml|env|config\.[a-z]+)$/.test(relative)) return { kind: "config", language: language(relative) };
   if (/\.(md|mdx|txt)$/.test(relative)) return { kind: "document", language: "markdown" };
   return null;
+}
+
+function isOpenApiFile(relative: string) {
+  return /(?:openapi|asyncapi|swagger)\.(json|ya?ml)$/i.test(relative);
 }
 
 function arrayOfStrings(value: unknown) {
@@ -1145,6 +1549,7 @@ function language(relative: string) {
     cs: "csharp",
     php: "php",
     sql: "sql",
+    prisma: "prisma",
     json: "json",
     yaml: "yaml",
     yml: "yaml",

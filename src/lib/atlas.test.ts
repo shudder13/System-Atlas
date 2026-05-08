@@ -285,6 +285,7 @@ describe("atlas generators", () => {
       symbols: [{ id: "symbol.example", path: "src/lib/example.ts", name: "ExampleService", kind: "class" as const, line: 3, exported: true }],
       classes: [{ id: "class.example", path: "src/lib/example.ts", name: "ExampleService", line: 3, exported: true, attributes: [{ name: "repo", kind: "attribute" as const, type: "Repo" }], methods: [{ name: "list", kind: "method" as const, returnType: "Item[]" }] }],
       routes: [{ id: "route.example", method: "GET", path: "/examples", sourceFile: "src/lib/example.ts", line: 18 }],
+      schemas: [],
       dependencies: [{ source: "src/lib/example.ts", target: "src/lib/other.ts", importPath: "./other", kind: "internal" as const }],
       testMap: [{ testFile: "src/lib/example.test.ts", targetFiles: ["src/lib/example.ts"], inferred: false }]
     };
@@ -337,6 +338,18 @@ describe("atlas generators", () => {
         }
       ],
       routes: [{ id: "route.example", method: "GET", path: "/examples", sourceFile: "src/lib/example.ts", line: 18 }],
+      schemas: [{
+        id: "schema.scan.examples",
+        path: "db/migrations/001_create_examples.sql",
+        name: "examples",
+        kind: "table" as const,
+        line: 1,
+        columns: ["id uuid primary key", "name text not null"],
+        primaryKeys: ["id"],
+        indexes: ["examples_name_idx"],
+        foreignKeys: [],
+        relations: []
+      }],
       dependencies: [],
       testMap: [{ testFile: "src/lib/example.test.ts", targetFiles: ["src/lib/example.ts"], inferred: false }]
     };
@@ -403,6 +416,7 @@ describe("atlas generators", () => {
     expect(apiGraph.edges.some((edge) => edge.source === "service.api" && edge.type === "exposes")).toBe(true);
 
     expect(schemaGraph.nodes.some((node) => node.id === "schema.examples")).toBe(true);
+    expect(schemaGraph.nodes.some((node) => node.name === "examples" && node.metadata?.generatedBy === "schema-model")).toBe(true);
     expect(schemaGraph.nodes.some((node) => node.type === "migration" && node.linkedFiles.includes("db/migrations/001_create_examples.sql"))).toBe(true);
     expect(metadataFieldsForNode("schema").some((field) => field.key === "columns")).toBe(true);
   });
@@ -417,6 +431,7 @@ describe("atlas generators", () => {
         symbols: [],
         classes: [],
         routes: [{ id: "route.example", method: "POST", path: "/orders", sourceFile: "src/api/orders.ts", line: 12 }],
+        schemas: [],
         dependencies: [],
         testMap: [{ testFile: "src/api/orders.test.ts", targetFiles: ["src/api/orders.ts"], inferred: false }]
       }
