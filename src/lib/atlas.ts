@@ -13,6 +13,7 @@ import {
   Criticality,
   EDGE_TYPES,
   EdgeType,
+  ImportCandidate,
   NodeType,
   SemanticDiff,
   ValidationIssue,
@@ -1572,7 +1573,8 @@ export function mergeEvidence(project: AtlasProject, evidence: CodeEvidence[]): 
 }
 
 export function promoteGeneratedNode(project: AtlasProject, generatedNode: AtlasNode, owner = "architecture"): AtlasProject {
-  if (project.nodes.some((node) => node.id === generatedNode.id)) return project;
+  const existingNode = project.nodes.find((node) => node.id === generatedNode.id);
+  if (existingNode && !isGeneratedAtlasNode(existingNode)) return project;
 
   const metadata = { ...(generatedNode.metadata ?? {}) };
   const promotedFrom = typeof metadata.generatedBy === "string" ? metadata.generatedBy : "generated-view";
@@ -1599,8 +1601,70 @@ export function promoteGeneratedNode(project: AtlasProject, generatedNode: Atlas
 
   return {
     ...project,
-    nodes: [...project.nodes, promotedNode],
+    nodes: existingNode
+      ? project.nodes.map((node) => node.id === promotedNode.id ? promotedNode : node)
+      : [...project.nodes, promotedNode],
     evidence
+  };
+}
+
+export function generateImportCandidates(project: AtlasProject): ImportCandidate[] {
+  const sourceViews: Array<{ viewId: ViewId; max: number }> = [
+    { viewId: "class_diagram", max: 120 },
+    { viewId: "api_surface", max: 160 },
+    { viewId: "schema_model", max: 160 },
+    { viewId: "code", max: 80 }
+  ];
+  const durableKeys = new Set(project.nodes.filter((node) => !isGeneratedAtlasNode(node)).map(importConceptKey));
+  const seenIds = new Set<string>();
+  const candidates: ImportCandidate[] = [];
+
+  for (const { viewId, max } of sourceViews) {
+    for (const node of layoutProjectForView(project, viewId).nodes.slice(0, max)) {
+      if (!isGeneratedAtlasNode(node)) continue;
+      if (!importCandidateGroup(node)) continue;
+      const key = importConceptKey(node);
+      if (durableKeys.has(key) || seenIds.has(node.id)) continue;
+      seenIds.add(node.id);
+      candidates.push(importCandidateFromNode(node, viewId));
+    }
+  }
+
+  return candidates.sort((left, right) => importCandidateScore(right) - importCandidateScore(left) || left.title.localeCompare(right.title));
+}
+
+export function promoteImportCandidates(project: AtlasProject, candidates: ImportCandidate[]): AtlasProject {
+  if (candidates.length === 0) return project;
+  let next = candidates.reduce((current, candidate) => promoteGeneratedNode(current, candidate.node), project);
+  const promotedIds = new Set(candidates.map((candidate) => candidate.node.id));
+  const nextNodeIds = new Set(next.nodes.map((node) => node.id));
+  const sourceViews = unique(candidates.map((candidate) => candidate.viewId));
+  const promotedEdges: AtlasEdge[] = [];
+
+  for (const viewId of sourceViews) {
+    for (const edge of layoutProjectForView(project, viewId).edges) {
+      if (!edge.tags?.some((tag) => tag.startsWith("generated:"))) continue;
+      if (!nextNodeIds.has(edge.source) || !nextNodeIds.has(edge.target)) continue;
+      if (!promotedIds.has(edge.source) && !promotedIds.has(edge.target)) continue;
+      promotedEdges.push({
+        ...edge,
+        id: `import.${edge.source}.${edge.type}.${edge.target}.${slug(edge.label ?? "")}`,
+        tags: unique([...(edge.tags ?? []).filter((tag) => !tag.startsWith("generated:")), "promoted", "import-review"])
+      });
+    }
+  }
+
+  const promotedEdgeKeys = new Set(promotedEdges.map(edgeKey));
+  const durableEdgeKeys = new Set(next.edges.filter((edge) => !edge.tags?.some((tag) => tag.startsWith("generated:"))).map(edgeKey));
+  const newEdges = promotedEdges.filter((edge) => !durableEdgeKeys.has(edgeKey(edge)));
+  if (newEdges.length === 0) return next;
+
+  return {
+    ...next,
+    edges: [
+      ...next.edges.filter((edge) => !(edge.tags?.some((tag) => tag.startsWith("generated:")) && promotedEdgeKeys.has(edgeKey(edge)))),
+      ...dedupeEdges(newEdges)
+    ]
   };
 }
 
@@ -1910,6 +1974,82 @@ function generatedDiagramEdge(source: string, target: string, type: EdgeType, la
     label,
     tags: [`generated:${view}`]
   };
+}
+
+function isGeneratedAtlasNode(node: AtlasNode) {
+  return Boolean(
+    typeof node.metadata?.generatedBy === "string" ||
+    node.tags?.includes("generated")
+  );
+}
+
+function importCandidateFromNode(node: AtlasNode, viewId: ViewId): ImportCandidate {
+  const group = importCandidateGroup(node) ?? "file";
+  const sourcePath = typeof node.metadata?.evidencePath === "string" ? node.metadata.evidencePath : node.linkedFiles[0];
+  return {
+    id: `${group}:${node.id}`,
+    group,
+    title: node.name,
+    subtitle: [prettyNodeType(node.type), sourcePath, node.linkedTests.length ? `${node.linkedTests.length} tests` : ""].filter(Boolean).join(" · "),
+    summary: node.responsibilities[0] || node.notes || "Suggested from saved code intelligence.",
+    sourcePath,
+    viewId,
+    node
+  };
+}
+
+function importCandidateGroup(node: AtlasNode): ImportCandidate["group"] | undefined {
+  if (node.type === "api_contract") return "route";
+  if (node.type === "schema" || node.type === "data_entity") return "schema";
+  if (node.type === "migration") return "migration";
+  if (node.type === "file_group") return "file";
+  if (node.type === "code_symbol") {
+    const symbolKind = typeof node.metadata?.symbolKind === "string" ? node.metadata.symbolKind : "";
+    if (["class", "interface", "type"].includes(symbolKind)) return "class";
+    if (symbolKind === "route") return "route";
+  }
+  return undefined;
+}
+
+function importConceptKey(node: AtlasNode) {
+  const sourcePath = typeof node.metadata?.evidencePath === "string" ? node.metadata.evidencePath : node.linkedFiles[0] ?? "";
+  const routeMethod = typeof node.metadata?.routeMethod === "string" ? node.metadata.routeMethod : "";
+  const routePath = typeof node.metadata?.routePath === "string" ? node.metadata.routePath : "";
+  const entityName = typeof node.metadata?.entityName === "string" ? node.metadata.entityName : "";
+  const symbolKind = typeof node.metadata?.symbolKind === "string" ? node.metadata.symbolKind : "";
+  return [
+    importCandidateGroup(node) ?? node.type,
+    node.type,
+    sourcePath,
+    symbolKind,
+    routeMethod,
+    routePath,
+    entityName || node.name
+  ].join(":").toLowerCase();
+}
+
+function importCandidateScore(candidate: ImportCandidate) {
+  const criticalityScore: Record<Criticality, number> = { low: 0, medium: 2, high: 5, critical: 8 };
+  const groupScore: Record<ImportCandidate["group"], number> = {
+    route: 8,
+    schema: 8,
+    class: 6,
+    migration: 5,
+    file: 2
+  };
+  return groupScore[candidate.group] +
+    criticalityScore[candidate.node.criticality] +
+    candidate.node.linkedTests.length +
+    candidate.node.invariants.length +
+    candidate.node.risks.length;
+}
+
+function edgeKey(edge: Pick<AtlasEdge, "source" | "target" | "type" | "label">) {
+  return `${edge.source}:${edge.type}:${edge.target}:${edge.label ?? ""}`;
+}
+
+function prettyNodeType(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function enrichDiagramNode(existing: AtlasNode | undefined, derived: AtlasNode): AtlasNode {

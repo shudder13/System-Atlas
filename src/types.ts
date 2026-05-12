@@ -203,6 +203,17 @@ export interface CodeScanResult {
   intelligence: CodeIntelligence;
 }
 
+export interface ImportCandidate {
+  id: string;
+  group: "file" | "class" | "route" | "schema" | "migration";
+  title: string;
+  subtitle: string;
+  summary: string;
+  sourcePath?: string;
+  viewId: ViewId;
+  node: AtlasNode;
+}
+
 export interface AtlasNode {
   id: string;
   type: NodeType;

@@ -82,12 +82,13 @@ When asked to create an atlas for an existing project:
 
 1. Run or ask the user to run Scan in System Atlas.
 2. Treat `architecture/evidence/code-intelligence.json` as the first durable code memory.
-3. Use project structure, file summaries, classes, routes, schemas, dependencies, and tests to draft the initial architecture model.
-4. Create high-level systems, containers, modules, datastores, schemas/entities, API/event contracts, flows, stakeholders, concerns, risks, and decisions from the evidence.
-5. Link architecture nodes to source files, tests, routes, classes, stakeholder concerns, external dependencies, and database migrations.
-6. Mark inferred concepts as `confidence: inferred` until the architect confirms them.
-7. Promote generated class, route, or migration facts only when they should become authored source-of-truth architecture nodes.
-8. Do not re-read the whole codebase in every future session. Start from the atlas and persistent evidence, then open raw code only for changed files.
+3. Use Import Review suggestions to identify discovered files, classes, routes, schemas, and migrations that deserve authored atlas nodes.
+4. Use project structure, file summaries, classes, routes, schemas, dependencies, and tests to draft the initial architecture model.
+5. Create high-level systems, containers, modules, datastores, schemas/entities, API/event contracts, flows, stakeholders, concerns, risks, and decisions from the evidence.
+6. Link architecture nodes to source files, tests, routes, classes, stakeholder concerns, external dependencies, and database migrations.
+7. Mark inferred concepts as `confidence: inferred` until the architect confirms them.
+8. Promote generated facts only when they should become authored source-of-truth architecture nodes.
+9. Do not re-read the whole codebase in every future session. Start from the atlas and persistent evidence, then open raw code only for changed files.
 
 ## Update The Atlas
 

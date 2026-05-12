@@ -105,7 +105,7 @@ The MVP focuses on manual architecture modeling first:
 - Use the Classes view to inspect saved class/interface facts, attributes, methods, inheritance, implementation edges, files, and tests from code intelligence.
 - Use the API Surface view to inspect modeled API contracts alongside discovered routes, handlers, auth metadata, linked tests, and implementing services.
 - Use the Schema Model view to inspect discovered SQL/Prisma schema facts and model database schemas, entities, columns, keys, indexes, constraints, relations, migrations, replicas, and read/write ownership.
-- Promote generated class, route, and migration facts into authored atlas nodes when the architect wants them to become durable source-of-truth concepts.
+- Use Import Review to batch-promote discovered classes, routes, schemas, migrations, and files into authored atlas nodes when the architect wants them to become durable source-of-truth concepts.
 - Edit API contracts with structured endpoint fields for method, path, auth, request, response, status codes, handler, and tests.
 - Edit schemas/entities with structured columns, keys, indexes, constraints, foreign keys, relations, and migration policy.
 - Browse scanned code intelligence without rereading the whole codebase every AI session.
@@ -120,7 +120,7 @@ The MVP focuses on manual architecture modeling first:
 ## Supported Workflows
 
 - **Greenfield design**: model the intended system first, create proposals between architecture versions, then give AI agents migration briefs to implement the diff.
-- **Brownfield import**: scan an existing repository, review scanned evidence and generated Code view nodes, export code intelligence under `architecture/evidence/`, then use the same proposal/version workflow for future changes.
+- **Brownfield import**: scan an existing repository, review Import Review suggestions and generated architecture views, promote the facts worth keeping, export code intelligence under `architecture/evidence/`, then use the same proposal/version workflow for future changes.
 
 ## How To Use It
 
@@ -137,8 +137,8 @@ For a new system:
 For an existing system:
 
 1. Run Scan to index the repository into the current atlas.
-2. Review the Code view and Code Intel preview.
-3. Review the Classes, API Surface, and Schema Model views, then promote or manually model important files, classes, routes, datastores, queues, contracts, flows, risks, and decisions as explicit architecture concepts.
+2. Review the Import Review panel and batch-promote important discovered files, classes, routes, schemas, and migrations.
+3. Review the Classes, API Surface, Schema Model, Code view, and Code Intel panel, then manually model datastores, queues, contracts, flows, risks, and decisions that require architectural judgment.
 4. Mark inferred concepts as `confidence: inferred` until an architect confirms them.
 5. Let autosync write the architecture pack, or use Export for an immediate save, so future AI sessions can load the saved model and code intelligence first.
 6. Use proposals and migration briefs for future changes instead of asking an AI to rediscover the whole codebase each time.

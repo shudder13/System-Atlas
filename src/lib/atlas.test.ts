@@ -8,6 +8,7 @@ import {
   defaultViews,
   generateArchitectureReview,
   generateContextPack,
+  generateImportCandidates,
   generateMermaid,
   generateMigrationBrief,
   generateOverview,
@@ -15,6 +16,7 @@ import {
   mergeCodeEvidence,
   metadataFieldsForNode,
   preferredViewForNodeType,
+  promoteImportCandidates,
   promoteGeneratedNode,
   proposalWorkspace,
   restoreVersion,
@@ -445,5 +447,57 @@ describe("atlas generators", () => {
     expect(promotedNode?.metadata?.generatedBy).toBeUndefined();
     expect(promotedNode?.metadata?.promotedFrom).toBe("api-surface");
     expect(promotedNode?.linkedFiles).toContain("src/api/orders.ts");
+  });
+
+  it("suggests and batch-promotes scanned brownfield facts", () => {
+    const withIntelligence = {
+      ...project,
+      intelligence: {
+        generatedAt: "2026-05-05T00:00:00.000Z",
+        projectStructure: [],
+        files: [],
+        symbols: [],
+        classes: [{
+          id: "class.order",
+          path: "src/domain/order-service.ts",
+          name: "OrderService",
+          line: 3,
+          exported: true,
+          attributes: [{ name: "repo", kind: "attribute" as const, visibility: "private" as const, type: "OrderRepository" }],
+          methods: [{ name: "placeOrder", kind: "method" as const, parameters: ["command: PlaceOrder"], returnType: "Promise<Order>" }]
+        }],
+        routes: [{ id: "route.orders", method: "POST", path: "/orders", sourceFile: "src/api/orders.ts", line: 12 }],
+        schemas: [{
+          id: "schema.orders",
+          path: "db/schema.prisma",
+          name: "Order",
+          kind: "model" as const,
+          line: 4,
+          columns: ["id String primary key", "customerId String"],
+          primaryKeys: ["id"],
+          indexes: ["customerId index"],
+          foreignKeys: [],
+          relations: ["customer -> Customer"]
+        }],
+        dependencies: [],
+        testMap: [{ testFile: "src/api/orders.test.ts", targetFiles: ["src/api/orders.ts"], inferred: false }]
+      }
+    };
+
+    const candidates = generateImportCandidates(withIntelligence);
+    expect(candidates.map((candidate) => candidate.group)).toEqual(expect.arrayContaining(["class", "route", "schema"]));
+
+    const selected = candidates.filter((candidate) => ["class", "route", "schema"].includes(candidate.group));
+    const promoted = promoteImportCandidates(withIntelligence, selected);
+
+    for (const candidate of selected) {
+      const node = promoted.nodes.find((item) => item.id === candidate.node.id);
+      expect(node?.confidence).toBe("manual");
+      expect(node?.metadata?.generatedBy).toBeUndefined();
+      expect(node?.metadata?.promotedFrom).toBeTruthy();
+    }
+
+    const remaining = generateImportCandidates(promoted);
+    expect(remaining.some((candidate) => selected.some((item) => item.id === candidate.id))).toBe(false);
   });
 });

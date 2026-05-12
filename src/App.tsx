@@ -54,6 +54,7 @@ import { AtlasProject, CodeIntelligence, ContextPackScope, EDGE_TYPES, EdgeType,
 import { templates as localTemplates } from "./data/templates";
 import { AtlasCanvas } from "./components/AtlasCanvas";
 import { CodeIntelligenceExplorer } from "./components/CodeIntelligenceExplorer";
+import { ImportReview } from "./components/ImportReview";
 import { Inspector } from "./components/Inspector";
 import { Inventory } from "./components/Inventory";
 import { PreviewPanel } from "./components/PreviewPanel";
@@ -94,7 +95,7 @@ export function App() {
   const [edgeType, setEdgeType] = useState<(typeof EDGE_TYPES)[number]>("calls");
   const [nodeType, setNodeType] = useState<NodeType>("service");
   const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "review" | "ai">("overview");
-  const [rightPanelMode, setRightPanelMode] = useState<"inspector" | "code">("inspector");
+  const [rightPanelMode, setRightPanelMode] = useState<"inspector" | "code" | "import">("inspector");
   const [issues, setIssues] = useState<ValidationIssue[]>(validateAtlas(localTemplates[0].project));
   const [aiBrief, setAiBrief] = useState(generateContextPack(localTemplates[0].project, [], undefined, "focused"));
   const [status, setStatus] = useState("Ready");
@@ -286,7 +287,7 @@ export function App() {
   }, [showAdvancedViews, viewId, workingProject.views]);
 
   useEffect(() => {
-    if (rightPanelMode === "code" || ["code", "class_diagram", "api_surface"].includes(viewId)) {
+    if (["code", "import"].includes(rightPanelMode) || ["code", "class_diagram", "api_surface", "schema_model"].includes(viewId)) {
       void loadSavedCodeIntelligence();
     }
   }, [loadSavedCodeIntelligence, rightPanelMode, viewId]);
@@ -614,8 +615,8 @@ export function App() {
       codeIntelligenceLoadRef.current = null;
       setShowAdvancedViews(true);
       setViewId("code");
-      setRightPanelMode("code");
-      setStatus(`Scanned ${response.intelligence.files.length} files, ${response.intelligence.classes.length} classes, ${response.intelligence.routes.length} routes`);
+      setRightPanelMode("import");
+      setStatus(`Scanned ${response.intelligence.files.length} files, ${response.intelligence.classes.length} classes, ${response.intelligence.routes.length} routes, ${response.intelligence.schemas.length} schemas`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Scan failed");
     }
@@ -784,6 +785,9 @@ export function App() {
             <button type="button" className={rightPanelMode === "code" ? "active" : ""} onClick={() => setRightPanelMode("code")}>
               <Code2 size={14} /> Code Intel
             </button>
+            <button type="button" className={rightPanelMode === "import" ? "active" : ""} onClick={() => setRightPanelMode("import")}>
+              <FileDown size={14} /> Import
+            </button>
           </div>
           {rightPanelMode === "code" ? (
             <section className="panel code-intel-panel">
@@ -793,6 +797,19 @@ export function App() {
                 isLoading={codeIntelligenceLoading}
                 onSelect={(id) => {
                   selectConcept(id);
+                  setRightPanelMode("inspector");
+                }}
+              />
+            </section>
+          ) : rightPanelMode === "import" ? (
+            <section className="panel code-intel-panel">
+              <ImportReview
+                project={workingProject}
+                isLoading={codeIntelligenceLoading}
+                onChange={updateProject}
+                onPreview={(candidate) => {
+                  setViewId(candidate.viewId);
+                  setSelectedId(candidate.node.id);
                   setRightPanelMode("inspector");
                 }}
               />
