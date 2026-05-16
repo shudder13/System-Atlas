@@ -500,4 +500,104 @@ describe("atlas generators", () => {
     const remaining = generateImportCandidates(promoted);
     expect(remaining.some((candidate) => selected.some((item) => item.id === candidate.id))).toBe(false);
   });
+
+  it("merges scanned facts into manually modeled concepts by semantic key", () => {
+    const manualClass = {
+      id: "manual.order-service",
+      type: "code_symbol" as const,
+      name: "OrderService",
+      owner: "architecture",
+      status: "active" as const,
+      criticality: "high" as const,
+      responsibilities: ["Owns order orchestration."],
+      dependencies: [],
+      invariants: ["Orders are idempotent by external reference."],
+      linkedFiles: ["src/domain/order-service.ts"],
+      linkedTests: [],
+      risks: [],
+      confidence: "manual" as const,
+      architectureLevel: "code" as const,
+      metadata: {}
+    };
+    const manualRoute = {
+      id: "manual.create-order-route",
+      type: "api_contract" as const,
+      name: "Create Order",
+      owner: "architecture",
+      status: "active" as const,
+      criticality: "critical" as const,
+      responsibilities: ["Creates an order through the public API."],
+      dependencies: [],
+      invariants: [],
+      linkedFiles: ["src/api/orders.ts"],
+      linkedTests: [],
+      risks: [],
+      confidence: "manual" as const,
+      architectureLevel: "runtime" as const,
+      metadata: { routeMethod: "POST", routePath: "/orders" }
+    };
+    const manualSchema = {
+      id: "manual.order-entity",
+      type: "data_entity" as const,
+      name: "Order Entity",
+      owner: "architecture",
+      status: "active" as const,
+      criticality: "high" as const,
+      responsibilities: ["Persists order state."],
+      dependencies: [],
+      invariants: [],
+      linkedFiles: ["db/schema.prisma"],
+      linkedTests: [],
+      risks: [],
+      confidence: "manual" as const,
+      architectureLevel: "data" as const,
+      metadata: { entityName: "Order" }
+    };
+    const withManualModel = {
+      ...project,
+      nodes: [...project.nodes, manualClass, manualRoute, manualSchema],
+      intelligence: {
+        generatedAt: "2026-05-05T00:00:00.000Z",
+        projectStructure: [],
+        files: [],
+        symbols: [],
+        classes: [{
+          id: "class.order",
+          path: "src/domain/order-service.ts",
+          name: "OrderService",
+          line: 3,
+          exported: true,
+          attributes: [{ name: "repo", kind: "attribute" as const, visibility: "private" as const, type: "OrderRepository" }],
+          methods: [{ name: "placeOrder", kind: "method" as const, returnType: "Promise<Order>" }]
+        }],
+        routes: [{ id: "route.orders", method: "POST", path: "/orders", sourceFile: "src/api/orders.ts", line: 12 }],
+        schemas: [{
+          id: "schema.orders",
+          path: "db/schema.prisma",
+          name: "Order",
+          kind: "model" as const,
+          line: 4,
+          columns: ["id String primary key"],
+          primaryKeys: ["id"],
+          indexes: [],
+          foreignKeys: [],
+          relations: []
+        }],
+        dependencies: [],
+        testMap: []
+      }
+    };
+
+    const classGraph = layoutProjectForView(withManualModel, "class_diagram");
+    const apiGraph = layoutProjectForView(withManualModel, "api_surface");
+    const schemaGraph = layoutProjectForView(withManualModel, "schema_model");
+
+    expect(classGraph.nodes.filter((node) => node.name === "OrderService")).toHaveLength(1);
+    expect(classGraph.nodes.find((node) => node.id === manualClass.id)?.metadata?.methods).toContain("placeOrder(): Promise<Order>");
+    expect(apiGraph.nodes.filter((node) => node.metadata?.routePath === "/orders" || node.name === "POST /orders")).toHaveLength(1);
+    expect(apiGraph.nodes.find((node) => node.id === manualRoute.id)?.linkedFiles).toContain("src/api/orders.ts");
+    expect(schemaGraph.nodes.filter((node) => node.metadata?.entityName === "Order")).toHaveLength(1);
+    expect(schemaGraph.nodes.find((node) => node.id === manualSchema.id)?.metadata?.columns).toContain("id String primary key");
+    expect(generateImportCandidates(withManualModel).some((candidate) => ["OrderService", "POST /orders", "Order"].includes(candidate.title))).toBe(false);
+  });
 });

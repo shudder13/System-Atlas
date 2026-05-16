@@ -796,8 +796,7 @@ function classDiagramSnapshot(project: AtlasProject): AtlasProjectSnapshot {
 
   for (const item of intelligence.symbols.filter((symbol) => ["interface", "type"].includes(symbol.kind)).slice(0, 80)) {
     const id = symbolNodeId(item.path, item.name);
-    const existing = nodeMap.get(id);
-    const node = enrichDiagramNode(existing, {
+    const node = setDiagramNode(nodeMap, {
       id,
       type: "code_symbol",
       name: item.name,
@@ -823,14 +822,12 @@ function classDiagramSnapshot(project: AtlasProject): AtlasProjectSnapshot {
       },
       position: { x: 0, y: 0 }
     });
-    nodeMap.set(id, node);
-    interfaceIdsByName.set(item.name, id);
+    interfaceIdsByName.set(item.name, node.id);
   }
 
   for (const item of intelligence.classes.slice(0, 120)) {
     const id = symbolNodeId(item.path, item.name);
-    const existing = nodeMap.get(id);
-    const node = enrichDiagramNode(existing, {
+    const node = setDiagramNode(nodeMap, {
       id,
       type: "code_symbol",
       name: item.name,
@@ -864,8 +861,7 @@ function classDiagramSnapshot(project: AtlasProject): AtlasProjectSnapshot {
       },
       position: { x: 0, y: 0 }
     });
-    nodeMap.set(id, node);
-    classIdsByName.set(item.name, id);
+    classIdsByName.set(item.name, node.id);
   }
 
   const nodes = Array.from(nodeMap.values());
@@ -902,11 +898,11 @@ function apiSurfaceSnapshot(project: AtlasProject): AtlasProjectSnapshot {
     nodeMap.set(node.id, structuredClone(node));
   }
 
+  const routeIdsByKey = new Map<string, string>();
   for (const route of intelligence.routes.slice(0, 160)) {
     const id = routeNodeId(route.sourceFile, route.method, route.path);
-    const existing = nodeMap.get(id);
     const mutates = !["GET", "HEAD", "OPTIONS"].includes(route.method.toUpperCase());
-    nodeMap.set(id, enrichDiagramNode(existing, {
+    const node = setDiagramNode(nodeMap, {
       id,
       type: "api_contract",
       name: `${route.method.toUpperCase()} ${route.path}`,
@@ -933,7 +929,8 @@ function apiSurfaceSnapshot(project: AtlasProject): AtlasProjectSnapshot {
         line: route.line
       },
       position: { x: 0, y: 0 }
-    }));
+    });
+    routeIdsByKey.set(routeConceptKey(route.method, route.path), node.id);
   }
 
   const nodes = Array.from(nodeMap.values());
@@ -946,7 +943,7 @@ function apiSurfaceSnapshot(project: AtlasProject): AtlasProjectSnapshot {
   const generatedEdges: AtlasEdge[] = [];
 
   for (const route of intelligence.routes.slice(0, 160)) {
-    const routeId = routeNodeId(route.sourceFile, route.method, route.path);
+    const routeId = routeIdsByKey.get(routeConceptKey(route.method, route.path)) ?? routeNodeId(route.sourceFile, route.method, route.path);
     const owner = routeOwnerNode(project.nodes, route.sourceFile);
     if (owner && nodeIds.has(owner.id)) {
       generatedEdges.push(generatedDiagramEdge(owner.id, routeId, "exposes", route.method.toUpperCase(), "api-surface"));
@@ -970,8 +967,7 @@ function schemaModelSnapshot(project: AtlasProject): AtlasProjectSnapshot {
   const schemaNodeIdsByName = new Map<string, string>();
   for (const schema of project.intelligence.schemas ?? []) {
     const id = schemaNodeId(schema);
-    const existing = nodeMap.get(id);
-    nodeMap.set(id, enrichDiagramNode(existing, {
+    const node = setDiagramNode(nodeMap, {
       id,
       type: schema.kind === "schema" ? "schema" : "data_entity",
       name: schema.name,
@@ -999,14 +995,13 @@ function schemaModelSnapshot(project: AtlasProject): AtlasProjectSnapshot {
         relations: schema.relations
       },
       position: { x: 0, y: 0 }
-    }));
-    schemaNodeIdsByName.set(schema.name, id);
+    });
+    schemaNodeIdsByName.set(schema.name, node.id);
   }
 
   for (const item of project.evidence.filter((evidence) => evidence.kind === "migration").slice(0, 80)) {
     const id = migrationNodeId(item.path);
-    const existing = nodeMap.get(id);
-    nodeMap.set(id, enrichDiagramNode(existing, {
+    setDiagramNode(nodeMap, {
       id,
       type: "migration",
       name: basename(item.path),
@@ -1031,7 +1026,7 @@ function schemaModelSnapshot(project: AtlasProject): AtlasProjectSnapshot {
         lines: item.lines
       },
       position: { x: 0, y: 0 }
-    }));
+    });
   }
 
   const nodes = Array.from(nodeMap.values());
@@ -1616,7 +1611,7 @@ export function generateImportCandidates(project: AtlasProject): ImportCandidate
     { viewId: "code", max: 80 }
   ];
   const durableKeys = new Set(project.nodes.filter((node) => !isGeneratedAtlasNode(node)).map(importConceptKey));
-  const seenIds = new Set<string>();
+  const seenKeys = new Set<string>();
   const candidates: ImportCandidate[] = [];
 
   for (const { viewId, max } of sourceViews) {
@@ -1624,8 +1619,8 @@ export function generateImportCandidates(project: AtlasProject): ImportCandidate
       if (!isGeneratedAtlasNode(node)) continue;
       if (!importCandidateGroup(node)) continue;
       const key = importConceptKey(node);
-      if (durableKeys.has(key) || seenIds.has(node.id)) continue;
-      seenIds.add(node.id);
+      if (durableKeys.has(key) || seenKeys.has(key)) continue;
+      seenKeys.add(key);
       candidates.push(importCandidateFromNode(node, viewId));
     }
   }
@@ -1976,6 +1971,19 @@ function generatedDiagramEdge(source: string, target: string, type: EdgeType, la
   };
 }
 
+function setDiagramNode(nodeMap: Map<string, AtlasNode>, derived: AtlasNode) {
+  const existing = nodeMap.get(derived.id) ?? semanticallyEquivalentNode(nodeMap, derived);
+  const node = enrichDiagramNode(existing, derived);
+  nodeMap.set(node.id, node);
+  if (node.id !== derived.id && nodeMap.has(derived.id)) nodeMap.delete(derived.id);
+  return node;
+}
+
+function semanticallyEquivalentNode(nodeMap: Map<string, AtlasNode>, derived: AtlasNode) {
+  const key = importConceptKey(derived);
+  return Array.from(nodeMap.values()).find((node) => importConceptKey(node) === key);
+}
+
 function isGeneratedAtlasNode(node: AtlasNode) {
   return Boolean(
     typeof node.metadata?.generatedBy === "string" ||
@@ -2007,25 +2015,30 @@ function importCandidateGroup(node: AtlasNode): ImportCandidate["group"] | undef
     const symbolKind = typeof node.metadata?.symbolKind === "string" ? node.metadata.symbolKind : "";
     if (["class", "interface", "type"].includes(symbolKind)) return "class";
     if (symbolKind === "route") return "route";
+    if (node.linkedFiles.length > 0) return "class";
   }
   return undefined;
 }
 
 function importConceptKey(node: AtlasNode) {
+  const group = importCandidateGroup(node) ?? node.type;
   const sourcePath = typeof node.metadata?.evidencePath === "string" ? node.metadata.evidencePath : node.linkedFiles[0] ?? "";
-  const routeMethod = typeof node.metadata?.routeMethod === "string" ? node.metadata.routeMethod : "";
-  const routePath = typeof node.metadata?.routePath === "string" ? node.metadata.routePath : "";
-  const entityName = typeof node.metadata?.entityName === "string" ? node.metadata.entityName : "";
-  const symbolKind = typeof node.metadata?.symbolKind === "string" ? node.metadata.symbolKind : "";
-  return [
-    importCandidateGroup(node) ?? node.type,
-    node.type,
-    sourcePath,
-    symbolKind,
-    routeMethod,
-    routePath,
-    entityName || node.name
-  ].join(":").toLowerCase();
+  if (group === "route") {
+    const route = routePartsFromNode(node);
+    return routeConceptKey(route.method, route.path);
+  }
+  if (group === "class") return `class:${sourcePath}:${node.name}`.toLowerCase();
+  if (group === "schema") {
+    const entityName = typeof node.metadata?.entityName === "string"
+      ? node.metadata.entityName
+      : typeof node.metadata?.schemaName === "string"
+        ? node.metadata.schemaName
+        : node.name;
+    return `schema:${sourcePath}:${entityName}`.toLowerCase();
+  }
+  if (group === "migration") return `migration:${sourcePath}`.toLowerCase();
+  if (group === "file") return `file:${sourcePath}`.toLowerCase();
+  return `${group}:${node.type}:${sourcePath}:${node.name}`.toLowerCase();
 }
 
 function importCandidateScore(candidate: ImportCandidate) {
@@ -2046,6 +2059,21 @@ function importCandidateScore(candidate: ImportCandidate) {
 
 function edgeKey(edge: Pick<AtlasEdge, "source" | "target" | "type" | "label">) {
   return `${edge.source}:${edge.type}:${edge.target}:${edge.label ?? ""}`;
+}
+
+function routeConceptKey(method: string, routePath: string) {
+  return `route:${method.toUpperCase()}:${routePath}`.toLowerCase();
+}
+
+function routePartsFromNode(node: AtlasNode) {
+  const method = typeof node.metadata?.routeMethod === "string" ? node.metadata.routeMethod : "";
+  const routePath = typeof node.metadata?.routePath === "string" ? node.metadata.routePath : "";
+  if (method && routePath) return { method, path: routePath };
+  const match = node.name.match(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ALL|USE)\s+(.+)$/i);
+  return {
+    method: match?.[1] ?? "",
+    path: match?.[2] ?? node.name
+  };
 }
 
 function prettyNodeType(value: string) {
