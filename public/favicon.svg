@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="System Atlas">
+  <rect x="6" y="6" width="52" height="52" rx="14" fill="#0f172a"/>
+  <path d="M22 24h12m8 0h-8m0 0v14m0 0H22m12 0h10" fill="none" stroke="#f8fafc" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="22" cy="24" r="5" fill="#f8fafc"/>
+  <circle cx="42" cy="24" r="5" fill="#14b8a6"/>
+  <circle cx="22" cy="38" r="5" fill="#f8fafc"/>
+  <circle cx="44" cy="38" r="5" fill="#f8fafc"/>
+</svg>
