@@ -1,4 +1,6 @@
 import {
+  BellRing,
+  BookOpenCheck,
   Boxes,
   CalendarClock,
   Cloud,
@@ -6,8 +8,11 @@ import {
   DatabaseBackup,
   FileCode2,
   HardDrive,
+  KeyRound,
+  LayoutDashboard,
   Monitor,
   Network,
+  Package,
   Router,
   ScrollText,
   Server,
@@ -55,7 +60,12 @@ export const nodeColors: Record<AtlasNode["type"], string> = {
   stakeholder: "#ea580c",
   concern: "#4f46e5",
   flow: "#0284c7",
-  risk: "#e11d48"
+  risk: "#e11d48",
+  page: "#0ea5e9",
+  env_var: "#64748b",
+  tech_choice: "#8b5cf6",
+  alert: "#dc2626",
+  runbook: "#0d9488"
 };
 
 export const nodeIcons: Record<AtlasNode["type"], NodeIcon> = {
@@ -92,7 +102,12 @@ export const nodeIcons: Record<AtlasNode["type"], NodeIcon> = {
   stakeholder: UserRound,
   concern: Target,
   flow: Workflow,
-  risk: ShieldAlert
+  risk: ShieldAlert,
+  page: LayoutDashboard,
+  env_var: KeyRound,
+  tech_choice: Package,
+  alert: BellRing,
+  runbook: BookOpenCheck
 };
 
 export function prettyType(value: string) {

@@ -32,7 +32,12 @@ export const NODE_TYPES = [
   "stakeholder",
   "concern",
   "flow",
-  "risk"
+  "risk",
+  "page",
+  "env_var",
+  "tech_choice",
+  "alert",
+  "runbook"
 ] as const;
 
 export const EDGE_TYPES = [

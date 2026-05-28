@@ -40,7 +40,12 @@ const conceptFolders: Record<string, string> = {
   stakeholder: "stakeholders",
   concern: "concerns",
   flow: "flows",
-  risk: "reliability"
+  risk: "reliability",
+  page: "surfaces",
+  env_var: "deployment",
+  tech_choice: "stack",
+  alert: "alerts",
+  runbook: "runbooks"
 };
 
 export async function loadAtlas(root: string, options: { includeIntelligence?: boolean } = {}): Promise<AtlasProject | null> {
@@ -929,9 +934,74 @@ function conceptMarkdown(node: AtlasNode) {
     "",
     `# ${node.name}`,
     "",
-    node.notes || "No architecture notes yet.",
-    ""
+    `**Type:** \`${node.type}\` · **Criticality:** ${node.criticality} · **Status:** ${node.status} · **Confidence:** ${node.confidence}${node.architectureLevel ? ` · **Level:** ${node.architectureLevel}` : ""} · **Owner:** ${node.owner}`,
+    ...conceptBodySections(node)
   ].join("\n");
+}
+
+function conceptBodySections(node: AtlasNode): string[] {
+  const sections: string[] = [];
+
+  if (node.notes && node.notes.trim()) {
+    sections.push("", "## Notes", "", node.notes.trim());
+  }
+
+  const metadataLines = renderMetadataBullets(node.metadata);
+  if (metadataLines.length) {
+    sections.push("", "## Metadata", "", ...metadataLines);
+  }
+
+  if (node.responsibilities.length) {
+    sections.push("", "## Responsibilities", "", ...node.responsibilities.map((item) => `- ${item}`));
+  }
+
+  if (node.invariants.length) {
+    sections.push("", "## Invariants", "", ...node.invariants.map((item) => `- ${item}`));
+  }
+
+  if (node.linkedFiles.length) {
+    sections.push("", "## Linked files", "", ...node.linkedFiles.map((item) => `- \`${item}\``));
+  }
+
+  if (node.linkedTests.length) {
+    sections.push("", "## Linked tests", "", ...node.linkedTests.map((item) => `- \`${item}\``));
+  }
+
+  if (node.risks.length) {
+    sections.push("", "## Risks", "", ...node.risks.map((item) => `- ${item}`));
+  }
+
+  if (node.tags && node.tags.length) {
+    sections.push("", "## Tags", "", node.tags.map((tag) => `\`${tag}\``).join(" · "));
+  }
+
+  sections.push("");
+  return sections;
+}
+
+function renderMetadataBullets(metadata: AtlasNode["metadata"]): string[] {
+  if (!metadata) return [];
+  const entries = Object.entries(metadata).filter(([, value]) => {
+    if (value === undefined || value === null || value === "") return false;
+    if (Array.isArray(value) && value.length === 0) return false;
+    return true;
+  });
+  return entries.map(([key, value]) => {
+    const label = humanizeMetadataKey(key);
+    if (Array.isArray(value)) {
+      if (value.length <= 3) return `- **${label}:** ${value.join(", ")}`;
+      return `- **${label}:**\n${value.map((v) => `  - ${v}`).join("\n")}`;
+    }
+    if (typeof value === "boolean") return `- **${label}:** ${value ? "yes" : "no"}`;
+    return `- **${label}:** ${value}`;
+  });
+}
+
+function humanizeMetadataKey(key: string): string {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (c) => c.toUpperCase())
+    .trim();
 }
 
 function flowMarkdown(flow: AtlasFlow) {

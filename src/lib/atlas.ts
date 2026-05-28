@@ -38,18 +38,18 @@ const componentTypes = new Set<NodeType>([
 
 const overviewTypes = new Set<NodeType>(["actor", "stakeholder", "system", "app", "container", "service", "external_system", "team", "load_balancer"]);
 const containerTypes = new Set<NodeType>(["system", "container", "app", "service", "worker", "scheduler", "load_balancer", "external_system", "api_contract", "event_contract"]);
-const codeTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract", "api_contract", "event_contract"]);
+const codeTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract", "api_contract", "event_contract", "page"]);
 const classDiagramTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract"]);
-const apiSurfaceTypes = new Set<NodeType>(["actor", "app", "container", "service", "module", "load_balancer", "external_system", "contract", "api_contract", "quality_scenario", "risk"]);
-const deploymentTypes = new Set<NodeType>(["environment", "region", "deployment_node", "load_balancer", "service", "worker", "scheduler", "datastore", "replica", "queue", "cache", "external_system"]);
+const apiSurfaceTypes = new Set<NodeType>(["actor", "app", "container", "service", "module", "load_balancer", "external_system", "contract", "api_contract", "quality_scenario", "risk", "page"]);
+const deploymentTypes = new Set<NodeType>(["environment", "region", "deployment_node", "load_balancer", "service", "worker", "scheduler", "datastore", "replica", "queue", "cache", "external_system", "env_var"]);
 const dataTypes = new Set<NodeType>(["service", "module", "worker", "datastore", "replica", "queue", "cache", "external_system", "contract", "api_contract", "event_contract", "data_entity", "schema", "migration"]);
 const schemaModelTypes = new Set<NodeType>(["service", "module", "worker", "datastore", "replica", "data_entity", "schema", "migration", "decision", "quality_scenario", "risk"]);
-const domainTypes = new Set<NodeType>(["system", "container", "component", "module", "data_entity", "schema", "api_contract", "event_contract", "decision", "team"]);
-const securityTypes = new Set<NodeType>(["actor", "app", "service", "external_system", "api_contract", "event_contract", "datastore", "data_entity", "threat", "risk"]);
+const domainTypes = new Set<NodeType>(["system", "container", "component", "module", "data_entity", "schema", "api_contract", "event_contract", "decision", "team", "tech_choice"]);
+const securityTypes = new Set<NodeType>(["actor", "app", "service", "external_system", "api_contract", "event_contract", "datastore", "data_entity", "threat", "risk", "env_var"]);
 const concernTypes = new Set<NodeType>(["stakeholder", "actor", "team", "concern", "quality_scenario", "risk", "threat", "decision", "system", "container", "service", "app", "external_system"]);
-const healthTypes = new Set<NodeType>(["quality_scenario", "service", "worker", "scheduler", "load_balancer", "queue", "datastore", "replica", "cache", "external_system", "risk", "threat", "decision"]);
-const decisionTypes = new Set<NodeType>(["decision", "quality_scenario", "risk", "threat", "system", "container", "service", "component", "module"]);
-const flowTypes = new Set<NodeType>(["actor", "app", "load_balancer", "service", "container", "component", "module", "contract", "api_contract", "event_contract", "queue", "worker", "scheduler", "datastore", "external_system", "flow"]);
+const healthTypes = new Set<NodeType>(["quality_scenario", "service", "worker", "scheduler", "load_balancer", "queue", "datastore", "replica", "cache", "external_system", "risk", "threat", "decision", "alert", "runbook"]);
+const decisionTypes = new Set<NodeType>(["decision", "quality_scenario", "risk", "threat", "system", "container", "service", "component", "module", "tech_choice"]);
+const flowTypes = new Set<NodeType>(["actor", "app", "load_balancer", "service", "container", "component", "module", "contract", "api_contract", "event_contract", "queue", "worker", "scheduler", "datastore", "external_system", "flow", "page"]);
 
 const viewEdgeTypes: Partial<Record<ViewId, Set<EdgeType>>> = {
   overview: new Set(["contains", "calls", "routes_to", "depends_on", "owns", "has_concern", "addresses"]),
@@ -114,7 +114,7 @@ const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonl
   ],
   code: [
     lane(0, ["file_group"]),
-    lane(1, ["module", "component"]),
+    lane(1, ["module", "component", "page"]),
     lane(2, ["code_symbol"]),
     lane(3, ["contract", "api_contract", "event_contract"])
   ],
@@ -124,14 +124,14 @@ const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonl
     lane(2, ["contract"])
   ],
   api_surface: [
-    lane(0, ["actor", "app", "load_balancer"]),
+    lane(0, ["actor", "app", "page", "load_balancer"]),
     lane(1, ["container", "service", "module"]),
     lane(2, ["api_contract", "contract"]),
     lane(3, ["external_system"]),
     lane(4, ["quality_scenario", "risk"])
   ],
   flows: [
-    lane(0, ["actor", "app"]),
+    lane(0, ["actor", "app", "page"]),
     lane(1, ["container", "load_balancer", "service"]),
     lane(2, ["component", "module", "contract", "api_contract", "event_contract"]),
     lane(3, ["queue", "worker", "scheduler"])
@@ -141,7 +141,8 @@ const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonl
     lane(1, ["region"]),
     lane(2, ["deployment_node"]),
     lane(3, ["load_balancer", "service", "worker", "scheduler"]),
-    lane(4, ["queue", "cache", "datastore", "replica"])
+    lane(4, ["queue", "cache", "datastore", "replica"]),
+    lane(5, ["env_var"])
   ],
   data: [
     lane(0, ["service", "module", "worker", "external_system", "contract"]),
@@ -164,7 +165,7 @@ const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonl
     lane(1, ["container", "component", "module"]),
     lane(2, ["data_entity", "schema"]),
     lane(3, ["api_contract", "event_contract"]),
-    lane(4, ["decision"])
+    lane(4, ["decision", "tech_choice"])
   ],
   security: [
     lane(0, ["actor", "threat"]),
@@ -182,12 +183,13 @@ const viewLaneRules: Partial<Record<ViewId, Array<{ lane: number; types: readonl
   ],
   health: [
     lane(0, ["concern", "risk", "threat", "quality_scenario"]),
-    lane(1, ["external_system", "load_balancer", "queue", "cache"]),
-    lane(2, ["service", "worker", "scheduler"]),
-    lane(3, ["datastore", "replica"])
+    lane(1, ["alert", "runbook"]),
+    lane(2, ["external_system", "load_balancer", "queue", "cache"]),
+    lane(3, ["service", "worker", "scheduler"]),
+    lane(4, ["datastore", "replica"])
   ],
   decisions: [
-    lane(0, ["decision"]),
+    lane(0, ["decision", "tech_choice"]),
     lane(1, ["concern", "quality_scenario", "risk", "threat"]),
     lane(2, ["system", "container", "service"]),
     lane(3, ["component", "module"])
@@ -249,7 +251,7 @@ const metadataProfiles: Partial<Record<NodeType, MetadataFieldDefinition[]>> = {
     { key: "consistency", label: "Consistency", kind: "text", description: "Consistency expectation and invalidation approach." },
     { key: "containsPii", label: "Contains PII", kind: "boolean", description: "Whether cached data includes personal or sensitive data." }
   ],
-  external_system: contractMetadataFields(),
+  external_system: [...contractMetadataFields(), ...externalSystemCostFields()],
   api_contract: apiContractMetadataFields(),
   event_contract: [
     { key: "version", label: "Version", kind: "text", description: "Contract or event schema version." },
@@ -282,6 +284,48 @@ const metadataProfiles: Partial<Record<NodeType, MetadataFieldDefinition[]>> = {
   team: [
     { key: "contact", label: "Contact", kind: "text", description: "Team channel, alias, or ownership contact." },
     { key: "responsibilityBoundary", label: "Boundary", kind: "text", description: "Short description of what this team owns." }
+  ],
+  page: [
+    { key: "route", label: "Route", kind: "text", description: "URL path or route pattern this page is served at." },
+    { key: "layout", label: "Layout", kind: "text", description: "Layout, shell, or template used by this page." },
+    { key: "authRequired", label: "Auth required", kind: "boolean", description: "Whether the page requires an authenticated user." },
+    { key: "components", label: "Components used", kind: "list", description: "Reusable components composed inside this page." },
+    { key: "dataFetched", label: "Data fetched", kind: "list", description: "API endpoints, queries, or data sources this page depends on." },
+    { key: "ssrMode", label: "SSR/SSG/CSR", kind: "text", description: "Rendering mode: server, static, client, streaming, or hybrid." },
+    { key: "seo", label: "SEO posture", kind: "text", description: "SEO target — public/indexable, private/no-index, or authenticated-only." }
+  ],
+  env_var: [
+    { key: "scope", label: "Scope", kind: "text", description: "Which service or container consumes this variable." },
+    { key: "sensitive", label: "Sensitive", kind: "boolean", description: "Whether the value is a secret (credentials, tokens, signing keys)." },
+    { key: "required", label: "Required", kind: "boolean", description: "Whether the service refuses to start without this variable set." },
+    { key: "defaultValue", label: "Default", kind: "text", description: "Default value when not set, or empty if there is none." },
+    { key: "envExamplePath", label: "env example file", kind: "text", description: "Path to the .env.example or similar template that documents this variable." },
+    { key: "rotationPolicy", label: "Rotation policy", kind: "text", description: "Rotation cadence, owning system, or 'manual' if rotated by hand." }
+  ],
+  tech_choice: [
+    { key: "category", label: "Category", kind: "text", description: "Language, framework, library, runtime, database, infra, or tooling." },
+    { key: "version", label: "Version", kind: "text", description: "Pinned version or version range (e.g. React 19, Postgres 16)." },
+    { key: "rationale", label: "Rationale", kind: "text", description: "Why this technology was chosen over alternatives." },
+    { key: "alternatives", label: "Alternatives considered", kind: "list", description: "Other technologies evaluated before picking this one." },
+    { key: "linkedDecision", label: "Linked decision", kind: "text", description: "Decision (ADR) id that captured the trade-off, if one exists." },
+    { key: "reviewCadence", label: "Review cadence", kind: "text", description: "How often this choice should be revisited (e.g. yearly, on major-version bump)." }
+  ],
+  alert: [
+    { key: "severity", label: "Severity", kind: "text", description: "P1/P2/P3/P4 or critical/high/medium/low — operational impact tier." },
+    { key: "triggerCondition", label: "Trigger condition", kind: "text", description: "Concrete rule that fires the alert (e.g. 'p99 > 500ms for 5 min', 'WS disconnected > 60s')." },
+    { key: "notificationChannel", label: "Notification channel", kind: "text", description: "Where the alert lands: ntfy, Slack #channel, email, PagerDuty schedule, etc." },
+    { key: "runbookUrl", label: "Runbook URL", kind: "text", description: "Link or runbook node id with the response procedure." },
+    { key: "owner", label: "Owner", kind: "text", description: "Team or person accountable for responding." },
+    { key: "onCallRotation", label: "On-call rotation", kind: "text", description: "Rotation name or schedule (e.g. 'primary-oncall', '24x7', 'business-hours')." },
+    { key: "lastFiredAt", label: "Last fired", kind: "text", description: "ISO timestamp of the most recent firing, when known." },
+    { key: "silencedUntil", label: "Silenced until", kind: "text", description: "ISO timestamp if the alert is temporarily suppressed." }
+  ],
+  runbook: [
+    { key: "whenToUse", label: "When to use", kind: "text", description: "Trigger condition or symptom that points the on-call here." },
+    { key: "steps", label: "Steps", kind: "list", description: "Ordered procedure entries — each step a single actionable line." },
+    { key: "relatedAlerts", label: "Related alerts", kind: "list", description: "Alert ids this runbook responds to." },
+    { key: "escalationPath", label: "Escalation path", kind: "text", description: "Who/what to escalate to if the steps don't resolve the issue." },
+    { key: "lastRehearsedAt", label: "Last rehearsed", kind: "text", description: "ISO timestamp of the most recent fire-drill or successful real-incident use." }
   ]
 };
 
@@ -308,7 +352,9 @@ function runtimeMetadataFields(): MetadataFieldDefinition[] {
     { key: "sla", label: "SLA/SLO", kind: "text", description: "Availability, latency, or throughput target." },
     { key: "rto", label: "RTO", kind: "text", description: "Maximum acceptable recovery time." },
     { key: "rpo", label: "RPO", kind: "text", description: "Maximum acceptable data loss window." },
-    { key: "scaling", label: "Scaling", kind: "text", description: "Replica, autoscaling, concurrency, or capacity rule." }
+    { key: "scaling", label: "Scaling", kind: "text", description: "Replica, autoscaling, concurrency, or capacity rule." },
+    { key: "monthlyCost", label: "Monthly cost", kind: "text", description: "Approximate recurring infra cost (currency + amount)." },
+    { key: "costNotes", label: "Cost notes", kind: "text", description: "Free-text notes about cost drivers or vendor terms." }
   ];
 }
 
@@ -318,9 +364,13 @@ function dataMetadataFields(): MetadataFieldDefinition[] {
     { key: "retention", label: "Retention", kind: "text", description: "Retention and deletion policy." },
     { key: "consistency", label: "Consistency", kind: "text", description: "Consistency model and stale-read expectations." },
     { key: "backupPolicy", label: "Backup policy", kind: "text", description: "Backup, restore, and verification policy." },
+    { key: "restoreTestCadence", label: "Restore-test cadence", kind: "text", description: "How often a real restore drill is run (e.g. quarterly, monthly)." },
+    { key: "lastRestoreTestedAt", label: "Last restore-tested", kind: "text", description: "ISO date of the most recent successful restore drill." },
     { key: "rto", label: "RTO", kind: "text", description: "Maximum acceptable recovery time." },
     { key: "rpo", label: "RPO", kind: "text", description: "Maximum acceptable data loss window." },
-    { key: "containsPii", label: "Contains PII", kind: "boolean", description: "Whether this data includes personal or sensitive data." }
+    { key: "containsPii", label: "Contains PII", kind: "boolean", description: "Whether this data includes personal or sensitive data." },
+    { key: "monthlyCost", label: "Monthly cost", kind: "text", description: "Approximate recurring cost (currency + amount)." },
+    { key: "costNotes", label: "Cost notes", kind: "text", description: "Free-text notes about cost drivers, optimization opportunities, or vendor terms." }
   ];
 }
 
@@ -360,6 +410,13 @@ function asyncMetadataFields(): MetadataFieldDefinition[] {
   ];
 }
 
+function externalSystemCostFields(): MetadataFieldDefinition[] {
+  return [
+    { key: "monthlyCost", label: "Monthly cost", kind: "text", description: "Approximate recurring cost (currency + amount)." },
+    { key: "costNotes", label: "Cost notes", kind: "text", description: "Free-text notes about cost drivers, vendor terms, or pricing tier." }
+  ];
+}
+
 function contractMetadataFields(): MetadataFieldDefinition[] {
   return [
     { key: "provider", label: "Provider", kind: "text", description: "External provider or owning service/team." },
@@ -379,7 +436,13 @@ function apiContractMetadataFields(): MetadataFieldDefinition[] {
     { key: "requestBody", label: "Request body", kind: "text", description: "Request schema, DTO, command, or payload shape." },
     { key: "responseBody", label: "Response body", kind: "text", description: "Response schema, DTO, event, or payload shape." },
     { key: "handlerFile", label: "Handler file", kind: "text", description: "Source file or module that implements this contract." },
-    { key: "endpoints", label: "Endpoints", kind: "list", description: "Structured endpoint rows managed by the API contract editor." }
+    { key: "endpoints", label: "Endpoints", kind: "list", description: "Structured endpoint rows managed by the API contract editor." },
+    { key: "rateLimitPerMinute", label: "Rate limit (per minute)", kind: "number", description: "Maximum requests per minute, or 0/empty for unlimited." },
+    { key: "rateLimitBurst", label: "Rate limit burst", kind: "number", description: "Short-term burst allowance above the per-minute average." },
+    { key: "rateLimitScope", label: "Rate limit scope", kind: "text", description: "Who the limit applies to: user, api-key, IP, tenant, or global." },
+    { key: "rateLimitEnforcedAt", label: "Rate limit enforced at", kind: "text", description: "Layer that enforces the limit: gateway, middleware, handler, or external WAF." },
+    { key: "idempotent", label: "Idempotent", kind: "boolean", description: "Whether retrying the same request with the same input produces the same effect." },
+    { key: "idempotencyMechanism", label: "Idempotency mechanism", kind: "text", description: "How idempotency is achieved: client key, server-side dedupe, natural-id upsert, etc." }
   ];
 }
 
@@ -585,19 +648,21 @@ export function viewSupportsNodeType(viewId: ViewId, type: NodeType) {
 }
 
 export function preferredViewForNodeType(type: NodeType): ViewId {
-  if (["environment", "region", "deployment_node"].includes(type)) return "deployment";
+  if (["environment", "region", "deployment_node", "env_var"].includes(type)) return "deployment";
   if (["schema", "data_entity", "migration"].includes(type)) return "schema_model";
   if (["datastore", "replica", "queue", "cache"].includes(type)) return "data";
   if (["threat"].includes(type)) return "security";
   if (["stakeholder", "concern"].includes(type)) return "concerns";
   if (["risk", "quality_scenario"].includes(type)) return "health";
-  if (["decision"].includes(type)) return "decisions";
+  if (["decision", "tech_choice"].includes(type)) return "decisions";
   if (["flow"].includes(type)) return "flows";
   if (["api_contract"].includes(type)) return "api_surface";
   if (["code_symbol"].includes(type)) return "class_diagram";
   if (["file_group"].includes(type)) return "code";
+  if (["page"].includes(type)) return "components";
   if (["module", "component", "contract", "event_contract"].includes(type)) return "components";
   if (["worker", "scheduler", "container"].includes(type)) return "containers";
+  if (["alert", "runbook"].includes(type)) return "health";
   return "overview";
 }
 
@@ -2316,8 +2381,11 @@ function levelForNodeType(type: NodeType) {
   if (["team", "stakeholder"].includes(type)) return "enterprise" as const;
   if (["system", "actor", "external_system", "concern"].includes(type)) return "system" as const;
   if (["container", "app", "service", "worker", "scheduler", "load_balancer", "queue", "cache", "datastore", "replica"].includes(type)) return "container" as const;
-  if (["component", "module", "contract", "api_contract", "event_contract"].includes(type)) return "component" as const;
+  if (["component", "module", "contract", "api_contract", "event_contract", "page"].includes(type)) return "component" as const;
   if (["code_symbol", "file_group"].includes(type)) return "code" as const;
+  if (type === "env_var") return "deployment" as const;
+  if (type === "tech_choice") return "domain" as const;
+  if (["alert", "runbook"].includes(type)) return "quality" as const;
   if (["environment", "region", "deployment_node"].includes(type)) return "deployment" as const;
   if (["data_entity", "schema", "migration"].includes(type)) return "data" as const;
   if (["decision"].includes(type)) return "domain" as const;
