@@ -24,7 +24,7 @@ import {
   Workflow
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, api } from "./lib/api";
+import { ApiError, api, type WorkspaceRegistry } from "./lib/api";
 import {
   applyProposal,
   commitWorkspaceEdit,
@@ -58,6 +58,8 @@ import { ImportReview } from "./components/ImportReview";
 import { Inspector } from "./components/Inspector";
 import { Inventory } from "./components/Inventory";
 import { PreviewPanel } from "./components/PreviewPanel";
+import { WorkspaceOnboarding } from "./components/WorkspaceOnboarding";
+import { WorkspacePicker } from "./components/WorkspacePicker";
 
 type ProjectHistory = {
   past: AtlasProject[];
@@ -111,24 +113,102 @@ export function App() {
   const [contextScope, setContextScope] = useState<ContextPackScope>("focused");
   const [codeIntelligenceLoaded, setCodeIntelligenceLoaded] = useState(hasCodeIntelligence(localTemplates[0].project.intelligence));
   const [codeIntelligenceLoading, setCodeIntelligenceLoading] = useState(false);
+  const [workspaceRegistry, setWorkspaceRegistry] = useState<WorkspaceRegistry | null>(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const saveInFlightRef = useRef(false);
   const changeSeqRef = useRef(0);
   const codeIntelligenceVersionRef = useRef(0);
   const persistedCodeIntelligenceVersionRef = useRef(0);
   const codeIntelligenceLoadRef = useRef<Promise<CodeIntelligence | null> | null>(null);
 
-  useEffect(() => {
-    Promise.all([api.templates(), api.project(), api.packHealth()])
-      .then(([templateResponse, projectResponse, healthResponse]) => {
-        setTemplates(templateResponse.templates);
-        applyLoadedProject(projectResponse.project, projectResponse.revision);
-        setPackHealth(healthResponse.packHealth);
-        setStatus(projectResponse.loadedFromDisk ? "Loaded architecture pack" : "Loaded starter atlas");
-      })
-      .catch(() => {
-        setStatus("API unavailable; using local starter atlas");
-      });
+  const resetWorkspaceLocalState = useCallback(() => {
+    setHistory({ past: [], future: [] });
+    setHasUnsavedChanges(false);
+    setSyncStatus("idle");
+    setExternalRevision("");
+    setLastSyncedAt("");
+    setActiveProposalId("");
+    setCodeIntelligenceLoaded(false);
+    codeIntelligenceLoadRef.current = null;
+    codeIntelligenceVersionRef.current = 0;
+    persistedCodeIntelligenceVersionRef.current = 0;
   }, []);
+
+  const initialiseCurrentWorkspace = useCallback(async () => {
+    try {
+      const [templateResponse, projectResponse, healthResponse] = await Promise.all([
+        api.templates(),
+        api.project(),
+        api.packHealth()
+      ]);
+      setTemplates(templateResponse.templates);
+      resetWorkspaceLocalState();
+      applyLoadedProject(projectResponse.project, projectResponse.revision);
+      setPackHealth(healthResponse.packHealth);
+      setStatus(projectResponse.loadedFromDisk ? "Loaded architecture pack" : "Loaded starter atlas");
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "no_workspace") {
+        // Onboarding will render instead of the workbench.
+        return;
+      }
+      setStatus(error instanceof Error ? error.message : "Could not load project");
+    }
+  }, [resetWorkspaceLocalState]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const registry = await api.workspaces();
+        if (cancelled) return;
+        setWorkspaceRegistry(registry);
+        if (registry.currentWorkspaceId) {
+          await initialiseCurrentWorkspace();
+        }
+      } catch (error) {
+        if (!cancelled) setStatus(error instanceof Error ? error.message : "API unavailable");
+      } finally {
+        if (!cancelled) setWorkspaceLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialiseCurrentWorkspace]);
+
+  const refreshWorkspaceRegistry = useCallback(async () => {
+    const registry = await api.workspaces();
+    setWorkspaceRegistry(registry);
+    return registry;
+  }, []);
+
+  const addWorkspaceAction = useCallback(async (path: string, name?: string) => {
+    await api.addWorkspace(path, name);
+    await refreshWorkspaceRegistry();
+    await initialiseCurrentWorkspace();
+  }, [initialiseCurrentWorkspace, refreshWorkspaceRegistry]);
+
+  const switchWorkspaceAction = useCallback(async (id: string) => {
+    await api.selectWorkspace(id);
+    await refreshWorkspaceRegistry();
+    await initialiseCurrentWorkspace();
+  }, [initialiseCurrentWorkspace, refreshWorkspaceRegistry]);
+
+  const removeWorkspaceAction = useCallback(async (id: string) => {
+    const registry = await api.removeWorkspace(id);
+    setWorkspaceRegistry(registry);
+    if (registry.currentWorkspaceId) {
+      await initialiseCurrentWorkspace();
+    } else {
+      resetWorkspaceLocalState();
+      setProject(localTemplates[0].project);
+    }
+  }, [initialiseCurrentWorkspace, resetWorkspaceLocalState]);
+
+  const renameWorkspaceAction = useCallback(async (id: string, name: string) => {
+    await api.renameWorkspace(id, name);
+    await refreshWorkspaceRegistry();
+  }, [refreshWorkspaceRegistry]);
 
   const reloadProjectFromDisk = useCallback(async (reason = "Reloaded architecture pack") => {
     const [projectResponse, healthResponse] = await Promise.all([api.project(), api.packHealth()]);
@@ -637,6 +717,43 @@ export function App() {
     setStatus(activeProposalId ? "Generated migration brief" : "Generated AI context pack");
   }
 
+  const noWorkspace = !workspaceRegistry?.currentWorkspaceId;
+
+  if (workspaceLoading) {
+    return (
+      <div className="app-shell">
+        <div className="workspace-loading">Loading System Atlas…</div>
+      </div>
+    );
+  }
+
+  if (noWorkspace) {
+    return (
+      <div className="app-shell">
+        <header className="topbar topbar-onboarding">
+          <div className="brand">
+            <div className="brand-mark"><Network size={20} /></div>
+            <div>
+              <h1>System Atlas</h1>
+              <p>Architecture workbench for your projects.</p>
+            </div>
+          </div>
+          {workspaceRegistry && workspaceRegistry.workspaces.length > 0 && (
+            <WorkspacePicker
+              workspaces={workspaceRegistry.workspaces}
+              currentId={workspaceRegistry.currentWorkspaceId}
+              onSwitch={(id) => void switchWorkspaceAction(id)}
+              onAdd={addWorkspaceAction}
+              onRemove={(id) => void removeWorkspaceAction(id)}
+              onRename={renameWorkspaceAction}
+            />
+          )}
+        </header>
+        <WorkspaceOnboarding onAdd={addWorkspaceAction} />
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -649,6 +766,14 @@ export function App() {
         </div>
 
         <div className="toolbar">
+          <WorkspacePicker
+            workspaces={workspaceRegistry?.workspaces ?? []}
+            currentId={workspaceRegistry?.currentWorkspaceId ?? null}
+            onSwitch={(id) => void switchWorkspaceAction(id)}
+            onAdd={addWorkspaceAction}
+            onRemove={(id) => void removeWorkspaceAction(id)}
+            onRename={renameWorkspaceAction}
+          />
           <select aria-label="Starter atlas" onChange={(event) => loadTemplate(event.target.value)} value="">
             <option value="" disabled>Start from...</option>
             {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
@@ -658,6 +783,8 @@ export function App() {
           </select>
           <button
             type="button"
+            className="icon-only"
+            aria-label="Reload architecture from disk"
             onClick={() => {
               if (!hasUnsavedChanges || window.confirm("Reload from disk and discard unsaved UI changes?")) {
                 reloadProjectFromDisk();
@@ -665,11 +792,11 @@ export function App() {
             }}
             title="Reload architecture files from disk"
           >
-            <RefreshCcw size={16} /> Reload
+            <RefreshCcw size={16} />
           </button>
-          <button type="button" onClick={undoProjectChange} disabled={!canUndo} title="Undo last architecture edit"><Undo2 size={16} /> Undo</button>
-          <button type="button" onClick={redoProjectChange} disabled={!canRedo} title="Redo architecture edit"><Redo2 size={16} /> Redo</button>
-          <button type="button" onClick={createCheckpoint} title="Create architecture version checkpoint"><History size={16} /> Checkpoint</button>
+          <button type="button" className="icon-only" aria-label="Undo" onClick={undoProjectChange} disabled={!canUndo} title="Undo last architecture edit"><Undo2 size={16} /></button>
+          <button type="button" className="icon-only" aria-label="Redo" onClick={redoProjectChange} disabled={!canRedo} title="Redo architecture edit"><Redo2 size={16} /></button>
+          <button type="button" className="icon-only" aria-label="Create checkpoint" onClick={createCheckpoint} title="Create architecture version checkpoint"><History size={16} /></button>
           {project.versions.length > 0 && (
             <select aria-label="Restore checkpoint" value="" onChange={(event) => restoreCheckpoint(event.target.value)} title="Restore a saved architecture checkpoint">
               <option value="" disabled>Restore...</option>
