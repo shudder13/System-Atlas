@@ -1,5 +1,18 @@
 import { AtlasProject, AtlasProposal, CodeScanResult, CodeIntelligence, ContextPackScope, PackHealth, ValidationIssue } from "../types";
 
+export interface Workspace {
+  id: string;
+  name: string;
+  path: string;
+  addedAt: string;
+  lastOpenedAt: string;
+}
+
+export interface WorkspaceRegistry {
+  workspaces: Workspace[];
+  currentWorkspaceId: string | null;
+}
+
 type ExportProjectPayload = Omit<AtlasProject, "intelligence"> & { intelligence?: CodeIntelligence };
 
 function projectPayloadForExport(project: AtlasProject, includeIntelligence: boolean): ExportProjectPayload | AtlasProject {
@@ -41,6 +54,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  workspaces: () => request<WorkspaceRegistry>("/api/workspaces"),
+  addWorkspace: (path: string, name?: string) =>
+    request<{ workspace: Workspace; created: boolean }>("/api/workspaces", {
+      method: "POST",
+      body: JSON.stringify({ path, name })
+    }),
+  selectWorkspace: (id: string) =>
+    request<{ workspace: Workspace }>(`/api/workspaces/${encodeURIComponent(id)}/select`, { method: "POST" }),
+  renameWorkspace: (id: string, name: string) =>
+    request<{ workspace: Workspace }>(`/api/workspaces/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name })
+    }),
+  removeWorkspace: (id: string) =>
+    request<WorkspaceRegistry>(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" }),
   project: () => request<{ project: AtlasProject; workspace: string; revision: string; loadedFromDisk: boolean }>("/api/project"),
   projectRevision: () => request<{ revision: string }>("/api/project/revision"),
   codeIntelligence: () => request<{ intelligence: CodeIntelligence }>("/api/code-intelligence"),
