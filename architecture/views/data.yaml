@@ -1,0 +1,20 @@
+id: data
+name: Data
+family: platform
+concern: Data ownership
+scope: data
+core: true
+description: Entities, schemas, stores, queues, caches, ownership, read/write paths, replicas, and retention-sensitive paths.
+positions:
+  store.workspaces:
+    x: 800
+    y: 100
+  container.api:
+    x: 60
+    y: 100
+  container.pack:
+    x: 320
+    y: 100
+  store.evidence:
+    x: 600
+    y: 100

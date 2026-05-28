@@ -1,0 +1,1058 @@
+id: version.0c49f8f3
+name: Architecture checkpoint 2
+summary: Manual architecture checkpoint.
+snapshot:
+  nodes:
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Maintain intended architecture
+        - Author proposals
+        - Review AI-generated diffs
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        role: Software architect / project owner
+        influence: Owner
+        successCriteria:
+          - Atlas stays in sync with repo
+          - AI agents implement migrations without drifting
+      id: stakeholder.architect
+      type: stakeholder
+      name: Architect
+      criticality: high
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Read architecture pack before opening source
+        - Implement proposal diffs
+        - Update architecture files alongside code
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        role: Claude Code, Codex, or comparable coding agent
+        influence: Implementer
+      id: stakeholder.ai_agent
+      type: stakeholder
+      name: AI Agent
+      criticality: high
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - The diagrams must not drift from the code
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        category: Operability
+        sourceStakeholder: Architect
+        priority: Critical
+        acceptanceCriteria:
+          - Pack Health reports healthy after every commit
+          - Generated files match authored source revision
+      id: concern.living_architecture
+      type: concern
+      name: Living architecture
+      criticality: critical
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - AI must not silently weaken invariants when implementing a proposal
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        category: Reliability
+        sourceStakeholder: Architect
+        priority: Critical
+        acceptanceCriteria:
+          - Every migration brief lists forbidden changes and acceptance checks
+          - Validation passes after the AI's commit
+      id: concern.ai_migration_safety
+      type: concern
+      name: AI migration safety
+      criticality: critical
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Architecture state must live in repo files reviewable in Git
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        category: Operability
+        sourceStakeholder: Architect
+        priority: High
+        acceptanceCriteria:
+          - No hidden app database
+          - Architecture pack is human-readable Markdown + YAML
+      id: concern.local_first
+      type: concern
+      name: Local-first + Git-friendly
+      criticality: high
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Edit, validate, and export a typed architecture graph
+        - Generate Mermaid, Markdown, context packs, and migration briefs for AI agents
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata: {}
+      id: system.atlas
+      type: system
+      name: System Atlas
+      criticality: high
+      architectureLevel: system
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - React Flow canvas for each architecture view
+        - Trigger Scan/Validate/Export/Brief via the API
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - src/
+        - index.html
+        - vite.config.ts
+      linkedTests: []
+      risks: []
+      metadata:
+        sla: Dev-only; no production SLA
+        scaling: Single user, single browser tab
+      id: container.web
+      type: container
+      name: Web Client (Vite + React)
+      criticality: high
+      architectureLevel: container
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Serve /api endpoints
+        - Read and write the architecture/ pack on disk
+        - Run the workspace scanner
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - server/index.ts
+      linkedTests: []
+      risks: []
+      metadata: {}
+      id: container.api
+      type: container
+      name: API Server (Express)
+      criticality: high
+      architectureLevel: container
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Hold the authored architecture state and all derived artifacts
+        - Round-trip cleanly between UI and disk
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - architecture/
+      linkedTests: []
+      risks: []
+      metadata: {}
+      id: container.pack
+      type: container
+      name: Architecture Pack (filesystem)
+      criticality: critical
+      architectureLevel: data
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Validation, layout, Mermaid, overview, context-pack, migration-brief, semantic-diff
+        - Pure functions — no I/O
+      dependencies: []
+      invariants:
+        - No filesystem or network imports in this module
+      linkedFiles:
+        - src/lib/atlas.ts
+      linkedTests:
+        - src/lib/atlas.test.ts
+      risks: []
+      metadata: {}
+      id: module.atlas_core
+      type: module
+      name: atlas-core (pure domain)
+      criticality: critical
+      architectureLevel: component
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - React Flow node/edge rendering and selection
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - src/components/AtlasCanvas.tsx
+      linkedTests: []
+      risks: []
+      metadata: {}
+      id: module.canvas
+      type: component
+      name: Atlas Canvas
+      criticality: high
+      architectureLevel: component
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Edit selected node/edge/flow properties
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - src/components/Inspector.tsx
+      linkedTests: []
+      risks: []
+      metadata: {}
+      id: module.inspector
+      type: component
+      name: Inspector
+      criticality: high
+      architectureLevel: component
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Typed forms for per-node-type metadata profiles (API contract, schema, runtime, ...)
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - src/components/StructuredEditors.tsx
+      linkedTests: []
+      risks: []
+      metadata: {}
+      id: module.structured_editors
+      type: component
+      name: Structured Editors
+      criticality: medium
+      architectureLevel: component
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Promote scanned files/classes/routes/schemas into authored atlas nodes
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - src/components/ImportReview.tsx
+      linkedTests: []
+      risks: []
+      metadata: {}
+      id: module.import_review
+      type: component
+      name: Import Review
+      criticality: medium
+      architectureLevel: component
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Browse saved project structure, files, classes, routes, schemas, deps, tests
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - src/components/CodeIntelligenceExplorer.tsx
+      linkedTests: []
+      risks: []
+      metadata: {}
+      id: module.code_intel_explorer
+      type: component
+      name: Code Intelligence Explorer
+      criticality: medium
+      architectureLevel: component
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Read/write architecture/ pack
+        - TS-compiler-based code intelligence scan
+        - Pack-health + revision hashing
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - server/atlasFiles.ts
+      linkedTests:
+        - server/atlasFiles.test.ts
+      risks: []
+      metadata: {}
+      id: module.atlas_files
+      type: module
+      name: atlas-files (I/O + scanner)
+      criticality: critical
+      architectureLevel: component
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - GET /api/project, /api/templates, /api/code-intelligence, /api/pack-health, /api/project/revision
+        - POST /api/draft/validate, /api/export, /api/scan, /api/context-pack, /api/proposal, /api/migration-brief
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        version: "0.1"
+        authMode: None (local-only)
+        baseUrl: http://localhost:5174
+        rateLimitPerMinute: 0
+        rateLimitBurst: 0
+        rateLimitScope: global
+        rateLimitEnforcedAt: none — single-user local-only API
+      id: api.rest
+      type: api_contract
+      name: REST API (/api)
+      criticality: high
+      architectureLevel: container
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - "Single-page React app that owns the entire workbench: canvas, inspector, inventory, preview panel"
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - src/App.tsx
+        - index.html
+      linkedTests: []
+      risks: []
+      metadata:
+        route: /
+        layout: App shell with sidebar inventory, central canvas, and right-side inspector
+        authRequired: false
+        components:
+          - AtlasCanvas
+          - Inspector
+          - Inventory
+          - PreviewPanel
+          - ImportReview
+          - CodeIntelligenceExplorer
+          - StructuredEditors
+        dataFetched:
+          - GET /api/project
+          - GET /api/templates
+          - GET /api/pack-health
+          - GET /api/code-intelligence
+        ssrMode: CSR (Vite SPA)
+        seo: Private/no-index — local dev tool, not deployed
+      id: page.workbench
+      type: page
+      name: Workbench (/)
+      criticality: high
+      architectureLevel: component
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - UI rendering framework
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        category: Frontend framework
+        version: ^19.0.0
+        rationale: Mature ecosystem, React Flow integration, useState/useMemo are enough for this app's state shape
+        alternatives:
+          - Svelte
+          - SolidJS
+          - Vue
+        reviewCadence: On React 20 release
+      id: tech.react
+      type: tech_choice
+      name: React 19
+      criticality: high
+      architectureLevel: domain
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Frontend dev server and bundler
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        category: Build tool
+        version: ^6.0.6
+        rationale: Fast HMR, simple config, first-class React plugin
+        alternatives:
+          - Next.js
+          - Webpack
+          - Parcel
+        reviewCadence: Yearly
+      id: tech.vite
+      type: tech_choice
+      name: Vite 6
+      criticality: medium
+      architectureLevel: domain
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Interactive node-and-edge canvas
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        category: Library
+        version: ^12.8.5
+        rationale: Production-grade graph editor; pan/zoom/select/edge-routing handled out of the box
+        alternatives:
+          - react-archer
+          - reaflow
+          - custom SVG
+        reviewCadence: Yearly
+      id: tech.xyflow
+      type: tech_choice
+      name: "@xyflow/react"
+      criticality: high
+      architectureLevel: domain
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Tiny JSON API server
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        category: Backend framework
+        version: ^5.1.0
+        rationale: Smallest dependency that gives JSON routes; the API has 11 endpoints with no auth/middleware needs
+        alternatives:
+          - Fastify
+          - Hono
+          - raw node:http
+        reviewCadence: Only if the API grows past ~30 endpoints
+      id: tech.express
+      type: tech_choice
+      name: Express 5
+      criticality: medium
+      architectureLevel: domain
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Type safety across the whole codebase
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        category: Language
+        version: ^5.7.2
+        rationale: Discriminated unions for NODE_TYPES/EDGE_TYPES/VIEW_IDS make the typed graph self-validating
+        alternatives:
+          - JS + JSDoc
+          - TypeScript without strict
+        reviewCadence: Permanent decision
+      id: tech.typescript_strict
+      type: tech_choice
+      name: TypeScript strict mode
+      criticality: critical
+      architectureLevel: domain
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Port for the Express API
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - server/index.ts
+        - vite.config.ts
+      linkedTests: []
+      risks: []
+      metadata:
+        scope: server (Express) + vite proxy
+        sensitive: false
+        required: false
+        defaultValue: "5174"
+        envExamplePath: README.md (Configuration section)
+        rotationPolicy: n/a
+      id: env.api_port
+      type: env_var
+      name: SYSTEM_ATLAS_API_PORT
+      criticality: medium
+      architectureLevel: deployment
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Port for the Vite dev server
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - vite.config.ts
+      linkedTests: []
+      risks: []
+      metadata:
+        scope: vite
+        sensitive: false
+        required: false
+        defaultValue: "5173"
+        envExamplePath: README.md (Configuration section)
+        rotationPolicy: n/a
+      id: env.web_port
+      type: env_var
+      name: SYSTEM_ATLAS_WEB_PORT
+      criticality: medium
+      architectureLevel: deployment
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Absolute path to the project whose architecture/ pack should be read and written
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - server/index.ts
+      linkedTests: []
+      risks: []
+      metadata:
+        scope: server (Express)
+        sensitive: false
+        required: false
+        defaultValue: process.cwd()
+        envExamplePath: README.md (Open a different project)
+        rotationPolicy: n/a
+      id: env.workspace
+      type: env_var
+      name: SYSTEM_ATLAS_WORKSPACE
+      criticality: high
+      architectureLevel: deployment
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Persist scanned code intelligence between sessions
+      dependencies: []
+      invariants: []
+      linkedFiles:
+        - architecture/evidence/
+      linkedTests: []
+      risks: []
+      metadata:
+        dataOwner: atlas-files
+        retention: Until next Scan rewrites it
+        consistency: Overwritten as a unit on Export
+      id: store.evidence
+      type: datastore
+      name: Evidence files
+      criticality: high
+      architectureLevel: data
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - All derived artifacts (Mermaid, MD, briefs) come from the typed graph, not free-text
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        adrStatus: Accepted
+      id: decision.graph_is_product
+      type: decision
+      name: The architecture graph is the product core
+      criticality: critical
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Architecture state is exported into architecture/ for Git review
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        adrStatus: Accepted
+      id: decision.repo_files_beat_db
+      type: decision
+      name: Repo files beat an app database for v1
+      criticality: critical
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Scanner output never silently rewrites the authored atlas
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        adrStatus: Accepted
+      id: decision.evidence_separate_from_intent
+      type: decision
+      name: Observed evidence is separate from intended design
+      criticality: high
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Migration briefs are generated from before/after snapshots, not loose prompts
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        adrStatus: Accepted
+      id: decision.proposals_first_class
+      type: decision
+      name: Proposals are first-class
+      criticality: critical
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Each view stores its own positions instead of using a single global node position
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        adrStatus: Accepted
+      id: decision.views_own_layouts
+      type: decision
+      name: Views own their layouts
+      criticality: medium
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Vite warns; mermaid and React Flow are the heavy ones
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        likelihood: Observed
+        impact: Slower first-load, no functional break
+        mitigation: Lazy-load mermaid; consider manualChunks
+      id: risk.bundle_size
+      type: risk
+      name: Client bundle creeping past 500 KB
+      criticality: medium
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Single file owns validation, layout, generation, diff, import — sustainable for now but watch for further growth
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        likelihood: Observed
+        impact: Cognitive load on changes
+        mitigation: Split along natural seams when next major feature lands
+      id: risk.atlas_monolith
+      type: risk
+      name: src/lib/atlas.ts past 2000 lines
+      criticality: medium
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Without a startup check the API is silently shadowed by whatever already owns the port
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        likelihood: Observed
+        impact: All /api calls 404 against the wrong service
+        mitigation: Startup port-conflict check; configurable port via env
+      id: risk.port_collision
+      type: risk
+      name: Default API port 5174 collides with QuantFlow
+      criticality: high
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - Export → reload → semantic equality of nodes, edges, flows, views, proposals must hold
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks: []
+      metadata:
+        measurement: Validation passes, semanticDiff returns empty after roundtrip
+      id: quality.pack_roundtrip
+      type: quality_scenario
+      name: Pack round-trip fidelity
+      criticality: high
+    - owner: architecture
+      status: active
+      confidence: manual
+      responsibilities:
+        - mermaid 11.0–11.14 has open advisories around classDefs / config sanitisation
+      dependencies: []
+      invariants: []
+      linkedFiles: []
+      linkedTests: []
+      risks:
+        - risk.bundle_size
+      metadata:
+        mitigation: npm audit fix to the next patched line; render only architect-authored input
+      id: threat.mermaid_injection
+      type: threat
+      name: Mermaid CSS/HTML injection (CVEs)
+      criticality: medium
+  edges:
+    - id: e.sys_contains_web
+      source: system.atlas
+      target: container.web
+      type: contains
+    - id: e.sys_contains_api
+      source: system.atlas
+      target: container.api
+      type: contains
+    - id: e.sys_contains_pack
+      source: system.atlas
+      target: container.pack
+      type: contains
+    - id: e.web_contains_canvas
+      source: container.web
+      target: module.canvas
+      type: contains
+    - id: e.web_contains_inspector
+      source: container.web
+      target: module.inspector
+      type: contains
+    - id: e.web_contains_structured
+      source: container.web
+      target: module.structured_editors
+      type: contains
+    - id: e.web_contains_import
+      source: container.web
+      target: module.import_review
+      type: contains
+    - id: e.web_contains_codeintel
+      source: container.web
+      target: module.code_intel_explorer
+      type: contains
+    - id: e.web_contains_atlas_core
+      source: container.web
+      target: module.atlas_core
+      type: contains
+    - id: e.api_contains_atlas_files
+      source: container.api
+      target: module.atlas_files
+      type: contains
+    - id: e.api_contains_atlas_core
+      source: container.api
+      target: module.atlas_core
+      type: contains
+    - id: e.web_calls_api
+      source: container.web
+      target: container.api
+      type: calls
+      protocol: HTTP/JSON
+      interaction: sync
+      auth: none (local)
+      description: Vite dev server proxies /api/* to the Express server
+    - id: e.api_exposes_rest
+      source: container.api
+      target: api.rest
+      type: exposes
+    - id: e.web_consumes_rest
+      source: container.web
+      target: api.rest
+      type: depends_on
+      description: Uses src/lib/api.ts wrapper
+    - id: e.canvas_depends_core
+      source: module.canvas
+      target: module.atlas_core
+      type: depends_on
+    - id: e.inspector_depends_core
+      source: module.inspector
+      target: module.atlas_core
+      type: depends_on
+    - id: e.import_depends_core
+      source: module.import_review
+      target: module.atlas_core
+      type: depends_on
+    - id: e.atlas_files_depends_core
+      source: module.atlas_files
+      target: module.atlas_core
+      type: depends_on
+    - id: e.api_writes_pack
+      source: container.api
+      target: container.pack
+      type: writes
+      description: exportAtlas writes manifest, concept files, views, generated/, evidence/
+    - id: e.api_reads_pack
+      source: container.api
+      target: container.pack
+      type: reads
+      description: loadAtlas reads on every /api/project
+    - id: e.api_writes_evidence
+      source: module.atlas_files
+      target: store.evidence
+      type: writes
+    - id: e.architect_has_living
+      source: stakeholder.architect
+      target: concern.living_architecture
+      type: has_concern
+    - id: e.architect_has_ai_safety
+      source: stakeholder.architect
+      target: concern.ai_migration_safety
+      type: has_concern
+    - id: e.architect_has_local_first
+      source: stakeholder.architect
+      target: concern.local_first
+      type: has_concern
+    - id: e.graph_decides_living
+      source: decision.graph_is_product
+      target: concern.living_architecture
+      type: addresses
+    - id: e.repo_decides_local
+      source: decision.repo_files_beat_db
+      target: concern.local_first
+      type: addresses
+    - id: e.evidence_decides_safety
+      source: decision.evidence_separate_from_intent
+      target: concern.ai_migration_safety
+      type: addresses
+    - id: e.proposals_decides_safety
+      source: decision.proposals_first_class
+      target: concern.ai_migration_safety
+      type: addresses
+    - id: e.views_decides_living
+      source: decision.views_own_layouts
+      target: concern.living_architecture
+      type: addresses
+    - id: e.risk_bundle_to_web
+      source: risk.bundle_size
+      target: container.web
+      type: risks
+    - id: e.risk_monolith_to_core
+      source: risk.atlas_monolith
+      target: module.atlas_core
+      type: risks
+    - id: e.risk_port_to_api
+      source: risk.port_collision
+      target: container.api
+      type: risks
+    - id: e.threat_mermaid_to_web
+      source: threat.mermaid_injection
+      target: container.web
+      type: threatens
+    - id: e.quality_roundtrip_pack
+      source: quality.pack_roundtrip
+      target: container.pack
+      type: traces_to
+    - id: e.architect_decides_graph
+      source: stakeholder.architect
+      target: decision.graph_is_product
+      type: decides
+    - id: e.architect_decides_repo
+      source: stakeholder.architect
+      target: decision.repo_files_beat_db
+      type: decides
+    - id: e.architect_decides_evidence
+      source: stakeholder.architect
+      target: decision.evidence_separate_from_intent
+      type: decides
+    - id: e.architect_decides_proposals
+      source: stakeholder.architect
+      target: decision.proposals_first_class
+      type: decides
+    - id: e.architect_decides_views
+      source: stakeholder.architect
+      target: decision.views_own_layouts
+      type: decides
+    - id: e.web_contains_workbench
+      source: container.web
+      target: page.workbench
+      type: contains
+    - id: e.workbench_consumes_api
+      source: page.workbench
+      target: api.rest
+      type: depends_on
+      description: All workbench data round-trips through /api/* via src/lib/api.ts
+    - id: e.web_uses_react
+      source: container.web
+      target: tech.react
+      type: depends_on
+    - id: e.web_uses_vite
+      source: container.web
+      target: tech.vite
+      type: depends_on
+    - id: e.web_uses_xyflow
+      source: container.web
+      target: tech.xyflow
+      type: depends_on
+    - id: e.api_uses_express
+      source: container.api
+      target: tech.express
+      type: depends_on
+    - id: e.sys_uses_ts
+      source: system.atlas
+      target: tech.typescript_strict
+      type: depends_on
+    - id: e.api_uses_port_env
+      source: container.api
+      target: env.api_port
+      type: depends_on
+    - id: e.api_uses_workspace_env
+      source: container.api
+      target: env.workspace
+      type: depends_on
+    - id: e.web_uses_port_env
+      source: container.web
+      target: env.web_port
+      type: depends_on
+  flows:
+    - id: flow.greenfield_design
+      name: Greenfield design → AI implementation
+      description: Architect models the intended system, creates a proposal between architecture versions, then hands an AI agent a migration brief.
+      owner: architecture
+      criticality: high
+      steps:
+        - id: s1
+          label: Start from blank or generic starter atlas
+        - id: s2
+          label: Add systems, containers, components, datastores, contracts, risks, decisions
+          nodeId: module.atlas_core
+        - id: s3
+          label: Create a proposal capturing the next architecture change
+          nodeId: decision.proposals_first_class
+        - id: s4
+          label: Generate migration brief via /api/migration-brief
+          nodeId: api.rest
+        - id: s5
+          label: AI agent implements the diff and updates architecture files together
+          nodeId: stakeholder.ai_agent
+        - id: s6
+          label: Architect reviews, validates, resolves conflicts
+      failureModes:
+        - AI silently weakens an invariant
+        - Proposal acceptance checks are too vague to verify
+      acceptanceChecks:
+        - Validation passes after import
+        - All flows still have linked tests
+      linkedTests: []
+      notes: ""
+    - id: flow.brownfield_import
+      name: Brownfield import → first atlas
+      description: Scan an existing repository, promote useful discovered facts into authored nodes, then commit the architecture pack.
+      owner: architecture
+      criticality: high
+      steps:
+        - id: s1
+          label: Point System Atlas at the consumer project (SYSTEM_ATLAS_WORKSPACE)
+          nodeId: container.api
+        - id: s2
+          label: Click Scan → /api/scan indexes structure, files, classes, routes, schemas
+          nodeId: module.atlas_files
+        - id: s3
+          label: Review Import Review and promote relevant evidence into authored nodes
+          nodeId: module.import_review
+        - id: s4
+          label: Manually model datastores, contracts, flows, risks, decisions
+          nodeId: module.inspector
+        - id: s5
+          label: Export the pack so the AI agent reads it on the next session
+          nodeId: module.atlas_files
+      failureModes:
+        - Scanner mis-classifies a file and adds noise to the atlas
+        - Architect over-promotes inferred facts without confirming them
+      acceptanceChecks:
+        - "Inferred nodes carry confidence: inferred until reviewed"
+        - Pack Health reports healthy after Export
+      linkedTests:
+        - server/atlasFiles.test.ts
+      notes: ""
+    - id: flow.autosync
+      name: UI edit → autosync export
+      description: Edits in the canvas debounce-export the pack and update Pack Health.
+      owner: architecture
+      criticality: high
+      steps:
+        - id: s1
+          label: Architect edits a node in the Inspector
+          nodeId: module.inspector
+        - id: s2
+          label: App debounces, calls /api/export with the current baseRevision
+          nodeId: api.rest
+        - id: s3
+          label: exportAtlas writes the changed concept files and regenerates derived files
+          nodeId: module.atlas_files
+        - id: s4
+          label: Pack Health turns healthy; status footer shows synced timestamp
+      failureModes:
+        - External edit happens between debounce and Export → 409 conflict
+        - Disk write fails mid-export and pack becomes misaligned
+      acceptanceChecks:
+        - 409 surfaces to the user as 'External changes — reload or force'
+        - Pack Health flags misalignment within one revision check
+      linkedTests: []
+      notes: ""
+    - id: flow.external_edit_reconcile
+      name: External edit reconciliation
+      description: When architecture files change on disk while the UI has unsaved edits, prompt the architect to reload or force-export.
+      owner: architecture
+      criticality: high
+      steps:
+        - id: s1
+          label: API polls architectureRevision()
+          nodeId: module.atlas_files
+        - id: s2
+          label: Web detects the on-disk revision diverged from the loaded one
+        - id: s3
+          label: User picks Reload (discard UI edits) or Export with force=true
+      failureModes:
+        - User force-exports and loses upstream edits
+      acceptanceChecks:
+        - Force path requires explicit confirmation
+      linkedTests: []
+      notes: ""
+createdAt: 2026-05-28T15:32:31.762Z
+source: manual

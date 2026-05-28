@@ -1,0 +1,38 @@
+id: decisions
+name: Decisions
+family: assurance
+concern: Architecture rationale
+scope: governance
+core: false
+description: ADRs, superseded decisions, tradeoffs, quality scenarios, risks, and rationale links.
+positions:
+  decision.graph_is_product:
+    x: 60
+    y: 80
+  decision.repo_files_beat_db:
+    x: 360
+    y: 80
+  decision.evidence_separate_from_intent:
+    x: 660
+    y: 80
+  decision.proposals_first_class:
+    x: 60
+    y: 240
+  decision.views_own_layouts:
+    x: 360
+    y: 240
+  tech.react:
+    x: 660
+    y: 240
+  tech.vite:
+    x: 960
+    y: 240
+  tech.xyflow:
+    x: 60
+    y: 400
+  tech.express:
+    x: 360
+    y: 400
+  tech.typescript_strict:
+    x: 660
+    y: 400

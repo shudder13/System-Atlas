@@ -204,6 +204,43 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:5173`. The API runs on `http://localhost:5174`.
 
-The API runs on `http://localhost:5174` and writes architecture files under this project folder only.
+System Atlas runs as a long-lived workbench: launch it **once** and switch between any of your projects from the in-UI picker. The list of projects (the "workspace registry") is persisted at `~/.system-atlas/workspaces.json` (or `%APPDATA%\system-atlas\workspaces.json` on Windows), so the projects you added survive restarts.
+
+On first launch you'll see an onboarding screen — paste the absolute path of the first project you want to manage. After that, use the workspace picker in the top-bar to add more projects or switch between them.
+
+### Configuration
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `SYSTEM_ATLAS_API_PORT` | `5174` | Port for the Express API |
+| `SYSTEM_ATLAS_WEB_PORT` | `5173` | Port for the Vite dev server (also rewrites the proxy target) |
+| `SYSTEM_ATLAS_WORKSPACE` | unset | Optional bootstrap. If set on startup *and* the path is not already in the registry, it's added and made current. Useful for CI scripts or the very first launch. After that, the in-UI picker is canonical. |
+
+If the chosen API port is already in use the server exits with a clear message rather than silently being shadowed.
+
+### Adding a project to System Atlas
+
+In the UI:
+
+1. Click the workspace picker in the top-bar → **Add another project**.
+2. Paste the absolute path to the project's repo root.
+3. (Optional) Give it a display name.
+
+The picker now lists the new project. Click it to switch — the workbench reloads with that project's architecture pack.
+
+### Initialise a project that doesn't have a pack yet
+
+When you switch to a project without an `architecture/` folder, the workbench loads the generic starter template instead. From there:
+
+1. In the **Starter atlas** dropdown, pick `Blank` or `Generic Service System` (or keep the auto-loaded starter).
+2. (Existing codebase only) click **Scan** to populate code evidence under `architecture/evidence/`.
+3. Click **Export** to write `architecture/manifest.yaml`, the per-concept Markdown files under `architecture/{services,modules,flows,…}/`, and the derived `architecture/generated/` files.
+4. Commit the `architecture/` folder to that project's repo.
+
+After that, every time you switch back to that workspace from the picker, the pack loads from disk.
+
+### Removing a project
+
+Each project in the picker has a delete button — this removes it from the workspace list only. The `architecture/` folder on disk is never touched.

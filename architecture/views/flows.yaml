@@ -1,0 +1,29 @@
+id: flows
+name: Flows
+family: behavior
+concern: Runtime behavior
+scope: scenario
+core: true
+description: Critical user and system journeys, traces, failure modes, and acceptance checks.
+positions:
+  container.web:
+    x: 60
+    y: 80
+  container.api:
+    x: 320
+    y: 80
+  module.atlas_files:
+    x: 580
+    y: 80
+  api.rest:
+    x: 320
+    y: 220
+  module.inspector:
+    x: 60
+    y: 220
+  module.import_review:
+    x: 60
+    y: 360
+  stakeholder.ai_agent:
+    x: 580
+    y: 360

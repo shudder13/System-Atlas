@@ -1,0 +1,8 @@
+id: code
+name: Code
+family: c4
+concern: Source structure
+scope: code
+core: false
+description: Files, packages, code symbols, contracts, linked tests, and implementation evidence.
+positions: {}

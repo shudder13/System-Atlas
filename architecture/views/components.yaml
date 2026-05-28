@@ -1,0 +1,44 @@
+id: components
+name: Components
+family: c4
+concern: Internal building blocks
+scope: component
+core: true
+description: Services, modules, components, contracts, and their implementation relationships.
+positions:
+  container.web:
+    x: 60
+    y: 60
+  module.canvas:
+    x: 60
+    y: 220
+  module.inspector:
+    x: 300
+    y: 220
+  module.structured_editors:
+    x: 540
+    y: 220
+  module.import_review:
+    x: 780
+    y: 220
+  module.code_intel_explorer:
+    x: 1020
+    y: 220
+  module.workspace_picker:
+    x: 1260
+    y: 220
+  module.atlas_core:
+    x: 540
+    y: 60
+  container.api:
+    x: 60
+    y: 420
+  module.atlas_files:
+    x: 300
+    y: 420
+  module.workspaces:
+    x: 540
+    y: 420
+  page.workbench:
+    x: 60
+    y: 420

@@ -1,0 +1,20 @@
+id: containers
+name: Containers
+family: c4
+concern: Runtime building blocks
+scope: container
+core: true
+description: Apps, services, workers, schedulers, load balancers, contracts, and external dependencies.
+positions:
+  container.web:
+    x: 80
+    y: 100
+  container.api:
+    x: 420
+    y: 100
+  container.pack:
+    x: 760
+    y: 100
+  api.rest:
+    x: 420
+    y: 280

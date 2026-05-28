@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "exportId": "a5114122-f47a-4845-a63b-4ecfb0ab2916",
+  "generatedAt": "2026-05-28T16:08:30.345Z",
+  "architectureSourceRevision": "07b2c611b506ae4ac31e3984009730ea50d8b303",
+  "project": {
+    "name": "System Atlas",
+    "updatedAt": "2026-05-28T18:00:00.000Z",
+    "nodes": 41,
+    "edges": 57,
+    "flows": 5,
+    "views": 16,
+    "proposals": 0,
+    "versions": 0
+  },
+  "kind": "evidence",
+  "artifacts": {
+    "codeMap": "architecture/evidence/code-map.json",
+    "codeIntelligence": "architecture/evidence/code-intelligence.json",
+    "splitFiles": [
+      "architecture/evidence/project-structure.json",
+      "architecture/evidence/file-summaries.json",
+      "architecture/evidence/classes.json",
+      "architecture/evidence/code-symbols.json",
+      "architecture/evidence/routes.json",
+      "architecture/evidence/schemas.json",
+      "architecture/evidence/dependencies.json",
+      "architecture/evidence/test-map.json"
+    ]
+  },
+  "codeEvidence": {
+    "items": 0
+  },
+  "codeIntelligence": {
+    "generatedAt": "",
+    "projectStructure": 0,
+    "files": 0,
+    "symbols": 0,
+    "classes": 0,
+    "routes": 0,
+    "schemas": 0,
+    "dependencies": 0,
+    "testMap": 0
+  }
+}

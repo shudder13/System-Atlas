@@ -1,0 +1,10 @@
+flowchart LR
+  module_atlas_core["atlas-core (pure domain)\nmodule"]
+  module_atlas_files["atlas-files (I/O + scanner)\nmodule"]
+  module_workspaces["workspaces registry\nmodule"]
+  api_rest["REST API (/api)\napi_contract"]
+  store_evidence["Evidence files\ndatastore"]
+  store_workspaces["Workspace registry (per-machine)\ndatastore"]
+  module_atlas_files -->|"writes"| store_evidence
+  module_workspaces -->|"writes"| store_workspaces
+  module_workspaces -->|"reads"| store_workspaces

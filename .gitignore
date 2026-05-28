@@ -6,3 +6,4 @@ coverage
 .env.local
 .vite
 tsconfig.tsbuildinfo
+.playwright-mcp/
