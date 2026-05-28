@@ -1,0 +1,293 @@
+schemaVersion: 1
+name: System Atlas
+description: Local-first architecture workbench. This pack is the dogfooded model of System Atlas itself.
+owner: architecture
+updatedAt: 2026-05-28T18:00:00.000Z
+nodes:
+  - stakeholder.architect
+  - stakeholder.ai_agent
+  - concern.living_architecture
+  - concern.ai_migration_safety
+  - concern.local_first
+  - system.atlas
+  - container.web
+  - container.api
+  - container.pack
+  - module.atlas_core
+  - module.canvas
+  - module.inspector
+  - module.structured_editors
+  - module.import_review
+  - module.code_intel_explorer
+  - module.atlas_files
+  - module.workspaces
+  - module.workspace_picker
+  - api.rest
+  - page.workbench
+  - tech.react
+  - tech.vite
+  - tech.xyflow
+  - tech.express
+  - tech.typescript_strict
+  - env.api_port
+  - env.web_port
+  - env.workspace
+  - store.evidence
+  - store.workspaces
+  - decision.graph_is_product
+  - decision.repo_files_beat_db
+  - decision.evidence_separate_from_intent
+  - decision.proposals_first_class
+  - decision.views_own_layouts
+  - decision.multi_workspace_runtime
+  - risk.bundle_size
+  - risk.atlas_monolith
+  - risk.port_collision
+  - quality.pack_roundtrip
+  - threat.mermaid_injection
+edges:
+  - id: e.sys_contains_web
+    source: system.atlas
+    target: container.web
+    type: contains
+  - id: e.sys_contains_api
+    source: system.atlas
+    target: container.api
+    type: contains
+  - id: e.sys_contains_pack
+    source: system.atlas
+    target: container.pack
+    type: contains
+  - id: e.web_contains_canvas
+    source: container.web
+    target: module.canvas
+    type: contains
+  - id: e.web_contains_inspector
+    source: container.web
+    target: module.inspector
+    type: contains
+  - id: e.web_contains_structured
+    source: container.web
+    target: module.structured_editors
+    type: contains
+  - id: e.web_contains_import
+    source: container.web
+    target: module.import_review
+    type: contains
+  - id: e.web_contains_codeintel
+    source: container.web
+    target: module.code_intel_explorer
+    type: contains
+  - id: e.web_contains_atlas_core
+    source: container.web
+    target: module.atlas_core
+    type: contains
+  - id: e.api_contains_atlas_files
+    source: container.api
+    target: module.atlas_files
+    type: contains
+  - id: e.api_contains_atlas_core
+    source: container.api
+    target: module.atlas_core
+    type: contains
+  - id: e.web_calls_api
+    source: container.web
+    target: container.api
+    type: calls
+    protocol: HTTP/JSON
+    interaction: sync
+    auth: none (local)
+    description: Vite dev server proxies /api/* to the Express server
+  - id: e.api_exposes_rest
+    source: container.api
+    target: api.rest
+    type: exposes
+  - id: e.web_consumes_rest
+    source: container.web
+    target: api.rest
+    type: depends_on
+    description: Uses src/lib/api.ts wrapper
+  - id: e.canvas_depends_core
+    source: module.canvas
+    target: module.atlas_core
+    type: depends_on
+  - id: e.inspector_depends_core
+    source: module.inspector
+    target: module.atlas_core
+    type: depends_on
+  - id: e.import_depends_core
+    source: module.import_review
+    target: module.atlas_core
+    type: depends_on
+  - id: e.atlas_files_depends_core
+    source: module.atlas_files
+    target: module.atlas_core
+    type: depends_on
+  - id: e.api_writes_pack
+    source: container.api
+    target: container.pack
+    type: writes
+    description: exportAtlas writes manifest, concept files, views, generated/, evidence/
+  - id: e.api_reads_pack
+    source: container.api
+    target: container.pack
+    type: reads
+    description: loadAtlas reads on every /api/project
+  - id: e.api_writes_evidence
+    source: module.atlas_files
+    target: store.evidence
+    type: writes
+  - id: e.api_contains_workspaces
+    source: container.api
+    target: module.workspaces
+    type: contains
+  - id: e.web_contains_picker
+    source: container.web
+    target: module.workspace_picker
+    type: contains
+  - id: e.workspaces_writes_store
+    source: module.workspaces
+    target: store.workspaces
+    type: writes
+  - id: e.workspaces_reads_store
+    source: module.workspaces
+    target: store.workspaces
+    type: reads
+  - id: e.picker_calls_rest
+    source: module.workspace_picker
+    target: api.rest
+    type: depends_on
+    description: GET/POST/PATCH/DELETE /api/workspaces[/:id[/select]]
+  - id: e.rest_exposes_workspaces
+    source: module.workspaces
+    target: api.rest
+    type: exposes
+  - id: e.architect_decides_multi
+    source: stakeholder.architect
+    target: decision.multi_workspace_runtime
+    type: decides
+  - id: e.multi_addresses_living
+    source: decision.multi_workspace_runtime
+    target: concern.living_architecture
+    type: addresses
+  - id: e.architect_has_living
+    source: stakeholder.architect
+    target: concern.living_architecture
+    type: has_concern
+  - id: e.architect_has_ai_safety
+    source: stakeholder.architect
+    target: concern.ai_migration_safety
+    type: has_concern
+  - id: e.architect_has_local_first
+    source: stakeholder.architect
+    target: concern.local_first
+    type: has_concern
+  - id: e.graph_decides_living
+    source: decision.graph_is_product
+    target: concern.living_architecture
+    type: addresses
+  - id: e.repo_decides_local
+    source: decision.repo_files_beat_db
+    target: concern.local_first
+    type: addresses
+  - id: e.evidence_decides_safety
+    source: decision.evidence_separate_from_intent
+    target: concern.ai_migration_safety
+    type: addresses
+  - id: e.proposals_decides_safety
+    source: decision.proposals_first_class
+    target: concern.ai_migration_safety
+    type: addresses
+  - id: e.views_decides_living
+    source: decision.views_own_layouts
+    target: concern.living_architecture
+    type: addresses
+  - id: e.risk_bundle_to_web
+    source: risk.bundle_size
+    target: container.web
+    type: risks
+  - id: e.risk_monolith_to_core
+    source: risk.atlas_monolith
+    target: module.atlas_core
+    type: risks
+  - id: e.risk_port_to_api
+    source: risk.port_collision
+    target: container.api
+    type: risks
+  - id: e.threat_mermaid_to_web
+    source: threat.mermaid_injection
+    target: container.web
+    type: threatens
+  - id: e.quality_roundtrip_pack
+    source: quality.pack_roundtrip
+    target: container.pack
+    type: traces_to
+  - id: e.architect_decides_graph
+    source: stakeholder.architect
+    target: decision.graph_is_product
+    type: decides
+  - id: e.architect_decides_repo
+    source: stakeholder.architect
+    target: decision.repo_files_beat_db
+    type: decides
+  - id: e.architect_decides_evidence
+    source: stakeholder.architect
+    target: decision.evidence_separate_from_intent
+    type: decides
+  - id: e.architect_decides_proposals
+    source: stakeholder.architect
+    target: decision.proposals_first_class
+    type: decides
+  - id: e.architect_decides_views
+    source: stakeholder.architect
+    target: decision.views_own_layouts
+    type: decides
+  - id: e.web_contains_workbench
+    source: container.web
+    target: page.workbench
+    type: contains
+  - id: e.workbench_consumes_api
+    source: page.workbench
+    target: api.rest
+    type: depends_on
+    description: All workbench data round-trips through /api/* via src/lib/api.ts
+  - id: e.web_uses_react
+    source: container.web
+    target: tech.react
+    type: depends_on
+  - id: e.web_uses_vite
+    source: container.web
+    target: tech.vite
+    type: depends_on
+  - id: e.web_uses_xyflow
+    source: container.web
+    target: tech.xyflow
+    type: depends_on
+  - id: e.api_uses_express
+    source: container.api
+    target: tech.express
+    type: depends_on
+  - id: e.sys_uses_ts
+    source: system.atlas
+    target: tech.typescript_strict
+    type: depends_on
+  - id: e.api_uses_port_env
+    source: container.api
+    target: env.api_port
+    type: depends_on
+  - id: e.api_uses_workspace_env
+    source: container.api
+    target: env.workspace
+    type: depends_on
+  - id: e.web_uses_port_env
+    source: container.web
+    target: env.web_port
+    type: depends_on
+flows:
+  - flow.greenfield_design
+  - flow.brownfield_import
+  - flow.autosync
+  - flow.workspace_switch
+  - flow.external_edit_reconcile
+proposals: []
+versions: []

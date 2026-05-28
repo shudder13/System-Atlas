@@ -1,0 +1,33 @@
+flowchart LR
+  container_web["Web Client (Vite + React)\ncontainer"]
+  container_api["API Server (Express)\ncontainer"]
+  container_pack["Architecture Pack (filesystem)\ncontainer"]
+  module_atlas_core["atlas-core (pure domain)\nmodule"]
+  module_canvas["Atlas Canvas\ncomponent"]
+  module_inspector["Inspector\ncomponent"]
+  module_structured_editors["Structured Editors\ncomponent"]
+  module_import_review["Import Review\ncomponent"]
+  module_code_intel_explorer["Code Intelligence Explorer\ncomponent"]
+  module_atlas_files["atlas-files (I/O + scanner)\nmodule"]
+  module_workspaces["workspaces registry\nmodule"]
+  module_workspace_picker["Workspace Picker + Onboarding\ncomponent"]
+  api_rest["REST API (/api)\napi_contract"]
+  container_web -->|"contains"| module_canvas
+  container_web -->|"contains"| module_inspector
+  container_web -->|"contains"| module_structured_editors
+  container_web -->|"contains"| module_import_review
+  container_web -->|"contains"| module_code_intel_explorer
+  container_web -->|"contains"| module_atlas_core
+  container_api -->|"contains"| module_atlas_files
+  container_api -->|"contains"| module_atlas_core
+  container_web -->|"calls"| container_api
+  container_api -->|"exposes"| api_rest
+  container_web -->|"depends_on"| api_rest
+  module_canvas -->|"depends_on"| module_atlas_core
+  module_inspector -->|"depends_on"| module_atlas_core
+  module_import_review -->|"depends_on"| module_atlas_core
+  module_atlas_files -->|"depends_on"| module_atlas_core
+  container_api -->|"contains"| module_workspaces
+  container_web -->|"contains"| module_workspace_picker
+  module_workspace_picker -->|"depends_on"| api_rest
+  module_workspaces -->|"exposes"| api_rest

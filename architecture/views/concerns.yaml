@@ -1,0 +1,32 @@
+id: concerns
+name: Concerns
+family: assurance
+concern: Stakeholder concerns
+scope: architecture-description
+core: true
+description: Stakeholders, concerns, quality drivers, risks, decisions, and the architecture elements that address them.
+positions:
+  stakeholder.architect:
+    x: 60
+    y: 80
+  stakeholder.ai_agent:
+    x: 60
+    y: 220
+  concern.living_architecture:
+    x: 360
+    y: 80
+  concern.ai_migration_safety:
+    x: 360
+    y: 220
+  concern.local_first:
+    x: 360
+    y: 360
+  decision.graph_is_product:
+    x: 660
+    y: 80
+  decision.proposals_first_class:
+    x: 660
+    y: 220
+  decision.repo_files_beat_db:
+    x: 660
+    y: 360

@@ -1,0 +1,12 @@
+flowchart LR
+  system_atlas["System Atlas\nsystem"]
+  container_web["Web Client (Vite + React)\ncontainer"]
+  container_api["API Server (Express)\ncontainer"]
+  container_pack["Architecture Pack (filesystem)\ncontainer"]
+  api_rest["REST API (/api)\napi_contract"]
+  system_atlas -->|"contains"| container_web
+  system_atlas -->|"contains"| container_api
+  system_atlas -->|"contains"| container_pack
+  container_web -->|"calls"| container_api
+  container_api -->|"exposes"| api_rest
+  container_web -->|"depends_on"| api_rest

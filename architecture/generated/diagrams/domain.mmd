@@ -1,0 +1,39 @@
+flowchart LR
+  system_atlas["System Atlas\nsystem"]
+  container_web["Web Client (Vite + React)\ncontainer"]
+  container_api["API Server (Express)\ncontainer"]
+  container_pack["Architecture Pack (filesystem)\ncontainer"]
+  module_atlas_core["atlas-core (pure domain)\nmodule"]
+  module_canvas["Atlas Canvas\ncomponent"]
+  module_inspector["Inspector\ncomponent"]
+  module_structured_editors["Structured Editors\ncomponent"]
+  module_import_review["Import Review\ncomponent"]
+  module_code_intel_explorer["Code Intelligence Explorer\ncomponent"]
+  module_atlas_files["atlas-files (I/O + scanner)\nmodule"]
+  module_workspaces["workspaces registry\nmodule"]
+  module_workspace_picker["Workspace Picker + Onboarding\ncomponent"]
+  api_rest["REST API (/api)\napi_contract"]
+  tech_react["React 19\ntech_choice"]
+  tech_vite["Vite 6\ntech_choice"]
+  tech_xyflow["@xyflow/react\ntech_choice"]
+  tech_express["Express 5\ntech_choice"]
+  tech_typescript_strict["TypeScript strict mode\ntech_choice"]
+  decision_graph_is_product["The architecture graph is the product core\ndecision"]
+  decision_repo_files_beat_db["Repo files beat an app database for v1\ndecision"]
+  decision_evidence_separate_from_intent["Observed evidence is separate from intended design\ndecision"]
+  decision_proposals_first_class["Proposals are first-class\ndecision"]
+  decision_views_own_layouts["Views own their layouts\ndecision"]
+  decision_multi_workspace_runtime["Workspace is runtime state, not env-locked\ndecision"]
+  system_atlas -->|"contains"| container_web
+  system_atlas -->|"contains"| container_api
+  system_atlas -->|"contains"| container_pack
+  container_web -->|"contains"| module_canvas
+  container_web -->|"contains"| module_inspector
+  container_web -->|"contains"| module_structured_editors
+  container_web -->|"contains"| module_import_review
+  container_web -->|"contains"| module_code_intel_explorer
+  container_web -->|"contains"| module_atlas_core
+  container_api -->|"contains"| module_atlas_files
+  container_api -->|"contains"| module_atlas_core
+  container_api -->|"contains"| module_workspaces
+  container_web -->|"contains"| module_workspace_picker

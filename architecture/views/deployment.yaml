@@ -1,0 +1,17 @@
+id: deployment
+name: Deployment
+family: platform
+concern: Physical/runtime topology
+scope: environment
+core: true
+description: Environments, regions, deployment nodes, replicas, routing, and operational topology.
+positions:
+  env.api_port:
+    x: 60
+    y: 100
+  env.web_port:
+    x: 320
+    y: 100
+  env.workspace:
+    x: 580
+    y: 100

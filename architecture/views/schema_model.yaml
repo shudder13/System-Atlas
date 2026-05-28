@@ -1,0 +1,8 @@
+id: schema_model
+name: Schema Model
+family: platform
+concern: Database model
+scope: data
+core: true
+description: Database schemas, entities, tables, columns, keys, indexes, relations, replicas, migrations, and read/write ownership.
+positions: {}

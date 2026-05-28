@@ -1,0 +1,11 @@
+flowchart LR
+  api_rest["REST API (/api)\napi_contract"]
+  env_api_port["SYSTEM_ATLAS_API_PORT\nenv_var"]
+  env_web_port["SYSTEM_ATLAS_WEB_PORT\nenv_var"]
+  env_workspace["SYSTEM_ATLAS_WORKSPACE\nenv_var"]
+  store_evidence["Evidence files\ndatastore"]
+  store_workspaces["Workspace registry (per-machine)\ndatastore"]
+  risk_bundle_size["Client bundle creeping past 500 KB\nrisk"]
+  risk_atlas_monolith["src/lib/atlas.ts past 2000 lines\nrisk"]
+  risk_port_collision["Default API port 5174 collides with a-private-project\nrisk"]
+  threat_mermaid_injection["Mermaid CSS/HTML injection (CVEs)\nthreat"]

@@ -1,0 +1,8 @@
+id: class_diagram
+name: Classes
+family: c4
+concern: Object model
+scope: code
+core: false
+description: Saved class and interface model from code intelligence, including attributes, methods, inheritance, implementation, and test links.
+positions: {}

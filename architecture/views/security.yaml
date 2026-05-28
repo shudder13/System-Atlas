@@ -1,0 +1,14 @@
+id: security
+name: Security
+family: assurance
+concern: Trust and threats
+scope: trust-boundary
+core: false
+description: Trust boundaries, authentication, authorization, threats, mitigations, sensitive data, and controls.
+positions:
+  threat.mermaid_injection:
+    x: 60
+    y: 80
+  container.web:
+    x: 360
+    y: 80

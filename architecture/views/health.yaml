@@ -1,0 +1,29 @@
+id: health
+name: Health
+family: assurance
+concern: Quality and reliability
+scope: quality
+core: true
+description: Risks, quality scenarios, reliability concerns, stale architecture, regression exposure, and test gaps.
+positions:
+  risk.bundle_size:
+    x: 60
+    y: 80
+  risk.atlas_monolith:
+    x: 360
+    y: 80
+  risk.port_collision:
+    x: 660
+    y: 80
+  quality.pack_roundtrip:
+    x: 60
+    y: 240
+  container.web:
+    x: 360
+    y: 240
+  container.api:
+    x: 660
+    y: 240
+  module.atlas_core:
+    x: 960
+    y: 80

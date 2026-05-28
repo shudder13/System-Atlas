@@ -1,0 +1,35 @@
+id: overview
+name: Context
+family: c4
+concern: System boundary
+scope: system
+core: true
+description: C4-style system boundary, actors, client surfaces, owned systems, teams, and external dependencies.
+positions:
+  stakeholder.architect:
+    x: 80
+    y: 80
+  stakeholder.ai_agent:
+    x: 80
+    y: 220
+  concern.living_architecture:
+    x: 80
+    y: 360
+  concern.ai_migration_safety:
+    x: 80
+    y: 480
+  concern.local_first:
+    x: 80
+    y: 600
+  system.atlas:
+    x: 420
+    y: 80
+  container.web:
+    x: 420
+    y: 240
+  container.api:
+    x: 700
+    y: 240
+  container.pack:
+    x: 980
+    y: 240

@@ -1,0 +1,8 @@
+id: proposals
+name: Proposals
+family: assurance
+concern: Change planning
+scope: proposal
+core: true
+description: Architecture change proposals, before/after impact, migration briefs, and acceptance checks.
+positions: {}

@@ -1,0 +1,23 @@
+id: domain
+name: Domain
+family: domain
+concern: Domain model
+scope: bounded-context
+core: false
+description: Bounded contexts, domain entities, contracts, events, teams, and model ownership.
+positions:
+  tech.react:
+    x: 60
+    y: 80
+  tech.vite:
+    x: 360
+    y: 80
+  tech.xyflow:
+    x: 660
+    y: 80
+  tech.express:
+    x: 60
+    y: 240
+  tech.typescript_strict:
+    x: 360
+    y: 240

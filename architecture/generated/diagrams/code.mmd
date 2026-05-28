@@ -1,0 +1,18 @@
+flowchart LR
+  module_atlas_core["atlas-core (pure domain)\nmodule"]
+  module_canvas["Atlas Canvas\ncomponent"]
+  module_inspector["Inspector\ncomponent"]
+  module_structured_editors["Structured Editors\ncomponent"]
+  module_import_review["Import Review\ncomponent"]
+  module_code_intel_explorer["Code Intelligence Explorer\ncomponent"]
+  module_atlas_files["atlas-files (I/O + scanner)\nmodule"]
+  module_workspaces["workspaces registry\nmodule"]
+  module_workspace_picker["Workspace Picker + Onboarding\ncomponent"]
+  api_rest["REST API (/api)\napi_contract"]
+  page_workbench["Workbench (/)\npage"]
+  module_canvas -->|"depends_on"| module_atlas_core
+  module_inspector -->|"depends_on"| module_atlas_core
+  module_import_review -->|"depends_on"| module_atlas_core
+  module_atlas_files -->|"depends_on"| module_atlas_core
+  module_workspace_picker -->|"depends_on"| api_rest
+  page_workbench -->|"depends_on"| api_rest

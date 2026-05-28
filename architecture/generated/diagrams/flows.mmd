@@ -1,0 +1,30 @@
+flowchart LR
+  stakeholder_ai_agent["AI Agent\nstakeholder"]
+  concern_living_architecture["Living architecture\nconcern"]
+  concern_ai_migration_safety["AI migration safety\nconcern"]
+  container_web["Web Client (Vite + React)\ncontainer"]
+  container_api["API Server (Express)\ncontainer"]
+  container_pack["Architecture Pack (filesystem)\ncontainer"]
+  module_atlas_core["atlas-core (pure domain)\nmodule"]
+  module_canvas["Atlas Canvas\ncomponent"]
+  module_inspector["Inspector\ncomponent"]
+  module_structured_editors["Structured Editors\ncomponent"]
+  module_import_review["Import Review\ncomponent"]
+  module_code_intel_explorer["Code Intelligence Explorer\ncomponent"]
+  module_atlas_files["atlas-files (I/O + scanner)\nmodule"]
+  module_workspaces["workspaces registry\nmodule"]
+  module_workspace_picker["Workspace Picker + Onboarding\ncomponent"]
+  api_rest["REST API (/api)\napi_contract"]
+  page_workbench["Workbench (/)\npage"]
+  tech_typescript_strict["TypeScript strict mode\ntech_choice"]
+  store_evidence["Evidence files\ndatastore"]
+  store_workspaces["Workspace registry (per-machine)\ndatastore"]
+  decision_graph_is_product["The architecture graph is the product core\ndecision"]
+  decision_repo_files_beat_db["Repo files beat an app database for v1\ndecision"]
+  decision_proposals_first_class["Proposals are first-class\ndecision"]
+  container_web -->|"calls"| container_api
+  container_api -->|"writes"| container_pack
+  container_api -->|"reads"| container_pack
+  module_atlas_files -->|"writes"| store_evidence
+  module_workspaces -->|"writes"| store_workspaces
+  module_workspaces -->|"reads"| store_workspaces

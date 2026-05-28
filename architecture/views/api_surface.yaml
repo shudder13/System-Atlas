@@ -1,0 +1,20 @@
+id: api_surface
+name: API Surface
+family: behavior
+concern: Public contracts
+scope: contract
+core: true
+description: API contracts, discovered routes, exposed endpoints, auth concerns, linked tests, and services that implement or depend on them.
+positions:
+  api.rest:
+    x: 320
+    y: 120
+  container.web:
+    x: 60
+    y: 120
+  container.api:
+    x: 620
+    y: 120
+  page.workbench:
+    x: 60
+    y: 280

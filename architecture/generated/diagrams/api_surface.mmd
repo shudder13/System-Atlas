@@ -1,0 +1,22 @@
+flowchart LR
+  container_web["Web Client (Vite + React)\ncontainer"]
+  container_api["API Server (Express)\ncontainer"]
+  container_pack["Architecture Pack (filesystem)\ncontainer"]
+  module_atlas_core["atlas-core (pure domain)\nmodule"]
+  module_atlas_files["atlas-files (I/O + scanner)\nmodule"]
+  module_workspaces["workspaces registry\nmodule"]
+  api_rest["REST API (/api)\napi_contract"]
+  page_workbench["Workbench (/)\npage"]
+  risk_bundle_size["Client bundle creeping past 500 KB\nrisk"]
+  risk_atlas_monolith["src/lib/atlas.ts past 2000 lines\nrisk"]
+  risk_port_collision["Default API port 5174 collides with a-private-project\nrisk"]
+  quality_pack_roundtrip["Pack round-trip fidelity\nquality_scenario"]
+  container_web -->|"calls"| container_api
+  container_api -->|"exposes"| api_rest
+  container_web -->|"depends_on"| api_rest
+  module_atlas_files -->|"depends_on"| module_atlas_core
+  module_workspaces -->|"exposes"| api_rest
+  risk_bundle_size -->|"risks"| container_web
+  risk_atlas_monolith -->|"risks"| module_atlas_core
+  risk_port_collision -->|"risks"| container_api
+  page_workbench -->|"depends_on"| api_rest
