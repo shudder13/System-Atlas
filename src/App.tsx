@@ -2,9 +2,11 @@ import {
   AlertTriangle,
   Bot,
   Boxes,
+  Check,
   CheckCircle2,
   Cloud,
   Code2,
+  Copy,
   Database,
   FileDown,
   FileText,
@@ -96,7 +98,9 @@ export function App() {
   const [viewId, setViewId] = useState<ViewId>("overview");
   const [edgeType, setEdgeType] = useState<(typeof EDGE_TYPES)[number]>("calls");
   const [nodeType, setNodeType] = useState<NodeType>("service");
-  const [previewTab, setPreviewTab] = useState<"overview" | "mermaid" | "validation" | "review" | "ai">("overview");
+  const [previewTab, setPreviewTab] = useState<"overview" | "validation" | "review" | "ai">("overview");
+  const [canvasMode, setCanvasMode] = useState<"graph" | "mermaid">("graph");
+  const [mermaidCopied, setMermaidCopied] = useState(false);
   const [rightPanelMode, setRightPanelMode] = useState<"inspector" | "code" | "import">("inspector");
   const [issues, setIssues] = useState<ValidationIssue[]>(validateAtlas(localTemplates[0].project));
   const [aiBrief, setAiBrief] = useState(generateContextPack(localTemplates[0].project, [], undefined, "focused"));
@@ -346,6 +350,15 @@ export function App() {
   const overview = useMemo(() => generateOverview(workingProject), [workingProject]);
   const architectureReview = useMemo(() => previewTab === "review" ? generateArchitectureReview(workingProject) : "", [workingProject, previewTab]);
   const mermaid = useMemo(() => generateMermaid(workingProject, viewId), [workingProject, viewId]);
+  const copyMermaid = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(mermaid);
+      setMermaidCopied(true);
+      window.setTimeout(() => setMermaidCopied(false), 1600);
+    } catch {
+      setStatus("Clipboard unavailable; select the text to copy manually");
+    }
+  }, [mermaid]);
   const migrationBrief = useMemo(() => {
     if (!activeProposal) return generateMigrationBrief(workingProject);
     return generateMigrationBrief(project, activeProposal);
@@ -859,6 +872,10 @@ export function App() {
               <p>{workingProject.views.find((view) => view.id === viewId)?.description}</p>
             </div>
             <div className="canvas-metrics">
+              <div className="canvas-mode-toggle" role="group" aria-label="Canvas mode">
+                <button type="button" className={canvasMode === "graph" ? "active" : ""} onClick={() => setCanvasMode("graph")} title="Interactive graph for this view"><Network size={14} /> Graph</button>
+                <button type="button" className={canvasMode === "mermaid" ? "active" : ""} onClick={() => setCanvasMode("mermaid")} title="Mermaid source for this view"><Code2 size={14} /> Mermaid</button>
+              </div>
               <span><Boxes size={14} /> {graph.nodes.length} nodes</span>
               <span><Workflow size={14} /> {graph.edges.length} edges</span>
               {diff && <span><AlertTriangle size={14} /> {diff.addedNodes.length + diff.removedNodes.length + diff.changedNodes.length} proposed changes</span>}
@@ -866,36 +883,47 @@ export function App() {
               <button type="button" onClick={addFlow} title="Add flow"><Plus size={14} /> Add Flow</button>
             </div>
           </div>
-          <AtlasCanvas
-            viewId={viewId}
-            nodes={graph.nodes}
-            edges={graph.edges}
-            selectedId={selectedId}
-            highlightedNodeIds={viewId === "flows" ? selectedFlowNodeIds : []}
-            onSelect={setSelectedId}
-            onConnect={connect}
-            onPositionChange={(positions) => {
-              const nextPositions: NonNullable<AtlasProject["views"][number]["positions"]> = {};
-              positions.forEach((position, id) => {
-                if (position) nextPositions[id] = position;
-              });
+          {canvasMode === "graph" ? (
+            <AtlasCanvas
+              viewId={viewId}
+              nodes={graph.nodes}
+              edges={graph.edges}
+              selectedId={selectedId}
+              highlightedNodeIds={viewId === "flows" ? selectedFlowNodeIds : []}
+              onSelect={setSelectedId}
+              onConnect={connect}
+              onPositionChange={(positions) => {
+                const nextPositions: NonNullable<AtlasProject["views"][number]["positions"]> = {};
+                positions.forEach((position, id) => {
+                  if (position) nextPositions[id] = position;
+                });
 
-              updateProject({
-                ...workingProject,
-                views: workingProject.views.map((view) =>
-                  view.id === viewId
-                    ? { ...view, positions: { ...(view.positions ?? {}), ...nextPositions } }
-                    : view
-                )
-              }, { recordHistory: false });
-            }}
-            key={viewId}
-          />
+                updateProject({
+                  ...workingProject,
+                  views: workingProject.views.map((view) =>
+                    view.id === viewId
+                      ? { ...view, positions: { ...(view.positions ?? {}), ...nextPositions } }
+                      : view
+                  )
+                }, { recordHistory: false });
+              }}
+              key={viewId}
+            />
+          ) : (
+            <div className="canvas-mermaid">
+              <div className="canvas-mermaid-bar">
+                <span>Mermaid source · {workingProject.views.find((view) => view.id === viewId)?.name ?? viewId} view</span>
+                <button type="button" onClick={copyMermaid} title="Copy Mermaid source to clipboard">
+                  {mermaidCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                </button>
+              </div>
+              <pre>{mermaid}</pre>
+            </div>
+          )}
           <PreviewPanel
             tab={previewTab}
             onTabChange={setPreviewTab}
             overview={overview}
-            mermaid={mermaid}
             issues={issues}
             architectureReview={architectureReview}
             aiBrief={aiBrief}
