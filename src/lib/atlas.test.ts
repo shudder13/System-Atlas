@@ -6,6 +6,7 @@ import {
   createProposal,
   createVersion,
   defaultViews,
+  generateArchitectureDoc,
   generateArchitectureReview,
   generateContextPack,
   generateImportCandidates,
@@ -86,6 +87,24 @@ describe("atlas generators", () => {
     const overview = generateOverview(project);
     expect(overview).toContain("# Generic Service System");
     expect(overview).toContain("## Critical Areas");
+  });
+
+  it("generates a narrative architecture document from the graph", () => {
+    const doc = generateArchitectureDoc(project);
+    // Title + provenance banner so a human reader knows it is generated.
+    expect(doc).toContain("# Generic Service System — Architecture");
+    expect(doc).toContain("generateArchitectureDoc");
+    // Embedded system diagram reuses the overview Mermaid — prose and canvas cannot disagree.
+    expect(doc).toContain("## System Diagram");
+    expect(doc).toContain("```mermaid");
+    // Sections assembled from grouped node types, with real node names flowing through.
+    expect(doc).toContain("## Services & Containers");
+    expect(doc).toContain("API Service");
+    expect(doc).toContain("## Data Stores");
+    expect(doc).toContain("Primary Database");
+    expect(doc).toContain("## Technology Stack");
+    expect(doc).toContain("## Key Decisions");
+    expect(doc).toContain("## Risks & Known Issues");
   });
 
   it("generates an architecture practice review", () => {

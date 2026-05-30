@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "exportId": "a5114122-f47a-4845-a63b-4ecfb0ab2916",
-  "generatedAt": "2026-05-28T16:08:30.345Z",
-  "architectureSourceRevision": "07b2c611b506ae4ac31e3984009730ea50d8b303",
+  "exportId": "830928de-2245-4794-af17-80072c618339",
+  "generatedAt": "2026-05-30T20:31:57.556Z",
+  "architectureSourceRevision": "57864ba1e49cd2e65bf38c410d01018345635bef",
   "project": {
     "name": "System Atlas",
     "updatedAt": "2026-05-28T18:00:00.000Z",
@@ -18,6 +18,7 @@
     "atlasSnapshot": "architecture/generated/atlas.json",
     "overview": "architecture/generated/overview.md",
     "contextPack": "architecture/generated/context-pack.md",
+    "architectureDoc": "architecture/generated/ARCHITECTURE.md",
     "diagrams": [
       "architecture/generated/diagrams/overview.mmd",
       "architecture/generated/diagrams/containers.mmd",

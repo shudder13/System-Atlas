@@ -1276,6 +1276,268 @@ export function generateOverview(project: AtlasProject): string {
   ].join("\n");
 }
 
+// Narrative architecture document generated entirely from the typed graph, so the
+// atlas fully subsumes a hand-written ARCHITECTURE.md. Mirrors the other pure
+// generators above: assemble a Markdown string, group by node type/level, and reuse
+// generateMermaid for the embedded system diagram so the prose and the canvas can
+// never disagree about the system shape.
+export function generateArchitectureDoc(project: AtlasProject): string {
+  const byType = groupBy(project.nodes, (node) => node.type);
+  const nodeName = new Map(project.nodes.map((node) => [node.id, node.name]));
+  const ofTypes = (...types: NodeType[]): AtlasNode[] => types.flatMap((type) => byType[type] ?? []);
+
+  const systems = ofTypes("system");
+  const stakeholders = ofTypes("stakeholder");
+  const concerns = ofTypes("concern");
+  const services = ofTypes("container", "app", "service", "worker", "scheduler", "load_balancer");
+  const externals = ofTypes("external_system");
+  const contracts = ofTypes("api_contract", "event_contract", "contract");
+  const pages = ofTypes("page");
+  const stores = ofTypes("datastore", "replica", "queue", "cache");
+  const dataModel = ofTypes("schema", "data_entity");
+  const deployment = ofTypes("environment", "region", "deployment_node");
+  const envVars = ofTypes("env_var");
+  const techChoices = ofTypes("tech_choice");
+  const decisions = ofTypes("decision");
+  const risks = ofTypes("risk");
+  const threats = ofTypes("threat");
+  const qualityScenarios = ofTypes("quality_scenario");
+
+  // has_concern: stakeholder/team/actor -> concern.  addresses: element -> concern.
+  const concernsFor = new Map<string, string[]>();
+  const addressedBy = new Map<string, string[]>();
+  for (const edge of project.edges) {
+    if (edge.type === "has_concern") concernsFor.set(edge.source, [...(concernsFor.get(edge.source) ?? []), edge.target]);
+    if (edge.type === "addresses") addressedBy.set(edge.target, [...(addressedBy.get(edge.target) ?? []), edge.source]);
+  }
+
+  const out: string[] = [
+    `# ${project.manifest.name} — Architecture`,
+    "",
+    "> Generated from the System Atlas pack by `generateArchitectureDoc`. Treat the typed atlas graph as the source of truth — change the authored concept files under `architecture/` (or the project's `scripts/build-*-atlas.ts` regenerator) and re-export instead of editing this file by hand.",
+    "",
+    project.manifest.description
+  ];
+
+  out.push("", "## System Context");
+  if (systems.length) {
+    for (const system of systems) {
+      out.push("", `### ${system.name}`, "", `**Criticality:** ${system.criticality} · **Owner:** ${system.owner} · **Status:** ${system.status}`);
+      if (system.notes?.trim()) out.push("", system.notes.trim());
+      if (system.responsibilities.length) out.push("", ...system.responsibilities.map((item) => `- ${item}`));
+    }
+  } else {
+    out.push("", "- No system-level node modeled yet.");
+  }
+
+  if (stakeholders.length || concerns.length) {
+    out.push("", "## Stakeholders & Concerns");
+    if (stakeholders.length) {
+      out.push("", "### Stakeholders", "");
+      for (const person of stakeholders) {
+        const role = docMetaText(person, "role");
+        const cares = (concernsFor.get(person.id) ?? []).map((id) => nodeName.get(id) ?? id);
+        const detail = [role && `_${role}_`, cares.length ? `cares about ${cares.join(", ")}` : ""].filter(Boolean).join(" — ");
+        out.push(`- **${person.name}**${detail ? ` — ${detail}` : ""}`);
+      }
+    }
+    if (concerns.length) {
+      out.push("", "### Concerns", "");
+      for (const concern of concerns) {
+        const tags = [docMetaText(concern, "category"), docMetaText(concern, "priority") && `priority ${docMetaText(concern, "priority")}`].filter(Boolean).join(", ");
+        const body = concern.responsibilities[0] ?? concern.notes?.trim() ?? "";
+        const addressers = (addressedBy.get(concern.id) ?? []).map((id) => nodeName.get(id) ?? id);
+        out.push(`- **${concern.name}**${tags ? ` (${tags})` : ""}${body ? ` — ${body}` : ""}${addressers.length ? ` _(addressed by: ${addressers.join(", ")})_` : ""}`);
+      }
+    }
+  }
+
+  out.push("", "## System Diagram", "", "```mermaid", generateMermaid(project, "overview"), "```");
+
+  out.push("", "## Services & Containers", "");
+  if (services.length) {
+    out.push(...mdTableLines(
+      ["Name", "Type", "Criticality", "Responsibilities", "Key files"],
+      services.map((node) => [node.name, titleCase(node.type), node.criticality, node.responsibilities.join("; "), node.linkedFiles.map((file) => `\`${file}\``).join(", ")])
+    ));
+  } else {
+    out.push("- No services or containers modeled yet.");
+  }
+
+  if (externals.length) {
+    out.push("", "## External Systems", "");
+    for (const ext of externals) {
+      const provider = docMetaText(ext, "provider");
+      const parts = [ext.responsibilities.join("; "), ext.risks.length ? `_risks:_ ${ext.risks.join("; ")}` : ""].filter(Boolean).join(" · ");
+      out.push(`- **${ext.name}**${provider ? ` (${provider})` : ""}${parts ? ` — ${parts}` : ""}`);
+    }
+  }
+
+  if (contracts.length) {
+    out.push("", "## APIs & Contracts", "");
+    for (const contract of contracts) {
+      const signature = [docMetaText(contract, "routeMethod"), docMetaText(contract, "routePath")].filter(Boolean).join(" ");
+      const auth = docMetaText(contract, "auth") || docMetaText(contract, "authMode");
+      const parts = [signature && `\`${signature}\``, auth && `auth: ${auth}`, contract.responsibilities.join("; ")].filter(Boolean).join(" · ");
+      out.push(`- **${contract.name}** (${titleCase(contract.type)})${parts ? ` — ${parts}` : ""}`);
+    }
+  }
+
+  if (pages.length) {
+    out.push("", "## Frontend Pages", "");
+    for (const page of pages) {
+      const route = docMetaText(page, "route");
+      const parts = [route && `route \`${route}\``, page.responsibilities.join("; ")].filter(Boolean).join(" — ");
+      out.push(`- **${page.name}**${parts ? ` — ${parts}` : ""}`);
+    }
+  }
+
+  out.push("", "## Data Stores", "");
+  if (stores.length) {
+    out.push(...mdTableLines(
+      ["Store", "Type", "Owner", "Retention", "Consistency"],
+      stores.map((node) => [node.name, titleCase(node.type), docMetaText(node, "dataOwner"), docMetaText(node, "retention"), docMetaText(node, "consistency")])
+    ));
+  } else {
+    out.push("- No data stores modeled yet.");
+  }
+  if (dataModel.length) {
+    out.push("", "### Schemas & Entities", "");
+    for (const entity of dataModel) {
+      const keys = docMetaList(entity, "primaryKeys");
+      const parts = [entity.responsibilities.join("; "), keys.length ? `PK: ${keys.join(", ")}` : ""].filter(Boolean).join(" · ");
+      out.push(`- **${entity.name}** (${titleCase(entity.type)})${parts ? ` — ${parts}` : ""}`);
+    }
+  }
+
+  if (deployment.length || envVars.length) {
+    out.push("", "## Deployment & Configuration", "");
+    if (deployment.length) {
+      for (const dep of deployment) {
+        const location = [docMetaText(dep, "cloud"), docMetaText(dep, "region")].filter(Boolean).join(" / ");
+        const parts = [location, dep.responsibilities.join("; ")].filter(Boolean).join(" — ");
+        out.push(`- **${dep.name}** (${titleCase(dep.type)})${parts ? ` — ${parts}` : ""}`);
+      }
+      out.push("");
+    }
+    if (envVars.length) {
+      out.push("### Environment Variables", "");
+      out.push(...mdTableLines(
+        ["Variable", "Scope", "Sensitive", "Required", "Default"],
+        envVars.map((node) => [node.name, docMetaText(node, "scope"), docMetaText(node, "sensitive"), docMetaText(node, "required"), docMetaText(node, "defaultValue")])
+      ));
+    }
+  }
+
+  out.push("", "## Technology Stack", "");
+  if (techChoices.length) {
+    out.push(...mdTableLines(
+      ["Technology", "Category", "Version", "Rationale"],
+      techChoices.map((node) => [node.name, docMetaText(node, "category"), docMetaText(node, "version"), docMetaText(node, "rationale") || node.responsibilities.join("; ")])
+    ));
+    out.push("", "> This captures the load-bearing technology choices. The complete, version-pinned dependency set lives in the project's package manifests (for example `package.json`, `pyproject.toml`, or `Cargo.toml`).");
+  } else {
+    out.push("- No technology choices modeled yet.");
+  }
+
+  out.push("", "## Key Decisions", "");
+  if (decisions.length) {
+    out.push(...mdTableLines(
+      ["Decision", "Status", "Rationale"],
+      decisions.map((node) => [node.name, docMetaText(node, "adrStatus"), node.notes?.trim() || node.responsibilities.join("; ")])
+    ));
+  } else {
+    out.push("- No decisions recorded yet.");
+  }
+
+  out.push("", "## Risks & Known Issues", "");
+  if (risks.length) {
+    out.push(...mdTableLines(
+      ["Risk", "Likelihood", "Impact", "Mitigation"],
+      risks.map((node) => [
+        node.responsibilities.length ? `${node.name}<br>${node.responsibilities.join("; ")}` : node.name,
+        docMetaText(node, "likelihood"),
+        docMetaText(node, "impact"),
+        docMetaText(node, "mitigation") || docMetaText(node, "mitigationOwner")
+      ])
+    ));
+  } else {
+    out.push("- No risks recorded yet.");
+  }
+
+  if (threats.length) {
+    out.push("", "## Security & Threats", "");
+    for (const threat of threats) {
+      const mitigation = docMetaText(threat, "mitigation");
+      const parts = [threat.responsibilities.join("; "), mitigation && `mitigation: ${mitigation}`].filter(Boolean).join(" · ");
+      out.push(`- **${threat.name}**${parts ? ` — ${parts}` : ""}`);
+    }
+  }
+
+  if (qualityScenarios.length) {
+    out.push("", "## Quality Scenarios", "");
+    for (const scenario of qualityScenarios) {
+      const measurement = docMetaText(scenario, "measurement");
+      const parts = [scenario.responsibilities.join("; "), measurement && `measured by: ${measurement}`].filter(Boolean).join(" · ");
+      out.push(`- **${scenario.name}**${parts ? ` — ${parts}` : ""}`);
+    }
+  }
+
+  out.push("", "## Flows", "");
+  if (project.flows.length) {
+    for (const flow of project.flows) {
+      out.push(`### ${flow.name}`, "", `**Criticality:** ${flow.criticality}`, "", flow.description || "_No description._");
+      if (flow.steps.length) {
+        out.push("", "Steps:", "");
+        flow.steps.forEach((step, index) => {
+          const target = step.nodeId ? ` _(${nodeName.get(step.nodeId) ?? step.nodeId})_` : "";
+          out.push(`${index + 1}. ${step.label}${target}`);
+        });
+      }
+      if (flow.failureModes.length) out.push("", "Failure modes:", "", ...flow.failureModes.map((item) => `- ${item}`));
+      if (flow.acceptanceChecks.length) out.push("", "Acceptance checks:", "", ...flow.acceptanceChecks.map((item) => `- ${item}`));
+      out.push("");
+    }
+  } else {
+    out.push("- No flows recorded yet.");
+  }
+
+  out.push(
+    "",
+    "---",
+    "",
+    "_Generated by System Atlas. See `architecture/generated/overview.md` for a compact summary, `architecture/generated/atlas.json` for the full typed graph, and `architecture/generated/diagrams/` for per-view Mermaid sources._"
+  );
+
+  return out.join("\n");
+}
+
+function mdTableLines(headers: string[], rows: string[][]): string[] {
+  const headerLine = `| ${headers.join(" | ")} |`;
+  const dividerLine = `| ${headers.map(() => "---").join(" | ")} |`;
+  return [headerLine, dividerLine, ...rows.map((row) => `| ${row.map(mdCell).join(" | ")} |`)];
+}
+
+function mdCell(value: string): string {
+  const collapsed = (value ?? "").replace(/\r?\n/g, "<br>").replace(/\|/g, "\\|").trim();
+  return collapsed || "—";
+}
+
+function docMetaText(node: AtlasNode, key: string): string {
+  const value = node.metadata?.[key];
+  if (value === undefined || value === "") return "";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "";
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  return String(value);
+}
+
+function docMetaList(node: AtlasNode, key: string): string[] {
+  const value = node.metadata?.[key];
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+}
+
 export function generateArchitectureReview(project: AtlasProject): string {
   const nodesByType = groupBy(project.nodes, (node) => node.type);
   const edgeTypes = new Set(project.edges.map((edge) => edge.type));

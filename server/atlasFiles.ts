@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import ts from "typescript";
 import YAML from "yaml";
 import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSchema, CodeSymbol, CodeTestMapEntry, PackHealth, PackMetadataSummary, ProjectStructureEntry } from "../src/types";
-import { defaultViews, emptyCodeIntelligence, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
+import { defaultViews, emptyCodeIntelligence, generateArchitectureDoc, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
 const conceptFolders: Record<string, string> = {
   system: "services",
@@ -120,6 +120,7 @@ export async function exportAtlas(root: string, project: AtlasProject) {
   await writeFile(root, "architecture/generated/atlas.json", JSON.stringify(projectSnapshotForAtlasJson(project), null, 2), files);
   await writeFile(root, "architecture/generated/overview.md", generateOverview(project), files);
   await writeFile(root, "architecture/generated/context-pack.md", generateContextPack(project), files);
+  await writeFile(root, "architecture/generated/ARCHITECTURE.md", generateArchitectureDoc(project), files);
 
   for (const view of project.views) {
     await writeFile(root, `architecture/generated/diagrams/${slug(view.id)}.mmd`, generateMermaid(project, view.id), files);
@@ -1364,6 +1365,7 @@ async function exportMetadata(root: string, project: AtlasProject) {
       atlasSnapshot: "architecture/generated/atlas.json",
       overview: "architecture/generated/overview.md",
       contextPack: "architecture/generated/context-pack.md",
+      architectureDoc: "architecture/generated/ARCHITECTURE.md",
       diagrams: project.views.map((view) => `architecture/generated/diagrams/${slug(view.id)}.mmd`)
     },
     relatedEvidenceMetadata: "architecture/evidence/metadata.json",
