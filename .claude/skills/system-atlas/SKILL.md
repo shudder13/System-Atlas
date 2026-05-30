@@ -129,7 +129,7 @@ Use `AskUserQuestion` for the highest-impact 3–4 questions. Fill the rest with
 
 ### Phase B4 — Write the regenerator script
 
-Create `<system-atlas-repo>/scripts/build-<slug>-atlas.ts` modeled on `scripts/build-quantflow-atlas.ts`. Structure:
+Create `<system-atlas-repo>/scripts/build-<slug>-atlas.ts` modeled on `scripts/build-quantpredict-atlas.ts`. Structure:
 
 ```ts
 import path from "node:path";
@@ -140,7 +140,7 @@ import type { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, ViewId } from "../s
 // IMPORTANT: target the CONSUMER project, not the System Atlas repo
 const targetRoot = path.resolve("<absolute-path-to-consumer-project>");
 
-// ... node() / edge() / place() helpers identical to build-quantflow-atlas.ts ...
+// ... node() / edge() / place() helpers identical to build-quantpredict-atlas.ts ...
 
 const nodes: AtlasNode[] = [
   // Stakeholders + concerns FIRST — they're why the system exists
@@ -171,7 +171,7 @@ const project: AtlasProject = {
 
 async function main() {
   const result = await exportAtlas(targetRoot, project);
-  // ... same validation / exit-on-error block as build-quantflow-atlas.ts
+  // ... same validation / exit-on-error block as build-quantpredict-atlas.ts
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
