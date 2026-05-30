@@ -1,4 +1,5 @@
-import { Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Search, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { nodeColors, nodeIcons, prettyType } from "../lib/nodeVisuals";
 import { AtlasProject, EDGE_TYPES, EdgeType, NODE_TYPES, NodeType } from "../types";
 
@@ -14,6 +15,8 @@ interface InventoryProps {
   onAddFlow: () => void;
 }
 
+const FLOWS_GROUP = "__flows__";
+
 export function Inventory({
   project,
   selectedId,
@@ -25,18 +28,48 @@ export function Inventory({
   onAddNode,
   onAddFlow
 }: InventoryProps) {
-  const grouped = project.nodes.reduce<Record<string, typeof project.nodes>>((groups, node) => {
-    groups[node.type] = groups[node.type] ?? [];
-    groups[node.type].push(node);
-    return groups;
-  }, {});
+  const [filter, setFilter] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const query = filter.trim().toLowerCase();
+  const filtering = query.length > 0;
+
+  const matchesNode = (node: AtlasProject["nodes"][number]) =>
+    !filtering ||
+    node.name.toLowerCase().includes(query) ||
+    prettyType(node.type).toLowerCase().includes(query);
+
+  const flows = useMemo(
+    () => project.flows.filter((flow) => !filtering || flow.name.toLowerCase().includes(query)),
+    [project.flows, filtering, query]
+  );
+
+  const grouped = useMemo(() => {
+    return project.nodes.reduce<Record<string, typeof project.nodes>>((groups, node) => {
+      if (!matchesNode(node)) return groups;
+      groups[node.type] = groups[node.type] ?? [];
+      groups[node.type].push(node);
+      return groups;
+    }, {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.nodes, filtering, query]);
+
+  const totalMatches = flows.length + Object.values(grouped).reduce((sum, nodes) => sum + nodes.length, 0);
+
+  const isOpen = (key: string) => filtering || !collapsed.has(key);
+  const toggle = (key: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   return (
     <aside className="panel inventory">
       <div className="panel-title">
         <div>
           <h2>Inventory</h2>
-          <p>{project.nodes.length} concepts, {project.edges.length} links, {project.flows.length} flows</p>
+          <p>{project.manifest.name} · {project.nodes.length} concepts, {project.edges.length} links, {project.flows.length} flows</p>
         </div>
       </div>
 
@@ -45,11 +78,11 @@ export function Inventory({
           Node type
           <select value={nodeType} onChange={(event) => onNodeTypeChange(event.target.value as NodeType)}>
             {NODE_TYPES.map((type) => <option key={type} value={type}>{prettyType(type)}</option>)}
-        </select>
-      </label>
-      <button type="button" className="primary stretch" onClick={onAddNode}><Plus size={15} /> Add Node</button>
-      <button type="button" className="stretch" onClick={onAddFlow}><Plus size={15} /> Add Flow</button>
-    </div>
+          </select>
+        </label>
+        <button type="button" className="primary stretch" onClick={onAddNode}><Plus size={15} /> Add Node</button>
+        <button type="button" className="stretch" onClick={onAddFlow}><Plus size={15} /> Add Flow</button>
+      </div>
 
       <label className="field">
         New edge type
@@ -58,48 +91,77 @@ export function Inventory({
         </select>
       </label>
 
-      <div className="flows-list">
-        <h3>Flows</h3>
-        {project.flows.length ? (
-          project.flows.map((flow) => (
-            <button
-              key={flow.id}
-              type="button"
-              className={selectedId === flow.id ? "inventory-item active" : "inventory-item"}
-              onClick={() => onSelect(flow.id)}
-            >
-              <InventoryIcon type="flow" />
-              <span>
-                <strong>{flow.name}</strong>
-                <small>{flow.steps.length} steps · {flow.criticality}</small>
-              </span>
-            </button>
-          ))
-        ) : (
-          <p className="inventory-empty">No flows yet.</p>
+      <div className="inventory-filter">
+        <Search size={14} />
+        <input
+          type="text"
+          placeholder="Filter elements…"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+          aria-label="Filter elements by name or type"
+        />
+        {filter && (
+          <button type="button" onClick={() => setFilter("")} aria-label="Clear filter" title="Clear filter">
+            <X size={13} />
+          </button>
         )}
       </div>
 
-      <div className="inventory-list">
+      <div className="inventory-scroll">
+        {flows.length > 0 && (
+          <section className="inventory-group">
+            <button type="button" className="inventory-group-head" onClick={() => toggle(FLOWS_GROUP)} aria-expanded={isOpen(FLOWS_GROUP)}>
+              {isOpen(FLOWS_GROUP) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span>Flows</span>
+              <small>{flows.length}</small>
+            </button>
+            {isOpen(FLOWS_GROUP) &&
+              flows.map((flow) => (
+                <button
+                  key={flow.id}
+                  type="button"
+                  className={selectedId === flow.id ? "inventory-item active" : "inventory-item"}
+                  onClick={() => onSelect(flow.id)}
+                >
+                  <InventoryIcon type="flow" />
+                  <span>
+                    <strong>{flow.name}</strong>
+                    <small>{flow.steps.length} steps · {flow.criticality}</small>
+                  </span>
+                </button>
+              ))}
+          </section>
+        )}
+
         {Object.entries(grouped).map(([type, nodes]) => (
-          <section key={type}>
-            <h3>{prettyType(type)}</h3>
-            {nodes.map((node) => (
-              <button
-                key={node.id}
-                type="button"
-                className={selectedId === node.id ? "inventory-item active" : "inventory-item"}
-                onClick={() => onSelect(node.id)}
-              >
-                <InventoryIcon type={node.type} />
-                <span>
-                  <strong>{node.name}</strong>
-                  <small>{node.owner} · {node.criticality}</small>
-                </span>
-              </button>
-            ))}
+          <section key={type} className="inventory-group">
+            <button type="button" className="inventory-group-head" onClick={() => toggle(type)} aria-expanded={isOpen(type)}>
+              {isOpen(type) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span>{prettyType(type)}</span>
+              <small>{nodes.length}</small>
+            </button>
+            {isOpen(type) &&
+              nodes.map((node) => (
+                <button
+                  key={node.id}
+                  type="button"
+                  className={selectedId === node.id ? "inventory-item active" : "inventory-item"}
+                  onClick={() => onSelect(node.id)}
+                >
+                  <InventoryIcon type={node.type} />
+                  <span>
+                    <strong>{node.name}</strong>
+                    <small>{node.owner} · {node.criticality}</small>
+                  </span>
+                </button>
+              ))}
           </section>
         ))}
+
+        {filtering && totalMatches === 0 && <p className="inventory-empty">No elements match “{filter}”.</p>}
+        {!filtering && project.nodes.length === 0 && project.flows.length === 0 && (
+          <p className="inventory-empty">No elements yet. Add a node or flow above.</p>
+        )}
       </div>
     </aside>
   );
