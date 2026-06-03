@@ -128,6 +128,12 @@ export async function exportAtlas(root: string, project: AtlasProject) {
 
   await writeFile(root, "architecture/generated/metadata.json", JSON.stringify(metadata.generated, null, 2), files);
 
+  // Reap files for entities that no longer exist in the project (deleted nodes,
+  // views, proposals, versions). Runs only after every write has succeeded, so a
+  // crash mid-export never deletes a still-valid file. Without this, a deleted
+  // node's stale .md would be read back by loadAtlasFromPack and resurrected.
+  await removeOrphanedPackFiles(root, new Set(files.map((relative) => safeJoin(root, relative))));
+
   return { files, issues: validateAtlas(project) };
 }
 
@@ -1485,8 +1491,66 @@ function normalizeNode(value: Record<string, unknown>): AtlasNode {
 async function writeFile(root: string, relative: string, content: string, files: string[]) {
   const absolute = safeJoin(root, relative);
   await fs.mkdir(path.dirname(absolute), { recursive: true });
-  await fs.writeFile(absolute, content, "utf8");
+  // Atomic write: a crash, kill, or disk-full mid-write must never leave a
+  // truncated, unparseable file in the user's source-of-truth pack. Write to a
+  // pid-scoped temp file, then rename (atomic on a single volume) into place.
+  const tempPath = `${absolute}.${process.pid}.tmp`;
+  try {
+    await fs.writeFile(tempPath, content, "utf8");
+    await fs.rename(tempPath, absolute);
+  } catch (error) {
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
   files.push(relative);
+}
+
+// Folders whose entire contents exportAtlas regenerates from the project model.
+// A file here that no longer corresponds to a current node/flow/view/proposal/
+// version (e.g. one the user deleted) is an orphan: loadAtlasFromPack would
+// otherwise read it back and silently resurrect the deleted entity on reload.
+const managedPackFolders = unique([
+  ...Object.values(conceptFolders),
+  "flows",
+  "views",
+  "proposals",
+  "versions",
+  "generated",
+  "evidence"
+]);
+
+async function removeOrphanedPackFiles(root: string, keep: Set<string>) {
+  for (const folder of managedPackFolders) {
+    await pruneOrphans(safeJoin(root, `architecture/${folder}`), keep);
+  }
+}
+
+// Recursively delete files under `directory` whose absolute path is not in
+// `keep`, then remove any directory left empty. Returns whether anything was
+// kept, so callers can prune now-empty parents (e.g. a removed proposal's dir).
+async function pruneOrphans(directory: string, keep: Set<string>): Promise<boolean> {
+  let entries: Array<import("node:fs").Dirent>;
+  try {
+    entries = await fs.readdir(directory, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  let kept = 0;
+  for (const entry of entries) {
+    const absolute = path.resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (await pruneOrphans(absolute, keep)) {
+        kept += 1;
+      } else {
+        await fs.rm(absolute, { recursive: true, force: true });
+      }
+    } else if (keep.has(absolute)) {
+      kept += 1;
+    } else {
+      await fs.rm(absolute, { force: true });
+    }
+  }
+  return kept > 0;
 }
 
 function normalizeProject(project: AtlasProject, options: { includeIntelligence?: boolean } = {}): AtlasProject {
@@ -1545,11 +1609,14 @@ function normalizeCodeIntelligence(intelligence?: Partial<CodeIntelligence>): Co
   };
 }
 
-function safeJoin(root: string, relative: string) {
+export function safeJoin(root: string, relative: string) {
   const resolvedRoot = path.resolve(root);
   const absolute = path.resolve(root, relative);
   const fromRoot = path.relative(resolvedRoot, absolute);
-  if (fromRoot.startsWith("..") || path.isAbsolute(fromRoot)) {
+  // Reject only genuine parent escapes (`..` exactly or `../…`) and absolute
+  // paths. A bare `startsWith("..")` would also reject a legitimate filename
+  // like `..foo`, so gate on a path-separator boundary instead.
+  if (fromRoot === ".." || fromRoot.startsWith(`..${path.sep}`) || path.isAbsolute(fromRoot)) {
     throw new Error(`Path escapes workspace: ${relative}`);
   }
   return absolute;

@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { scanWorkspace } from "./atlasFiles";
+import { exportAtlas, loadAtlas, packHealth, safeJoin, scanWorkspace } from "./atlasFiles";
+import { createEmptyProject, createNode } from "../src/lib/atlas";
 
 async function tempWorkspace() {
   return fs.mkdtemp(path.join(os.tmpdir(), "system-atlas-scan-"));
@@ -110,5 +111,155 @@ describe("workspace scanner", () => {
     expect(post?.primaryKeys).toContain("id");
     expect(post?.indexes).toContain("@@index([authorId])");
     expect(post?.relations).toContain("author -> User");
+  });
+});
+
+async function tempPackRoot() {
+  return fs.mkdtemp(path.join(os.tmpdir(), "system-atlas-pack-"));
+}
+
+async function fileExists(target: string) {
+  try {
+    await fs.stat(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function listFilesRecursive(directory: string): Promise<string[]> {
+  const out: string[] = [];
+  async function walk(current: string) {
+    let entries;
+    try {
+      entries = await fs.readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const absolute = path.join(current, entry.name);
+      if (entry.isDirectory()) await walk(absolute);
+      else out.push(absolute);
+    }
+  }
+  await walk(directory);
+  return out;
+}
+
+describe("pack persistence round-trip", () => {
+  it("round-trips authored nodes and edges through the markdown pack", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Round Trip");
+    project.nodes = [
+      {
+        ...createNode("service", 0),
+        id: "service.api",
+        name: "API Service",
+        responsibilities: ["serve requests"],
+        linkedFiles: ["src/api.ts"],
+        linkedTests: ["src/api.test.ts"],
+        architectureLevel: "container"
+      },
+      {
+        ...createNode("datastore", 1),
+        id: "datastore.main",
+        name: "Main DB",
+        invariants: ["durable writes"]
+      }
+    ];
+    project.edges = [
+      { id: "e1", source: "service.api", target: "datastore.main", type: "writes", label: "persists orders" }
+    ];
+
+    await exportAtlas(root, project);
+    // Force the pack-parse path rather than the atlas.json snapshot shortcut.
+    await fs.rm(path.join(root, "architecture/generated/atlas.json"));
+
+    const loaded = await loadAtlas(root, { includeIntelligence: false });
+    expect(loaded).not.toBeNull();
+    const byId = new Map(loaded!.nodes.map((node) => [node.id, node]));
+    expect(byId.get("service.api")?.name).toBe("API Service");
+    // snake_case aliases (linked_files / linked_tests / architecture_level) must round-trip:
+    expect(byId.get("service.api")?.linkedFiles).toEqual(["src/api.ts"]);
+    expect(byId.get("service.api")?.linkedTests).toEqual(["src/api.test.ts"]);
+    expect(byId.get("service.api")?.architectureLevel).toBe("container");
+    expect(byId.get("datastore.main")?.invariants).toEqual(["durable writes"]);
+    expect(loaded!.edges.find((edge) => edge.id === "e1")?.type).toBe("writes");
+    expect(loaded!.edges.find((edge) => edge.id === "e1")?.label).toBe("persists orders");
+  });
+
+  it("reaps orphaned files when an entity is deleted, preventing resurrection on reload", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Orphans");
+    project.nodes = [
+      { ...createNode("service", 0), id: "service.keep", name: "Keep" },
+      { ...createNode("service", 1), id: "service.drop", name: "Drop" }
+    ];
+    await exportAtlas(root, project);
+    const dropPath = path.join(root, "architecture/services/service.drop.md");
+    expect(await fileExists(dropPath)).toBe(true);
+
+    project.nodes = project.nodes.filter((node) => node.id !== "service.drop");
+    await exportAtlas(root, project);
+
+    expect(await fileExists(dropPath)).toBe(false);
+    await fs.rm(path.join(root, "architecture/generated/atlas.json"));
+    const loaded = await loadAtlas(root, { includeIntelligence: false });
+    const ids = loaded!.nodes.map((node) => node.id);
+    expect(ids).toContain("service.keep");
+    expect(ids).not.toContain("service.drop");
+  });
+
+  it("leaves no .tmp files behind and is idempotent across repeated exports", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Idempotent");
+    project.nodes = [{ ...createNode("service", 0), id: "service.api", name: "API", responsibilities: ["x"] }];
+    await exportAtlas(root, project);
+    await exportAtlas(root, project);
+    const files = await listFilesRecursive(path.join(root, "architecture"));
+    expect(files.some((file) => file.endsWith(".tmp"))).toBe(false);
+  });
+});
+
+describe("safeJoin path-traversal guard", () => {
+  const root = path.resolve(os.tmpdir(), "atlas-guard-root");
+
+  it("allows normal nested paths", () => {
+    expect(safeJoin(root, "architecture/services/node.md")).toBe(
+      path.resolve(root, "architecture/services/node.md")
+    );
+  });
+
+  it("rejects parent-escape paths", () => {
+    expect(() => safeJoin(root, "../../etc/passwd")).toThrow(/escapes workspace/);
+  });
+
+  it("rejects absolute paths", () => {
+    const absolute = process.platform === "win32" ? "C:\\Windows\\System32\\drivers" : "/etc/passwd";
+    expect(() => safeJoin(root, absolute)).toThrow(/escapes workspace/);
+  });
+});
+
+describe("packHealth", () => {
+  it("reports healthy after a clean export and stale after an authored edit", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Health");
+    project.nodes = [{ ...createNode("service", 0), id: "service.api", name: "API", responsibilities: ["x"] }];
+    await exportAtlas(root, project);
+    expect((await packHealth(root)).status).toBe("healthy");
+
+    const conceptPath = path.join(root, "architecture/services/service.api.md");
+    const current = await fs.readFile(conceptPath, "utf8");
+    await fs.writeFile(conceptPath, `${current}\n<!-- external edit -->\n`, "utf8");
+    expect((await packHealth(root)).status).toBe("stale");
+  });
+
+  it("reports missing when generated metadata is absent", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Missing");
+    project.nodes = [{ ...createNode("service", 0), id: "service.api", name: "API", responsibilities: ["x"] }];
+    await exportAtlas(root, project);
+    await fs.rm(path.join(root, "architecture/generated/metadata.json"));
+    expect((await packHealth(root)).status).toBe("missing");
   });
 });
