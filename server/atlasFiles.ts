@@ -1436,7 +1436,9 @@ async function collectRevision(root: string, current: string, hash: ReturnType<t
   const entries = await fs.readdir(current, { withFileTypes: true });
 
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-    if (entry.name === ".DS_Store") continue;
+    // Skip noise and the transient temp files that atomic writeFile creates
+    // mid-export, so a concurrent revision poll never hashes a half-written file.
+    if (entry.name === ".DS_Store" || entry.name.endsWith(".tmp")) continue;
     const absolute = path.join(current, entry.name);
     const relative = path.relative(root, absolute).replace(/\\/g, "/");
     if (excludedPaths.some((excluded) => relative === excluded || relative.startsWith(`${excluded}/`))) continue;
@@ -1446,8 +1448,14 @@ async function collectRevision(root: string, current: string, hash: ReturnType<t
       continue;
     }
 
-    const stat = await fs.stat(absolute);
-    hash.update(`${relative}:${stat.size}:${Math.round(stat.mtimeMs)}\n`);
+    // Hash file CONTENT, not mtime: a `git checkout`/`pull` rewrites mtimes
+    // without changing content, and mtime granularity differs across
+    // filesystems. Content addressing makes the revision stable across both,
+    // eliminating false "stale pack" warnings and false revision_conflict 409s.
+    const content = await fs.readFile(absolute);
+    hash.update(`${relative}:${content.length}:`);
+    hash.update(content);
+    hash.update("\n");
   }
 }
 
