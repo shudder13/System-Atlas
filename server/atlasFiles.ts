@@ -1473,25 +1473,56 @@ function parseStructured(raw: string) {
   }
 }
 
+const NODE_STATUSES = ["planned", "active", "deprecated", "unknown"] as const;
+const CRITICALITIES = ["low", "medium", "high", "critical"] as const;
+const CONFIDENCES = ["manual", "inferred", "observed", "stale"] as const;
+const ARCHITECTURE_LEVELS = [
+  "enterprise", "system", "container", "component", "code",
+  "runtime", "deployment", "data", "domain", "quality"
+] as const;
+
+// Coerce an untrusted (hand-editable) frontmatter value to a known enum member,
+// falling back to a safe default. Without this, an invalid `criticality` from a
+// typo'd .md file flows into rank[criticality] as undefined and yields NaN
+// comparisons, and an invalid status/confidence breaks downstream lookups.
+function enumOr<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+}
+
+function optionalEnum<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
+}
+
+function safePosition(value: unknown): AtlasNode["position"] {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { x, y } = value as { x?: unknown; y?: unknown };
+  return typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y)
+    ? { x, y }
+    : undefined;
+}
+
 function normalizeNode(value: Record<string, unknown>): AtlasNode {
   return {
     id: String(value.id),
+    // `type` is kept as-authored: there is no safe default for an unknown
+    // NodeType, and downstream code (conceptFolders fallback, view-Set filters)
+    // already degrades gracefully on an unrecognized type.
     type: value.type as AtlasNode["type"],
     name: String(value.name),
     owner: String(value.owner ?? "architecture"),
-    status: (value.status as AtlasNode["status"]) ?? "unknown",
-    criticality: (value.criticality as AtlasNode["criticality"]) ?? "medium",
+    status: enumOr(value.status, NODE_STATUSES, "unknown"),
+    criticality: enumOr(value.criticality, CRITICALITIES, "medium"),
     responsibilities: arrayOfStrings(value.responsibilities),
     dependencies: arrayOfStrings(value.dependencies),
     invariants: arrayOfStrings(value.invariants),
     linkedFiles: arrayOfStrings(value.linkedFiles ?? value.linked_files),
     linkedTests: arrayOfStrings(value.linkedTests ?? value.linked_tests),
     risks: arrayOfStrings(value.risks),
-    confidence: (value.confidence as AtlasNode["confidence"]) ?? "manual",
+    confidence: enumOr(value.confidence, CONFIDENCES, "manual"),
     notes: typeof value.notes === "string" ? value.notes : "",
-    position: value.position as AtlasNode["position"],
+    position: safePosition(value.position),
     tags: arrayOfStrings(value.tags),
-    architectureLevel: value.architectureLevel as AtlasNode["architectureLevel"] ?? value.architecture_level as AtlasNode["architectureLevel"],
+    architectureLevel: optionalEnum(value.architectureLevel ?? value.architecture_level, ARCHITECTURE_LEVELS),
     metadata: typeof value.metadata === "object" && value.metadata !== null ? value.metadata as AtlasNode["metadata"] : {}
   };
 }

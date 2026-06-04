@@ -35,6 +35,29 @@ async function currentWorkspaceRoot(): Promise<string> {
   return current.path;
 }
 
+// Validate the untrusted request body at the boundary. Every endpoint that
+// consumes a project previously did a bare `request.body.project as AtlasProject`
+// cast, so a missing/malformed body reached domain logic (validateAtlas,
+// createProposal, generateContextPack) and threw a TypeError -> opaque 500.
+// Returns the project, or sends a 400 and returns null (caller must `return`).
+function requireProject(request: express.Request, response: express.Response): AtlasProject | null {
+  const project = request.body?.project;
+  if (
+    !project ||
+    typeof project !== "object" ||
+    !Array.isArray(project.nodes) ||
+    !Array.isArray(project.edges) ||
+    !Array.isArray(project.flows)
+  ) {
+    response.status(400).json({
+      error: "Request body must include a valid project (with nodes, edges, and flows).",
+      code: "invalid_project"
+    });
+    return null;
+  }
+  return project as AtlasProject;
+}
+
 app.get("/api/templates", (_request, response) => {
   response.json({ templates });
 });
@@ -83,8 +106,11 @@ app.post("/api/workspaces/:id/select", async (request, response, next) => {
 
 app.patch("/api/workspaces/:id", async (request, response, next) => {
   try {
-    const name = String(request.body?.name ?? "");
-    const workspace = await renameWorkspace(request.params.id, name);
+    if (typeof request.body?.name !== "string") {
+      response.status(400).json({ error: "name must be a string", code: "invalid_name" });
+      return;
+    }
+    const workspace = await renameWorkspace(request.params.id, request.body.name);
     response.json({ workspace });
   } catch (error) {
     const err = error as Error & { code?: string };
@@ -142,14 +168,16 @@ app.get("/api/pack-health", async (_request, response, next) => {
 });
 
 app.post("/api/draft/validate", (request, response) => {
-  const project = request.body.project as AtlasProject;
+  const project = requireProject(request, response);
+  if (!project) return;
   response.json({ issues: validateAtlas(project) });
 });
 
 app.post("/api/export", async (request, response, next) => {
   try {
+    const incomingProject = requireProject(request, response) as ExportAtlasProject | null;
+    if (!incomingProject) return;
     const workspaceRoot = await currentWorkspaceRoot();
-    const incomingProject = request.body.project as ExportAtlasProject;
     const baseRevision = typeof request.body.baseRevision === "string" ? request.body.baseRevision : undefined;
     const force = Boolean(request.body.force);
     const currentRevision = await architectureRevision(workspaceRoot);
@@ -195,25 +223,32 @@ app.post("/api/scan", async (_request, response, next) => {
 
 app.post("/api/context-pack", async (request, response, next) => {
   try {
-    const project = await withSavedCodeIntelligence(request.body.project as AtlasProject);
-    const targetIds = request.body.targetIds as string[] | undefined;
-    const goal = request.body.goal as string | undefined;
+    const incoming = requireProject(request, response);
+    if (!incoming) return;
+    const project = await withSavedCodeIntelligence(incoming);
+    const targetIds = Array.isArray(request.body.targetIds)
+      ? request.body.targetIds.filter((id: unknown): id is string => typeof id === "string")
+      : [];
+    const goal = typeof request.body.goal === "string" ? request.body.goal : undefined;
     const scope = request.body.scope as ContextPackScope | undefined;
-    response.json({ markdown: generateContextPack(project, targetIds ?? [], goal, scope ?? "standard") });
+    response.json({ markdown: generateContextPack(project, targetIds, goal, scope ?? "standard") });
   } catch (error) {
     handleWorkspaceError(error, response, next);
   }
 });
 
 app.post("/api/proposal", (request, response) => {
-  const project = request.body.project as AtlasProject;
-  const name = request.body.name as string | undefined;
+  const project = requireProject(request, response);
+  if (!project) return;
+  const name = typeof request.body.name === "string" ? request.body.name : undefined;
   response.json({ proposal: createProposal(project, name) });
 });
 
 app.post("/api/migration-brief", async (request, response, next) => {
   try {
-    const project = await withSavedCodeIntelligence(request.body.project as AtlasProject);
+    const incoming = requireProject(request, response);
+    if (!incoming) return;
+    const project = await withSavedCodeIntelligence(incoming);
     const proposalId = request.body.proposalId as string | undefined;
     const proposal = project.proposals.find((item) => item.id === proposalId);
     response.json({ markdown: generateMigrationBrief(project, proposal) });
@@ -253,7 +288,10 @@ function handleWorkspaceError(error: unknown, response: express.Response, next: 
 }
 
 app.use((error: Error, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
-  response.status(500).json({ error: error.message });
+  // Log the full error server-side for diagnosis, but never leak internal
+  // details (fs error messages embed absolute paths) to the client.
+  console.error("[system-atlas] unhandled request error:", error);
+  response.status(500).json({ error: "Internal server error.", code: "internal_error" });
 });
 
 function probePortInUse(targetPort: number, host: string, timeoutMs = 400): Promise<boolean> {
