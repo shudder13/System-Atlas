@@ -1,4 +1,5 @@
 import { CheckCircle2, Eye, FileDown, Search, X } from "lucide-react";
+import { matchesQuery } from "../lib/shared";
 import { useMemo, useState } from "react";
 import { generateImportCandidates, promoteImportCandidates } from "../lib/atlas";
 import { AtlasProject, ImportCandidate } from "../types";
@@ -146,7 +147,3 @@ export function ImportReview({ project, isLoading = false, onChange, onPreview }
   );
 }
 
-function matchesQuery(query: string, ...values: Array<string | undefined>) {
-  if (!query) return true;
-  return values.some((value) => value?.toLowerCase().includes(query));
-}

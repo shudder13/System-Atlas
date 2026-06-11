@@ -20,6 +20,10 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
   const [busy, setBusy] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  // Enter/Escape close the rename input, which fires a trailing blur on
+  // unmount. Without this guard Escape COMMITTED the cancelled rename and
+  // Enter committed twice.
+  const renameSettledRef = useRef(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const current = workspaces.find((w) => w.id === currentId) ?? null;
@@ -29,8 +33,17 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
     function handleClick(event: MouseEvent) {
       if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
     }
+    // Keyboard users could open the popover but had no way to dismiss it
+    // short of tabbing through every control inside.
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [open]);
 
   async function submit(event: React.FormEvent) {
@@ -72,6 +85,8 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
         className="workspace-trigger"
         onClick={() => setOpen((value) => !value)}
         title={current ? current.path : "No workspace selected"}
+        aria-expanded={open}
+        aria-haspopup="dialog"
       >
         <FolderOpen size={16} />
         <span className="workspace-trigger-label">{current?.name ?? "Pick a project"}</span>
@@ -107,13 +122,21 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
+                            renameSettledRef.current = true;
                             void commitRename(workspace.id);
                           } else if (event.key === "Escape") {
                             event.preventDefault();
+                            renameSettledRef.current = true;
                             setRenamingId(null);
                           }
                         }}
-                        onBlur={() => commitRename(workspace.id)}
+                        onBlur={() => {
+                          if (renameSettledRef.current) {
+                            renameSettledRef.current = false;
+                            return;
+                          }
+                          void commitRename(workspace.id);
+                        }}
                         className="workspace-rename-input"
                       />
                     ) : (
@@ -127,8 +150,10 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
                     type="button"
                     className="workspace-item-action"
                     title="Rename"
+                    aria-label={`Rename ${workspace.name}`}
                     onClick={(event) => {
                       event.stopPropagation();
+                      renameSettledRef.current = false;
                       setRenamingId(workspace.id);
                       setRenameValue(workspace.name);
                     }}
@@ -139,6 +164,7 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
                     type="button"
                     className="workspace-item-action workspace-item-action-danger"
                     title="Remove from list"
+                    aria-label={`Remove ${workspace.name} from the workspace list`}
                     onClick={(event) => {
                       event.stopPropagation();
                       if (window.confirm(`Remove "${workspace.name}" from the workspace list? Files on disk are not deleted.`)) {
@@ -175,7 +201,7 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
                   onChange={(event) => setName(event.target.value)}
                 />
               </label>
-              {error && <p className="workspace-error">{error}</p>}
+              {error && <p className="workspace-error" role="alert">{error}</p>}
               <div className="workspace-form-actions">
                 <button type="button" onClick={() => setAdding(false)} disabled={busy}>
                   Cancel
@@ -186,9 +212,14 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
               </div>
             </form>
           ) : (
-            <button type="button" className="workspace-add-button" onClick={() => setAdding(true)}>
-              <Plus size={14} /> Add another project
-            </button>
+            <>
+              {/* A rename failure must be visible even when the add form is
+                  closed -- it previously rendered only inside that form. */}
+              {error && <p className="workspace-error" role="alert">{error}</p>}
+              <button type="button" className="workspace-add-button" onClick={() => setAdding(true)}>
+                <Plus size={14} /> Add another project
+              </button>
+            </>
           )}
         </div>
       )}

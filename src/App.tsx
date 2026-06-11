@@ -382,14 +382,32 @@ export function App() {
     return () => window.clearInterval(interval);
   }, [diskRevision, hasUnsavedChanges, reloadProjectFromDisk]);
 
-  const activeProposal = project.proposals.find((proposal) => proposal.id === activeProposalId);
+  // Memoized so unrelated state changes (status text, sync badges, copy
+  // feedback) keep stable references and don't cascade re-renders into
+  // Inspector and AtlasCanvas.
+  const activeProposal = useMemo(
+    () => project.proposals.find((proposal) => proposal.id === activeProposalId),
+    [project.proposals, activeProposalId]
+  );
   const workingProject = useMemo(() => proposalWorkspace(project, activeProposalId), [project, activeProposalId]);
   const graph = useMemo(() => layoutProjectForView(workingProject, viewId), [workingProject, viewId]);
-  const persistedSelectedNode = workingProject.nodes.find((node) => node.id === selectedId);
-  const selectedNode = persistedSelectedNode ?? graph.nodes.find((node) => node.id === selectedId);
+  const persistedSelectedNode = useMemo(
+    () => workingProject.nodes.find((node) => node.id === selectedId),
+    [workingProject.nodes, selectedId]
+  );
+  const selectedNode = useMemo(
+    () => persistedSelectedNode ?? graph.nodes.find((node) => node.id === selectedId),
+    [graph.nodes, persistedSelectedNode, selectedId]
+  );
   const selectedNodeReadOnly = Boolean(selectedNode && !persistedSelectedNode);
-  const selectedEdge = workingProject.edges.find((edge) => edge.id === selectedId);
-  const selectedFlow = workingProject.flows.find((flow) => flow.id === selectedId);
+  const selectedEdge = useMemo(
+    () => workingProject.edges.find((edge) => edge.id === selectedId),
+    [workingProject.edges, selectedId]
+  );
+  const selectedFlow = useMemo(
+    () => workingProject.flows.find((flow) => flow.id === selectedId),
+    [workingProject.flows, selectedId]
+  );
   const selectedFlowNodeIds = useMemo(
     () => selectedFlow?.steps.map((step) => step.nodeId).filter((id): id is string => Boolean(id)) ?? [],
     [selectedFlow]
@@ -410,7 +428,10 @@ export function App() {
     if (!activeProposal) return generateMigrationBrief(workingProject);
     return generateMigrationBrief(project, activeProposal);
   }, [activeProposal, project, workingProject]);
-  const diff = activeProposal ? semanticDiff(activeProposal.before, activeProposal.after) : null;
+  const diff = useMemo(
+    () => activeProposal ? semanticDiff(activeProposal.before, activeProposal.after) : null,
+    [activeProposal]
+  );
   const canUndo = history.past.length > 0;
   const canRedo = history.future.length > 0;
   const visibleViewFamilies = useMemo(() =>

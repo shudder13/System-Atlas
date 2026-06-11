@@ -41,3 +41,9 @@ export function unique<T>(items: T[]) {
 export function symbolNodeId(filePath: string, symbolName: string) {
   return `code.symbol.${slug(filePath)}.${slug(symbolName)}`;
 }
+
+// Case-insensitive multi-field filter used by the searchable list panels.
+export function matchesQuery(query: string, ...values: Array<string | undefined>) {
+  if (!query) return true;
+  return values.some((value) => value?.toLowerCase().includes(query));
+}

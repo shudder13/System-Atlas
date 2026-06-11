@@ -27,7 +27,9 @@ export function structuredMetadataKeysForNode(type: AtlasNode["type"]) {
   }
 
   if (["schema", "data_entity"].includes(type)) {
-    return new Set(["databaseEngine", "schemaName", "entityName", "tables", "columns", "primaryKeys", "indexes", "foreignKeys", "constraints", "relations", "migrationPolicy", "accessPatterns"]);
+    // Must list exactly what SchemaEditor renders: a key hidden here but not
+    // rendered there (accessPatterns, previously) is unreachable in the UI.
+    return new Set(["databaseEngine", "schemaName", "entityName", "tables", "columns", "primaryKeys", "indexes", "foreignKeys", "constraints", "relations", "migrationPolicy"]);
   }
 
   return new Set<string>();

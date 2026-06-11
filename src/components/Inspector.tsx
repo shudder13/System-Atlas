@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { MetadataFieldDefinition, metadataFieldsForNode, promoteGeneratedNode } from "../lib/atlas";
+import { prettyType } from "../lib/nodeVisuals";
 import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, CodeEvidence, EDGE_TYPES, EdgeType, MetadataValue, NODE_TYPES } from "../types";
 import { StructuredNodeEditor, structuredMetadataKeysForNode } from "./StructuredEditors";
 
@@ -41,18 +42,18 @@ export function Inspector({
         <label className="field">Name <input value={selectedNode.name} onChange={(event) => updateNode(project, selectedNode.id, { name: event.target.value }, onChange)} /></label>
         <label className="field">Type
           <select value={selectedNode.type} onChange={(event) => updateNode(project, selectedNode.id, { type: event.target.value as AtlasNode["type"] }, onChange)}>
-            {NODE_TYPES.map((type) => <option key={type} value={type}>{pretty(type)}</option>)}
+            {NODE_TYPES.map((type) => <option key={type} value={type}>{prettyType(type)}</option>)}
           </select>
         </label>
         <label className="field">Owner <input value={selectedNode.owner} onChange={(event) => updateNode(project, selectedNode.id, { owner: event.target.value }, onChange)} /></label>
         <label className="field">Status
           <select value={selectedNode.status} onChange={(event) => updateNode(project, selectedNode.id, { status: event.target.value as AtlasNode["status"] }, onChange)}>
-            {["planned", "active", "deprecated", "unknown"].map((status) => <option key={status} value={status}>{pretty(status)}</option>)}
+            {["planned", "active", "deprecated", "unknown"].map((status) => <option key={status} value={status}>{prettyType(status)}</option>)}
           </select>
         </label>
         <label className="field">Criticality
           <select value={selectedNode.criticality} onChange={(event) => updateNode(project, selectedNode.id, { criticality: event.target.value as AtlasNode["criticality"] }, onChange)}>
-            {["low", "medium", "high", "critical"].map((criticality) => <option key={criticality} value={criticality}>{pretty(criticality)}</option>)}
+            {["low", "medium", "high", "critical"].map((criticality) => <option key={criticality} value={criticality}>{prettyType(criticality)}</option>)}
           </select>
         </label>
         <MetadataEditor
@@ -93,7 +94,7 @@ export function Inspector({
         <Header title={selectedEdge.label || selectedEdge.type} subtitle={`${selectedEdge.source} -> ${selectedEdge.target}`} />
         <label className="field">Type
           <select value={selectedEdge.type} onChange={(event) => updateEdge(project, selectedEdge.id, { type: event.target.value as AtlasEdge["type"] }, onChange)}>
-            {EDGE_TYPES.map((type) => <option key={type} value={type}>{pretty(type)}</option>)}
+            {EDGE_TYPES.map((type) => <option key={type} value={type}>{prettyType(type)}</option>)}
           </select>
         </label>
         <label className="field">Label <input value={selectedEdge.label ?? ""} onChange={(event) => updateEdge(project, selectedEdge.id, { label: event.target.value }, onChange)} /></label>
@@ -116,7 +117,7 @@ export function Inspector({
         <label className="field">Owner <input value={selectedFlow.owner} onChange={(event) => updateFlow(project, selectedFlow.id, { owner: event.target.value }, onChange)} /></label>
         <label className="field">Criticality
           <select value={selectedFlow.criticality} onChange={(event) => updateFlow(project, selectedFlow.id, { criticality: event.target.value as AtlasFlow["criticality"] }, onChange)}>
-            {["low", "medium", "high", "critical"].map((criticality) => <option key={criticality} value={criticality}>{pretty(criticality)}</option>)}
+            {["low", "medium", "high", "critical"].map((criticality) => <option key={criticality} value={criticality}>{prettyType(criticality)}</option>)}
           </select>
         </label>
         <label className="field">Description <textarea rows={4} value={selectedFlow.description} onChange={(event) => updateFlow(project, selectedFlow.id, { description: event.target.value }, onChange)} /></label>
@@ -185,7 +186,7 @@ function ReadOnlyNodeInspector({
         </button>
         {metadata.slice(0, 12).map(([key, value]) => (
           <div className="evidence-card" key={key}>
-            <strong>{pretty(key)}</strong>
+            <strong>{prettyType(key)}</strong>
             <small>{Array.isArray(value) ? value.join(", ") : String(value)}</small>
           </div>
         ))}
@@ -423,11 +424,11 @@ function NodeRelationships({
         </label>
         <label className="field">Type
           <select value={type} onChange={(event) => setType(event.target.value as EdgeType)}>
-            {EDGE_TYPES.map((edgeType) => <option key={edgeType} value={edgeType}>{pretty(edgeType)}</option>)}
+            {EDGE_TYPES.map((edgeType) => <option key={edgeType} value={edgeType}>{prettyType(edgeType)}</option>)}
           </select>
         </label>
         <label className="field">Label
-          <input value={label} placeholder={pretty(type)} onChange={(event) => setLabel(event.target.value)} />
+          <input value={label} placeholder={prettyType(type)} onChange={(event) => setLabel(event.target.value)} />
         </label>
         <button
           type="button"
@@ -451,7 +452,7 @@ function NodeRelationships({
           return (
             <div className="relationship-row" key={edge.id}>
               <button type="button" onClick={() => onSelect(edge.id)}>
-                <strong>{edge.label || pretty(edge.type)}</strong>
+                <strong>{edge.label || prettyType(edge.type)}</strong>
                 <span>{direction} {other?.name ?? otherId}</span>
               </button>
               <button type="button" className="danger compact" onClick={() => confirmDelete(`Delete edge ${edge.label || edge.type}?`, () => onDeleteEdge(edge.id))}>
@@ -500,10 +501,6 @@ function updateEdge(project: AtlasProject, id: string, patch: Partial<AtlasEdge>
 
 function updateFlow(project: AtlasProject, id: string, patch: Partial<AtlasFlow>, onChange: (project: AtlasProject) => void) {
   onChange({ ...project, flows: project.flows.map((flow) => flow.id === id ? { ...flow, ...patch } : flow) });
-}
-
-function pretty(value: string) {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function confirmDelete(message: string, action: () => void) {

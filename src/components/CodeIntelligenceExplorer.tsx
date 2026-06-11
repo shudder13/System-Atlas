@@ -1,4 +1,5 @@
 import { Boxes, Database, FileCode2, GitBranch, Network, Route, Search, TestTube2 } from "lucide-react";
+import { matchesQuery } from "../lib/shared";
 import { useMemo, useState } from "react";
 import { AtlasNode, AtlasProject, CodeClass, CodeDependency, CodeFileSummary, CodeRoute, CodeSchema, CodeTestMapEntry } from "../types";
 
@@ -15,7 +16,10 @@ export function CodeIntelligenceExplorer({ project, selectedId, isLoading = fals
   const [tab, setTab] = useState<CodeIntelTab>("files");
   const [query, setQuery] = useState("");
   const intelligence = project.intelligence;
-  const links = useMemo(() => codeLinks(project), [project]);
+  // Depend on the two slices codeLinks actually reads: the full project object
+  // changes reference on every edit, which rebuilt these maps even when nodes
+  // and evidence were untouched.
+  const links = useMemo(() => codeLinks(project.nodes, project.evidence), [project.nodes, project.evidence]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const files = useMemo(() =>
@@ -273,14 +277,14 @@ type CodeLinks = {
   schemaNode: (path: string, name: string) => AtlasNode | undefined;
 };
 
-function codeLinks(project: AtlasProject): CodeLinks {
-  const nodesById = new Map(project.nodes.map((node) => [node.id, node]));
-  const evidenceLinks = new Map(project.evidence.map((item) => [item.path, item.linkedNodeIds ?? []]));
+function codeLinks(nodes: AtlasProject["nodes"], evidence: AtlasProject["evidence"]): CodeLinks {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const evidenceLinks = new Map(evidence.map((item) => [item.path, item.linkedNodeIds ?? []]));
   const fileNodes = new Map<string, AtlasNode>();
   const symbolNodes = new Map<string, AtlasNode>();
   const schemaNodes = new Map<string, AtlasNode>();
 
-  for (const node of project.nodes) {
+  for (const node of nodes) {
     for (const file of node.linkedFiles) {
       if (!fileNodes.has(file)) fileNodes.set(file, node);
     }
@@ -310,7 +314,3 @@ function symbolKey(path: string, name: string) {
   return `${path}:${name}`;
 }
 
-function matchesQuery(query: string, ...values: Array<string | undefined>) {
-  if (!query) return true;
-  return values.some((value) => value?.toLowerCase().includes(query));
-}

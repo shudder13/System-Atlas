@@ -979,7 +979,7 @@ function classDiagramSnapshot(project: AtlasProject): AtlasProjectSnapshot {
     }
   }
 
-  return { nodes, edges: dedupeEdges([...manualEdges, ...generatedEdges]), flows: project.flows };
+  return { nodes, edges: dedupeEdges([...manualEdges, ...generatedEdges]), flows: [...project.flows] };
 }
 
 function apiSurfaceSnapshot(project: AtlasProject): AtlasProjectSnapshot {
@@ -1048,7 +1048,7 @@ function apiSurfaceSnapshot(project: AtlasProject): AtlasProjectSnapshot {
     }
   }
 
-  return { nodes, edges: dedupeEdges([...manualEdges, ...generatedEdges]), flows: project.flows };
+  return { nodes, edges: dedupeEdges([...manualEdges, ...generatedEdges]), flows: [...project.flows] };
 }
 
 function schemaModelSnapshot(project: AtlasProject): AtlasProjectSnapshot {
@@ -1144,7 +1144,7 @@ function schemaModelSnapshot(project: AtlasProject): AtlasProjectSnapshot {
     }
   }
 
-  return { nodes, edges: dedupeEdges([...edges, ...generatedEdges]), flows: project.flows };
+  return { nodes, edges: dedupeEdges([...edges, ...generatedEdges]), flows: [...project.flows] };
 }
 
 function isClassDiagramNode(node: AtlasNode) {
@@ -1196,7 +1196,7 @@ export function filterProjectForView(project: AtlasProject, viewId: ViewId): Atl
     (!allowedEdges || allowedEdges.has(edge.type))
   );
 
-  return { nodes, edges, flows: project.flows };
+  return { nodes, edges, flows: [...project.flows] };
 }
 
 export function layoutProjectForView(project: AtlasProject, viewId: ViewId): AtlasProjectSnapshot {
