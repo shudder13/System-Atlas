@@ -297,6 +297,14 @@ function handleWorkspaceError(error: unknown, response: express.Response, next: 
     response.status(error.status).json({ error: error.message, code: error.code });
     return;
   }
+  // Typed domain errors (e.g. slug_collision from exportAtlas) carry their own
+  // status + code and a user-actionable message -- surface them as-is instead
+  // of collapsing to the generic 500.
+  const typed = error as Error & { status?: number; code?: string };
+  if (typeof typed?.status === "number" && typeof typed?.code === "string") {
+    response.status(typed.status).json({ error: typed.message, code: typed.code });
+    return;
+  }
   next(error);
 }
 

@@ -72,9 +72,33 @@ export async function loadAtlas(root: string, options: { includeIntelligence?: b
   return pack ?? (snapshot ? withOptionalCodeIntelligence(root, normalizeProject(snapshot, { includeIntelligence }), includeIntelligence) : null);
 }
 
+// slug() is lossy (`Foo.Bar` and `foo-bar` map to the same filename), so two
+// distinct entities could silently overwrite each other's pack file and only
+// one would survive reload. Check every target path before writing anything.
+function assertNoSlugCollisions(project: AtlasProject) {
+  const owners = new Map<string, string>();
+  const claim = (target: string, id: string) => {
+    const existing = owners.get(target);
+    if (existing && existing !== id) {
+      throw Object.assign(
+        new Error(`Pack filename collision: "${existing}" and "${id}" both export to ${target}. Rename one id.`),
+        { code: "slug_collision", status: 409 }
+      );
+    }
+    owners.set(target, id);
+  };
+
+  for (const node of project.nodes) claim(`architecture/${conceptFolders[node.type] ?? "modules"}/${slug(node.id)}.md`, node.id);
+  for (const flow of project.flows) claim(`architecture/flows/${slug(flow.id)}.md`, flow.id);
+  for (const view of project.views) claim(`architecture/views/${slug(view.id)}.yaml`, view.id);
+  for (const proposal of project.proposals) claim(`architecture/proposals/${slug(proposal.id)}`, proposal.id);
+  for (const version of project.versions) claim(`architecture/versions/${slug(version.id)}.yaml`, version.id);
+}
+
 export async function exportAtlas(root: string, project: AtlasProject) {
   const files: string[] = [];
   const architectureRoot = safeJoin(root, "architecture");
+  assertNoSlugCollisions(project);
   await fs.mkdir(architectureRoot, { recursive: true });
 
   const manifest = {
@@ -103,9 +127,11 @@ export async function exportAtlas(root: string, project: AtlasProject) {
 
   for (const proposal of project.proposals) {
     const folder = `architecture/proposals/${slug(proposal.id)}`;
+    // proposal.yaml embeds the full before/after snapshots and is the only file
+    // readProposals consumes; the separate before.yaml/after.yaml copies were
+    // write-only artifacts that could silently drift, so they are gone (the
+    // orphan reaper removes existing ones on the next export).
     await writeFile(root, `${folder}/proposal.yaml`, yamlJson(proposal), files);
-    await writeFile(root, `${folder}/before.yaml`, yamlJson(proposal.before), files);
-    await writeFile(root, `${folder}/after.yaml`, yamlJson(proposal.after), files);
     await writeFile(root, `${folder}/migration-brief.md`, generateMigrationBrief(project, proposal), files);
   }
 
@@ -272,7 +298,10 @@ async function loadAtlasFromPack(root: string, options: { includeIntelligence?: 
         name: String(manifest.name ?? "System Atlas"),
         description: String(manifest.description ?? "Architecture atlas loaded from repo files."),
         owner: String(manifest.owner ?? "architecture"),
-        updatedAt: String(manifest.updatedAt ?? new Date().toISOString())
+        // Deterministic placeholder when a hand-authored manifest omits the
+        // field: a fresh timestamp here made two loads of identical files
+        // differ, breaking export->load->export idempotency.
+        updatedAt: String(manifest.updatedAt ?? new Date(0).toISOString())
       },
       nodes,
       edges: edges as AtlasProject["edges"],
@@ -966,12 +995,22 @@ function conceptMarkdown(node: AtlasNode) {
     }),
     "---",
     "",
+    GENERATED_BODY_BANNER,
+    "",
     `# ${node.name}`,
     "",
     `**Type:** \`${node.type}\` · **Criticality:** ${node.criticality} · **Status:** ${node.status} · **Confidence:** ${node.confidence}${node.architectureLevel ? ` · **Level:** ${node.architectureLevel}` : ""} · **Owner:** ${node.owner}`,
     ...conceptBodySections(node)
   ].join("\n");
 }
+
+// Only the YAML frontmatter round-trips: the readable body below it is
+// regenerated from the frontmatter on every export and is never parsed back.
+// Without this banner, editing the inviting `## Notes` section silently lost
+// the edit on the next reload -- a footgun in a "file edits reload in the UI"
+// product.
+const GENERATED_BODY_BANNER =
+  "<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->";
 
 function conceptBodySections(node: AtlasNode): string[] {
   const sections: string[] = [];
@@ -1043,6 +1082,8 @@ function flowMarkdown(flow: AtlasFlow) {
     "---",
     yamlJson(flow),
     "---",
+    "",
+    GENERATED_BODY_BANNER,
     "",
     `# ${flow.name}`,
     "",
