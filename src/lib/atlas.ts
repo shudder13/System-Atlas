@@ -1721,13 +1721,17 @@ export function generateContextPack(
     ? project.nodes.filter((node) => targetIds.includes(node.id)).slice(0, budget.seedCount)
     : rankedContextSeeds(project.nodes).slice(0, budget.seedCount);
   const targetSet = new Set(targets.map((node) => node.id));
-  const relatedEdges = project.edges
-    .filter((edge) => targetSet.has(edge.source) || targetSet.has(edge.target))
-    .slice(0, budget.maxEdges);
-  const relatedNodeIds = new Set([...targetSet, ...relatedEdges.flatMap((edge) => [edge.source, edge.target])]);
+  // Expand the FULL neighborhood first, rank, and only then trim to budget.
+  // Slicing edges before expansion made node selection depend on unordered
+  // edge-array position: nodes reachable only via a late edge silently fell
+  // out of the AI context pack.
+  const touchingEdges = project.edges.filter((edge) => targetSet.has(edge.source) || targetSet.has(edge.target));
+  const relatedNodeIds = new Set([...targetSet, ...touchingEdges.flatMap((edge) => [edge.source, edge.target])]);
   const relatedNodes = rankedContextNodes(project.nodes.filter((node) => relatedNodeIds.has(node.id))).slice(0, budget.maxNodes);
   const keptNodeIds = new Set(relatedNodes.map((node) => node.id));
-  const keptEdges = relatedEdges.filter((edge) => keptNodeIds.has(edge.source) && keptNodeIds.has(edge.target));
+  const keptEdges = touchingEdges
+    .filter((edge) => keptNodeIds.has(edge.source) && keptNodeIds.has(edge.target))
+    .slice(0, budget.maxEdges);
   const relatedFlows = project.flows
     .filter((flow) => flow.steps.some((step) => step.nodeId && keptNodeIds.has(step.nodeId)))
     .slice(0, budget.maxFlows);
@@ -1751,7 +1755,7 @@ export function generateContextPack(
     "",
     `- Scope: ${scope}`,
     `- Nodes: ${relatedNodes.length}/${relatedNodeIds.size}`,
-    `- Edges: ${keptEdges.length}/${relatedEdges.length}`,
+    `- Edges: ${keptEdges.length}/${touchingEdges.length}`,
     `- Evidence items: ${evidence.length}`,
     `- Flows: ${relatedFlows.length}`,
     "",
@@ -1860,12 +1864,18 @@ export function generateMigrationBrief(project: AtlasProject, proposal?: AtlasPr
     ...diff.addedEdges.flatMap((edge) => [edge.source, edge.target]),
     ...diff.removedEdges.flatMap((edge) => [edge.source, edge.target])
   ]);
-  const affectedNodes = after.nodes.filter((node) => affectedIds.includes(node.id));
+  const affectedIdSet = new Set(affectedIds);
+  const affectedNodes = [
+    ...after.nodes.filter((node) => affectedIdSet.has(node.id)),
+    // Removed nodes exist only in `before` -- their invariants, risks, and
+    // linked files are exactly what an agent needs to remove them safely.
+    ...diff.removedNodes
+  ];
   const affectedFiles = unique(affectedNodes.flatMap((node) => node.linkedFiles));
   const affectedEvidence = project.evidence
     .filter((item) =>
       affectedFiles.some((file) => item.path === file || item.path.startsWith(`${file}/`)) ||
-      item.linkedNodeIds?.some((nodeId) => affectedIds.includes(nodeId))
+      item.linkedNodeIds?.some((nodeId) => affectedIdSet.has(nodeId))
     )
     .slice(0, 25);
 
@@ -1887,6 +1897,7 @@ export function generateMigrationBrief(project: AtlasProject, proposal?: AtlasPr
     `- Changed nodes: ${diff.changedNodes.map((item) => `${item.after.name} (${item.changes.join(", ")})`).join("; ") || "none"}`,
     `- Added edges: ${diff.addedEdges.map((edge) => `${edge.source} ${edge.type} ${edge.target}`).join("; ") || "none"}`,
     `- Removed edges: ${diff.removedEdges.map((edge) => `${edge.source} ${edge.type} ${edge.target}`).join("; ") || "none"}`,
+    `- Changed flows: ${diff.changedFlows.map((item) => `${(item.after ?? item.before)?.name ?? "unknown"} (${item.changes.join(", ")})`).join("; ") || "none"}`,
     "",
     "## Affected Architecture",
     "",
@@ -2224,8 +2235,18 @@ function changedFields(before: object, after: object) {
 
   return unique([...Object.keys(previous), ...Object.keys(next)]).filter((key) => {
     if (["position"].includes(key)) return false;
-    return JSON.stringify(previous[key]) !== JSON.stringify(next[key]);
+    return fieldFingerprint(previous[key]) !== fieldFingerprint(next[key]);
   });
+}
+
+// Order-insensitive comparison key. enrichDiagramNode and layout passes reorder
+// array fields like tags, so a plain JSON.stringify reported phantom "changed"
+// entries in semanticDiff and polluted migration briefs after every layout pass.
+function fieldFingerprint(value: unknown): string {
+  if (Array.isArray(value)) {
+    return JSON.stringify(value.map((item) => JSON.stringify(item)).sort());
+  }
+  return JSON.stringify(value) ?? "undefined";
 }
 
 function groupBy<T>(items: T[], keyFn: (item: T) => string) {
