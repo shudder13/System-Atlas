@@ -113,6 +113,26 @@ describe("workspace scanner", () => {
     expect(post?.relations).toContain("author -> User");
   });
 
+  it("parses SQL table bodies containing nested parentheses", async () => {
+    const root = await tempWorkspace();
+    await writeFixture(root, "db/migrations/002_nested.sql", `
+      CREATE TABLE payments (
+        id uuid PRIMARY KEY,
+        status text NOT NULL CHECK (status IN ('pending', 'settled')),
+        created_at timestamptz NOT NULL DEFAULT (now()),
+        account_id uuid NOT NULL REFERENCES accounts(id)
+      );
+    `);
+
+    const result = await scanWorkspace(root);
+    const payments = result.intelligence.schemas.find((schema) => schema.name === "payments");
+
+    // The old lazy regex stopped at the first ");" inside CHECK(...), dropping
+    // every column and constraint after it.
+    expect(payments?.columns.some((column) => column.startsWith("created_at"))).toBe(true);
+    expect(payments?.relations).toContain("account_id -> accounts.id");
+  });
+
   it("prunes node_modules and friends at any depth, not just the workspace root", async () => {
     const root = await tempWorkspace();
     await writeFixture(root, "packages/api/src/index.ts", `export const ok = true;`);

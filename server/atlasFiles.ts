@@ -549,12 +549,18 @@ function indexSqlSchema(relative: string, text: string): Pick<CodeEvidence, "sch
   const schemas: CodeSchema[] = [];
   const symbols: NonNullable<CodeEvidence["symbols"]> = [];
   const tableIndexes = indexesByTable(text);
-  const tablePattern = /create\s+table\s+(?:if\s+not\s+exists\s+)?["`[]?([\w.]+)["`\]]?\s*\(([\s\S]*?)\);/gi;
+  // Match only the header, then take the body with a balanced-paren scan: a
+  // lazy ([\s\S]*?)\); stopped at the FIRST ");", so common constructs like
+  // CHECK (col IN (1,2)) or DEFAULT (now()) truncated the table body and
+  // silently dropped the columns and constraints after them.
+  const tablePattern = /create\s+table\s+(?:if\s+not\s+exists\s+)?["`[]?([\w.]+)["`\]]?\s*\(/gi;
   let match: RegExpExecArray | null;
 
   while ((match = tablePattern.exec(text))) {
     const tableName = normalizeSqlIdentifier(match[1]);
-    const body = match[2];
+    const body = balancedBlock(text, match.index + match[0].length - 1, "(", ")");
+    if (body === null) continue;
+    tablePattern.lastIndex = match.index + match[0].length + body.length;
     const parsed = parseSqlTableBody(body);
     const schema: CodeSchema = {
       id: schemaId(relative, tableName),
@@ -578,12 +584,17 @@ function indexSqlSchema(relative: string, text: string): Pick<CodeEvidence, "sch
 function indexPrismaSchema(relative: string, text: string): Pick<CodeEvidence, "schemas" | "symbols"> {
   const schemas: CodeSchema[] = [];
   const symbols: NonNullable<CodeEvidence["symbols"]> = [];
-  const modelPattern = /model\s+(\w+)\s*\{([\s\S]*?)\}/g;
+  // Header-only match + balanced-brace scan, for the same reason as the SQL
+  // indexer above: a lazy ([\s\S]*?)\} stops at the first closing brace.
+  const modelPattern = /model\s+(\w+)\s*\{/g;
   let match: RegExpExecArray | null;
 
   while ((match = modelPattern.exec(text))) {
     const modelName = match[1];
-    const parsed = parsePrismaModelBody(match[2]);
+    const body = balancedBlock(text, match.index + match[0].length - 1, "{", "}");
+    if (body === null) continue;
+    modelPattern.lastIndex = match.index + match[0].length + body.length;
+    const parsed = parsePrismaModelBody(body);
     const schema: CodeSchema = {
       id: schemaId(relative, modelName),
       path: relative,
@@ -601,6 +612,22 @@ function indexPrismaSchema(relative: string, text: string): Pick<CodeEvidence, "
   }
 
   return { schemas, symbols };
+}
+
+// Return the text between the delimiter at openIndex and its balanced closing
+// counterpart (exclusive), or null if the text ends before the block closes.
+function balancedBlock(text: string, openIndex: number, open: string, close: string): string | null {
+  let depth = 0;
+  for (let i = openIndex; i < text.length; i++) {
+    const char = text[i];
+    if (char === open) {
+      depth += 1;
+    } else if (char === close) {
+      depth -= 1;
+      if (depth === 0) return text.slice(openIndex + 1, i);
+    }
+  }
+  return null;
 }
 
 function extractClass(relative: string, className: string, node: ts.ClassDeclaration, source: ts.SourceFile, exported: boolean): CodeClass {
