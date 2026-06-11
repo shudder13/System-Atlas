@@ -119,7 +119,7 @@ function ApiContractEditor({ node, onChange }: { node: AtlasNode; onChange: (pat
           <label className="field">Tests
             <input value={endpoint.tests} placeholder="tests/orders.test.ts" onChange={(event) => updateEndpoint(index, { tests: event.target.value })} />
           </label>
-          <button type="button" className="danger compact" onClick={() => removeEndpoint(index)}>Remove</button>
+          <button type="button" className="danger compact" aria-label={`Remove endpoint ${endpoint.method} ${endpoint.path}`} onClick={() => removeEndpoint(index)}>Remove</button>
         </div>
       )) : <p className="muted">No structured endpoints yet. Add endpoints for multi-route contracts, or fill the single route fields above.</p>}
     </section>
@@ -284,7 +284,7 @@ function CompactListEditor({ label, values, placeholder, onChange }: { label: st
           {values.map((value) => (
             <span className="chip" key={value}>
               {value}
-              <button type="button" onClick={() => onChange(values.filter((item) => item !== value))}>Remove</button>
+              <button type="button" aria-label={`Remove ${value}`} onClick={() => onChange(values.filter((item) => item !== value))}>Remove</button>
             </span>
           ))}
         </div>

@@ -82,7 +82,7 @@ export function CodeIntelligenceExplorer({ project, selectedId, isLoading = fals
         </div>
         <label className="code-intel-search">
           <Search size={14} />
-          <input value={query} placeholder="Filter saved code intelligence" onChange={(event) => setQuery(event.target.value)} />
+          <input value={query} placeholder="Filter saved code intelligence" aria-label="Filter saved code intelligence" onChange={(event) => setQuery(event.target.value)} />
         </label>
       </div>
 
@@ -251,8 +251,10 @@ function TestsView({ tests, links, selectedId, onSelect }: { tests: CodeTestMapE
 }
 
 function ExplorerTab({ id, tab, count, label, icon: Icon, onSelect }: { id: CodeIntelTab; tab: CodeIntelTab; count: number; label: string; icon: typeof FileCode2; onSelect: (id: CodeIntelTab) => void }) {
+  // The parent row carries role="tablist"; without role="tab" + aria-selected
+  // on the children the tablist is invalid and assistive tech misreads it.
   return (
-    <button type="button" className={tab === id ? "active" : ""} onClick={() => onSelect(id)}>
+    <button type="button" role="tab" aria-selected={tab === id} className={tab === id ? "active" : ""} onClick={() => onSelect(id)}>
       <Icon size={14} /> {label} <span>{count}</span>
     </button>
   );

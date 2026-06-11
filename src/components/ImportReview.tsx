@@ -91,7 +91,7 @@ export function ImportReview({ project, isLoading = false, onChange, onPreview }
         </div>
         <label className="code-intel-search">
           <Search size={14} />
-          <input value={query} placeholder="Filter suggestions" onChange={(event) => setQuery(event.target.value)} />
+          <input value={query} placeholder="Filter suggestions" aria-label="Filter import suggestions" onChange={(event) => setQuery(event.target.value)} />
         </label>
       </div>
 

@@ -332,10 +332,13 @@ code {
   padding: 0 0.4rem;
   background: transparent;
   border: none;
-  color: #64748b;
+  /* #475569 at full opacity keeps the resting icon above the WCAG 3:1
+     non-text contrast floor on white; 0.55-opacity grey was nearly invisible
+     to low-vision users. */
+  color: #475569;
   cursor: pointer;
   border-radius: 6px;
-  opacity: 0.55;
+  opacity: 0.85;
 }
 
 .workspace-item-action:hover {
@@ -808,7 +811,10 @@ code {
 }
 
 .inventory-filter input:focus {
-  outline: none;
+  /* Replace (don't remove) the focus indicator: outline-none alone made the
+     filter field invisible to keyboard users. */
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
 }
 
 .inventory-filter button {

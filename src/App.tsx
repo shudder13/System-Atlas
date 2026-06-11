@@ -775,7 +775,7 @@ export function App() {
   if (workspaceLoading) {
     return (
       <div className="app-shell">
-        <div className="workspace-loading">Loading System Atlas…</div>
+        <div className="workspace-loading" role="status" aria-live="polite">Loading System Atlas…</div>
       </div>
     );
   }
@@ -785,7 +785,7 @@ export function App() {
       <div className="app-shell">
         <header className="topbar topbar-onboarding">
           <div className="brand">
-            <div className="brand-mark"><Network size={20} /></div>
+            <div className="brand-mark" aria-hidden="true"><Network size={20} /></div>
             <div>
               <h1>System Atlas</h1>
               <p>Architecture workbench for your projects.</p>
@@ -811,7 +811,7 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark"><Network size={20} /></div>
+          <div className="brand-mark" aria-hidden="true"><Network size={20} /></div>
           <div>
             <h1>System Atlas</h1>
             <p>C4, runtime, deployment, data, domain, security, decisions, and AI migration briefs.</p>
@@ -874,7 +874,7 @@ export function App() {
               {family.views.map((id) => {
                 const Icon = viewIcons[id];
                 return (
-                  <button key={id} type="button" className={viewId === id ? "active" : ""} onClick={() => setViewId(id)} title={workingProject.views.find((view) => view.id === id)?.description}>
+                  <button key={id} type="button" className={viewId === id ? "active" : ""} aria-pressed={viewId === id} onClick={() => setViewId(id)} title={workingProject.views.find((view) => view.id === id)?.description}>
                     <Icon size={15} /> {workingProject.views.find((view) => view.id === id)?.name ?? id}
                   </button>
                 );
@@ -920,8 +920,8 @@ export function App() {
             </div>
             <div className="canvas-metrics">
               <div className="canvas-mode-toggle" role="group" aria-label="Canvas mode">
-                <button type="button" className={canvasMode === "graph" ? "active" : ""} onClick={() => setCanvasMode("graph")} title="Interactive graph for this view"><Network size={14} /> Graph</button>
-                <button type="button" className={canvasMode === "mermaid" ? "active" : ""} onClick={() => setCanvasMode("mermaid")} title="Mermaid source for this view"><Code2 size={14} /> Mermaid</button>
+                <button type="button" className={canvasMode === "graph" ? "active" : ""} aria-pressed={canvasMode === "graph"} onClick={() => setCanvasMode("graph")} title="Interactive graph for this view"><Network size={14} /> Graph</button>
+                <button type="button" className={canvasMode === "mermaid" ? "active" : ""} aria-pressed={canvasMode === "mermaid"} onClick={() => setCanvasMode("mermaid")} title="Mermaid source for this view"><Code2 size={14} /> Mermaid</button>
               </div>
               <span><Boxes size={14} /> {graph.nodes.length} nodes</span>
               <span><Workflow size={14} /> {graph.edges.length} edges</span>
@@ -980,14 +980,14 @@ export function App() {
         </section>
 
         <aside className="right-rail" aria-label="Inspector and code intelligence">
-          <div className="right-rail-tabs">
-            <button type="button" className={rightPanelMode === "inspector" ? "active" : ""} onClick={() => setRightPanelMode("inspector")}>
+          <div className="right-rail-tabs" role="group" aria-label="Right panel">
+            <button type="button" className={rightPanelMode === "inspector" ? "active" : ""} aria-pressed={rightPanelMode === "inspector"} onClick={() => setRightPanelMode("inspector")}>
               <FileText size={14} /> Inspector
             </button>
-            <button type="button" className={rightPanelMode === "code" ? "active" : ""} onClick={() => setRightPanelMode("code")}>
+            <button type="button" className={rightPanelMode === "code" ? "active" : ""} aria-pressed={rightPanelMode === "code"} onClick={() => setRightPanelMode("code")}>
               <Code2 size={14} /> Code Intel
             </button>
-            <button type="button" className={rightPanelMode === "import" ? "active" : ""} onClick={() => setRightPanelMode("import")}>
+            <button type="button" className={rightPanelMode === "import" ? "active" : ""} aria-pressed={rightPanelMode === "import"} onClick={() => setRightPanelMode("import")}>
               <FileDown size={14} /> Import
             </button>
           </div>
