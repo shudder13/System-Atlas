@@ -33,11 +33,27 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    ...init
-  });
+// Default deadline for API calls; without one a hung request leaves the UI
+// spinning forever. Workspace scans and exports legitimately take longer on
+// large repos, so those callers pass a bigger budget.
+const DEFAULT_TIMEOUT_MS = 30_000;
+const LONG_TIMEOUT_MS = 5 * 60_000;
+
+async function request<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      headers: { "Content-Type": "application/json", ...(rest.headers ?? {}) },
+      signal: AbortSignal.timeout(timeoutMs),
+      ...rest
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s: ${path}`, 0, "timeout");
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     const body = await response.text();
@@ -79,6 +95,7 @@ export const api = {
     const includeIntelligence = options.includeIntelligence ?? false;
     return request<{ ok: boolean; revision: string; files: string[]; issues: ValidationIssue[]; packHealth: PackHealth }>("/api/export", {
       method: "POST",
+      timeoutMs: LONG_TIMEOUT_MS,
       body: JSON.stringify({
         project: projectPayloadForExport(project, includeIntelligence),
         baseRevision: options.baseRevision,
@@ -87,7 +104,7 @@ export const api = {
       })
     });
   },
-  scan: () => request<CodeScanResult>("/api/scan", { method: "POST" }),
+  scan: () => request<CodeScanResult>("/api/scan", { method: "POST", timeoutMs: LONG_TIMEOUT_MS }),
   contextPack: (project: AtlasProject, targetIds: string[], goal: string, scope: ContextPackScope, includeIntelligence = false) =>
     request<{ markdown: string }>("/api/context-pack", {
       method: "POST",

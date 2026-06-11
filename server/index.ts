@@ -173,6 +173,16 @@ app.post("/api/draft/validate", (request, response) => {
   response.json({ issues: validateAtlas(project) });
 });
 
+// Serialize exports: the revision conflict check and the multi-file pack write
+// must be one critical section, or two near-simultaneous exports both pass the
+// check against the same revision and interleave their writes.
+let exportChain: Promise<unknown> = Promise.resolve();
+function withExportLock<T>(operation: () => Promise<T>): Promise<T> {
+  const result = exportChain.then(operation, operation);
+  exportChain = result.then(() => undefined, () => undefined);
+  return result;
+}
+
 app.post("/api/export", async (request, response, next) => {
   try {
     const incomingProject = requireProject(request, response) as ExportAtlasProject | null;
@@ -180,26 +190,29 @@ app.post("/api/export", async (request, response, next) => {
     const workspaceRoot = await currentWorkspaceRoot();
     const baseRevision = typeof request.body.baseRevision === "string" ? request.body.baseRevision : undefined;
     const force = Boolean(request.body.force);
-    const currentRevision = await architectureRevision(workspaceRoot);
 
-    if (!force && baseRevision !== undefined && currentRevision && currentRevision !== baseRevision) {
-      response.status(409).json({
-        error: "Architecture files changed on disk. Reload them or force export to overwrite disk changes.",
-        code: "revision_conflict",
-        revision: currentRevision
-      });
-      return;
-    }
+    await withExportLock(async () => {
+      const currentRevision = await architectureRevision(workspaceRoot);
 
-    const existingIntelligence = incomingProject.intelligence ? undefined : await loadCodeIntelligence(workspaceRoot);
-    const project = {
-      ...incomingProject,
-      intelligence: incomingProject.intelligence ?? existingIntelligence ?? emptyCodeIntelligence()
-    } as AtlasProject;
+      if (!force && baseRevision !== undefined && currentRevision && currentRevision !== baseRevision) {
+        response.status(409).json({
+          error: "Architecture files changed on disk. Reload them or force export to overwrite disk changes.",
+          code: "revision_conflict",
+          revision: currentRevision
+        });
+        return;
+      }
 
-    const result = await exportAtlas(workspaceRoot, project);
-    const revision = await architectureRevision(workspaceRoot);
-    response.json({ ok: true, revision, packHealth: await packHealth(workspaceRoot), ...result });
+      const existingIntelligence = incomingProject.intelligence ? undefined : await loadCodeIntelligence(workspaceRoot);
+      const project = {
+        ...incomingProject,
+        intelligence: incomingProject.intelligence ?? existingIntelligence ?? emptyCodeIntelligence()
+      } as AtlasProject;
+
+      const result = await exportAtlas(workspaceRoot, project);
+      const revision = await architectureRevision(workspaceRoot);
+      response.json({ ok: true, revision, packHealth: await packHealth(workspaceRoot), ...result });
+    });
   } catch (error) {
     handleWorkspaceError(error, response, next);
   }
@@ -331,9 +344,13 @@ async function startServer() {
 
   const server = app.listen(port, "127.0.0.1", () => {
     console.log(`System Atlas API listening on http://127.0.0.1:${port}`);
-    getCurrentWorkspace().then((workspace) => {
-      console.log(workspace ? `Current workspace: ${workspace.path}` : "No workspace selected yet — add one from the UI.");
-    });
+    getCurrentWorkspace()
+      .then((workspace) => {
+        console.log(workspace ? `Current workspace: ${workspace.path}` : "No workspace selected yet — add one from the UI.");
+      })
+      .catch((error) => {
+        console.error("[system-atlas] could not read the workspace registry:", error);
+      });
   });
 
   server.on("error", (error: NodeJS.ErrnoException) => {
@@ -345,6 +362,21 @@ async function startServer() {
     }
     throw error;
   });
+
+  // Graceful shutdown: stop accepting connections and let in-flight requests
+  // (an exportAtlas mid-write, in particular) finish instead of being killed
+  // half-way through the user's source-of-truth pack.
+  const shutdown = (signal: NodeJS.Signals) => {
+    console.log(`\n[system-atlas] received ${signal}; finishing in-flight requests…`);
+    server.close(() => process.exit(0));
+    // Failsafe if a request hangs: exit anyway after a short drain window.
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
-startServer();
+startServer().catch((error) => {
+  console.error("[system-atlas] failed to start:", error);
+  process.exit(1);
+});
