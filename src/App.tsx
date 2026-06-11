@@ -124,8 +124,15 @@ export function App() {
   const codeIntelligenceVersionRef = useRef(0);
   const persistedCodeIntelligenceVersionRef = useRef(0);
   const codeIntelligenceLoadRef = useRef<Promise<CodeIntelligence | null> | null>(null);
+  // Monotonic workspace generation. codeIntelligenceVersionRef resets to 0 on a
+  // workspace switch, so an in-flight intelligence load started in the OLD
+  // workspace saw version 0 === 0 in the NEW one and merged the old workspace's
+  // intelligence into the new project (then autosynced it to disk). The epoch
+  // only ever increases, so cross-workspace responses can never pass the guard.
+  const workspaceEpochRef = useRef(0);
 
   const resetWorkspaceLocalState = useCallback(() => {
+    workspaceEpochRef.current += 1;
     setHistory({ past: [], future: [] });
     setHasUnsavedChanges(false);
     setSyncStatus("idle");
@@ -137,6 +144,33 @@ export function App() {
     codeIntelligenceVersionRef.current = 0;
     persistedCodeIntelligenceVersionRef.current = 0;
   }, []);
+
+  const applyLoadedProject = useCallback((next: AtlasProject, revision: string) => {
+    const withViews = mergeDefaultViews(next);
+    changeSeqRef.current = 0;
+    setProject(withViews);
+    setSelectedId(withViews.nodes[0]?.id ?? withViews.flows[0]?.id ?? "");
+    setActiveProposalId("");
+    setIssues(validateAtlas(withViews));
+    setAiBrief(generateContextPack(withViews, [], undefined, contextScope));
+    setDiskRevision(revision);
+    setExternalRevision("");
+    setHasUnsavedChanges(false);
+    setSyncStatus(revision ? "synced" : "idle");
+    setLastSyncedAt(revision ? new Date().toISOString() : "");
+    setPackHealth(null);
+    setHistory({ past: [], future: [] });
+    codeIntelligenceVersionRef.current = 0;
+    persistedCodeIntelligenceVersionRef.current = 0;
+    codeIntelligenceLoadRef.current = null;
+    setCodeIntelligenceLoaded(hasCodeIntelligence(withViews.intelligence));
+    setCodeIntelligenceLoading(false);
+    // Keep the active tab valid: a loaded pack can mark the current view
+    // non-core while advanced views are hidden.
+    if (!showAdvancedViews && withViews.views.find((view) => view.id === viewId)?.core === false) {
+      setViewId("overview");
+    }
+  }, [contextScope, showAdvancedViews, viewId]);
 
   const initialiseCurrentWorkspace = useCallback(async () => {
     try {
@@ -157,9 +191,15 @@ export function App() {
       }
       setStatus(error instanceof Error ? error.message : "Could not load project");
     }
-  }, [resetWorkspaceLocalState]);
+  }, [applyLoadedProject, resetWorkspaceLocalState]);
 
+  const bootedRef = useRef(false);
   useEffect(() => {
+    // Bootstrap exactly once. initialiseCurrentWorkspace's identity changes
+    // with its dependencies, so without the guard a tab/scope change after
+    // mount would re-run the whole workspace bootstrap.
+    if (bootedRef.current) return;
+    bootedRef.current = true;
     let cancelled = false;
     (async () => {
       try {
@@ -219,7 +259,7 @@ export function App() {
     applyLoadedProject(projectResponse.project, projectResponse.revision);
     setPackHealth(healthResponse.packHealth);
     setStatus(projectResponse.loadedFromDisk ? reason : "No architecture pack on disk; using starter atlas");
-  }, []);
+  }, [applyLoadedProject]);
 
   const loadSavedCodeIntelligence = useCallback(async () => {
     if (hasUnpersistedCodeIntelligence() || codeIntelligenceLoaded) return project.intelligence;
@@ -227,10 +267,17 @@ export function App() {
 
     setCodeIntelligenceLoading(true);
     const loadStartedAtVersion = codeIntelligenceVersionRef.current;
-    let request!: Promise<CodeIntelligence | null>;
-    request = api.codeIntelligence()
+    const loadStartedAtEpoch = workspaceEpochRef.current;
+    const request: Promise<CodeIntelligence | null> = api.codeIntelligence()
       .then(({ intelligence }) => {
-        if (codeIntelligenceVersionRef.current !== loadStartedAtVersion || hasUnpersistedCodeIntelligence()) {
+        // The epoch check rejects responses that started in a previous
+        // workspace: the version ref resets to 0 on switch, so the version
+        // check alone let a stale cross-workspace response through.
+        if (
+          workspaceEpochRef.current !== loadStartedAtEpoch ||
+          codeIntelligenceVersionRef.current !== loadStartedAtVersion ||
+          hasUnpersistedCodeIntelligence()
+        ) {
           return null;
         }
 
@@ -374,38 +421,10 @@ export function App() {
   [showAdvancedViews, workingProject.views]);
 
   useEffect(() => {
-    if (!showAdvancedViews && workingProject.views.find((view) => view.id === viewId)?.core === false) {
-      setViewId("overview");
-    }
-  }, [showAdvancedViews, viewId, workingProject.views]);
-
-  useEffect(() => {
     if (["code", "import"].includes(rightPanelMode) || ["code", "class_diagram", "api_surface", "schema_model"].includes(viewId)) {
       void loadSavedCodeIntelligence();
     }
   }, [loadSavedCodeIntelligence, rightPanelMode, viewId]);
-
-  function applyLoadedProject(next: AtlasProject, revision: string) {
-    const withViews = mergeDefaultViews(next);
-    changeSeqRef.current = 0;
-    setProject(withViews);
-    setSelectedId(withViews.nodes[0]?.id ?? withViews.flows[0]?.id ?? "");
-    setActiveProposalId("");
-    setIssues(validateAtlas(withViews));
-    setAiBrief(generateContextPack(withViews, [], undefined, contextScope));
-    setDiskRevision(revision);
-    setExternalRevision("");
-    setHasUnsavedChanges(false);
-    setSyncStatus(revision ? "synced" : "idle");
-    setLastSyncedAt(revision ? new Date().toISOString() : "");
-    setPackHealth(null);
-    setHistory({ past: [], future: [] });
-    codeIntelligenceVersionRef.current = 0;
-    persistedCodeIntelligenceVersionRef.current = 0;
-    codeIntelligenceLoadRef.current = null;
-    setCodeIntelligenceLoaded(hasCodeIntelligence(withViews.intelligence));
-    setCodeIntelligenceLoading(false);
-  }
 
   function markUnsaved() {
     changeSeqRef.current += 1;
@@ -845,7 +864,14 @@ export function App() {
         <button
           type="button"
           className={showAdvancedViews ? "view-toggle active" : "view-toggle"}
-          onClick={() => setShowAdvancedViews((value) => !value)}
+          onClick={() => {
+            // Clamp in the event handler (not an effect): hiding advanced views
+            // while one is active would leave a tab-less, invisible selection.
+            if (showAdvancedViews && workingProject.views.find((view) => view.id === viewId)?.core === false) {
+              setViewId("overview");
+            }
+            setShowAdvancedViews((value) => !value);
+          }}
           title="Show or hide advanced architecture lenses"
         >
           <SlidersHorizontal size={15} /> {showAdvancedViews ? "All Views" : "More Views"}

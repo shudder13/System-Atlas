@@ -34,25 +34,23 @@ export function Inventory({
   const query = filter.trim().toLowerCase();
   const filtering = query.length > 0;
 
-  const matchesNode = (node: AtlasProject["nodes"][number]) =>
-    !filtering ||
-    node.name.toLowerCase().includes(query) ||
-    prettyType(node.type).toLowerCase().includes(query);
-
   const flows = useMemo(
-    () => project.flows.filter((flow) => !filtering || flow.name.toLowerCase().includes(query)),
-    [project.flows, filtering, query]
+    () => project.flows.filter((flow) => !query || flow.name.toLowerCase().includes(query)),
+    [project.flows, query]
   );
 
   const grouped = useMemo(() => {
-    return project.nodes.reduce<Record<string, typeof project.nodes>>((groups, node) => {
-      if (!matchesNode(node)) return groups;
+    const matches = (node: AtlasProject["nodes"][number]) =>
+      !query ||
+      node.name.toLowerCase().includes(query) ||
+      prettyType(node.type).toLowerCase().includes(query);
+    return project.nodes.reduce<Record<string, AtlasProject["nodes"]>>((groups, node) => {
+      if (!matches(node)) return groups;
       groups[node.type] = groups[node.type] ?? [];
       groups[node.type].push(node);
       return groups;
     }, {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.nodes, filtering, query]);
+  }, [project.nodes, query]);
 
   const totalMatches = flows.length + Object.values(grouped).reduce((sum, nodes) => sum + nodes.length, 0);
 
@@ -60,7 +58,11 @@ export function Inventory({
   const toggle = (key: string) =>
     setCollapsed((current) => {
       const next = new Set(current);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
       return next;
     });
 

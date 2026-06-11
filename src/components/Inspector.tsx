@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { MetadataFieldDefinition, metadataFieldsForNode, promoteGeneratedNode } from "../lib/atlas";
 import { AtlasEdge, AtlasFlow, AtlasNode, AtlasProject, CodeEvidence, EDGE_TYPES, EdgeType, MetadataValue, NODE_TYPES } from "../types";
 import { StructuredNodeEditor, structuredMetadataKeysForNode } from "./StructuredEditors";
@@ -400,20 +400,24 @@ function NodeRelationships({
   const [targetId, setTargetId] = useState(targetOptions[0]?.id ?? "");
   const [type, setType] = useState<EdgeType>("calls");
   const [label, setLabel] = useState("");
-  const linkedEdges = project.edges.filter((edge) => edge.source === node.id || edge.target === node.id);
-
-  useEffect(() => {
-    if (!targetOptions.some((target) => target.id === targetId)) {
-      setTargetId(targetOptions[0]?.id ?? "");
-    }
-  }, [targetId, targetOptions]);
+  const linkedEdges = useMemo(
+    () => project.edges.filter((edge) => edge.source === node.id || edge.target === node.id),
+    [node.id, project.edges]
+  );
+  // Derive the effective target at render time instead of correcting state in
+  // an effect: the old effect lagged one render behind, so deleting the chosen
+  // node could briefly leave a dangling target selected -- and "Add Edge" in
+  // that window wrote an edge to a node id that no longer exists.
+  const selectedTargetId = targetOptions.some((target) => target.id === targetId)
+    ? targetId
+    : targetOptions[0]?.id ?? "";
 
   return (
     <section className="relationship-editor">
       <h3>Edges</h3>
       <div className="edge-composer">
         <label className="field">Target
-          <select value={targetId} onChange={(event) => setTargetId(event.target.value)}>
+          <select value={selectedTargetId} onChange={(event) => setTargetId(event.target.value)}>
             {targetOptions.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
           </select>
         </label>
@@ -428,9 +432,9 @@ function NodeRelationships({
         <button
           type="button"
           className="stretch"
-          disabled={!targetId}
+          disabled={!selectedTargetId}
           onClick={() => {
-            onCreateEdge(node.id, targetId, type, label);
+            onCreateEdge(node.id, selectedTargetId, type, label);
             setLabel("");
           }}
         >

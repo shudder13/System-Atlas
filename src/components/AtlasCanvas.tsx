@@ -88,7 +88,10 @@ export function AtlasCanvas({ viewId, nodes, edges, selectedId, highlightedNodeI
         labelShowBg: false
       };
     });
-  }, [edges, hasFlowHighlight, highlightedNodes, nodes, selectedId]);
+    // `nodes` was a spurious dependency here: it changes on every drag frame,
+    // so every position change rebuilt all edge objects and forced ReactFlow
+    // to re-reconcile every edge.
+  }, [edges, hasFlowHighlight, highlightedNodes, selectedId]);
 
   return (
     <div className="canvas-wrap">
