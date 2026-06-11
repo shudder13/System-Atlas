@@ -622,6 +622,73 @@ describe("atlas generators", () => {
   });
 });
 
+describe("proposal and diff edge cases", () => {
+  it("applyProposal is a no-op for an unknown id and idempotent on double-apply", () => {
+    const project = structuredClone(templates[0].project);
+    expect(applyProposal(project, "proposal.does-not-exist")).toBe(project);
+
+    const proposal = createProposal(project, "Test change");
+    proposal.after.nodes[0] = { ...proposal.after.nodes[0], name: "Renamed Node" };
+    const withProposal = { ...project, proposals: [proposal] };
+
+    const applied = applyProposal(withProposal, proposal.id);
+    expect(applied.nodes[0].name).toBe("Renamed Node");
+    expect(applied.proposals[0].status).toBe("applied");
+    expect(applied.versions).toHaveLength(project.versions.length + 1);
+
+    // Applying again replays the same snapshot: same graph, one more version
+    // checkpoint, no corruption.
+    const reApplied = applyProposal(applied, proposal.id);
+    expect(reApplied.nodes[0].name).toBe("Renamed Node");
+    expect(reApplied.nodes).toHaveLength(applied.nodes.length);
+  });
+
+  it("semanticDiff reports added and removed nodes and edges", () => {
+    const project = templates[0].project;
+    const before = { nodes: project.nodes, edges: project.edges, flows: project.flows };
+    const after = {
+      nodes: [...project.nodes.slice(1), { ...project.nodes[0], id: "service.brand-new", name: "Brand New" }],
+      edges: project.edges.slice(1),
+      flows: project.flows
+    };
+
+    const diff = semanticDiff(before, after);
+
+    expect(diff.addedNodes.map((node) => node.id)).toContain("service.brand-new");
+    expect(diff.removedNodes.map((node) => node.id)).toContain(project.nodes[0].id);
+    expect(diff.removedEdges.map((edge) => edge.id)).toContain(project.edges[0].id);
+    expect(diff.addedEdges).toHaveLength(0);
+  });
+
+  it("semanticDiff ignores array reordering (no phantom changes)", () => {
+    const project = templates[0].project;
+    const node = project.nodes.find((item) => item.responsibilities.length > 1) ?? project.nodes[0];
+    const reordered = {
+      ...node,
+      responsibilities: [...node.responsibilities].reverse(),
+      // Only reorder tags when they exist: undefined -> [] would be a real
+      // structural change, not a reorder.
+      ...(node.tags ? { tags: [...node.tags].reverse() } : {})
+    };
+    const before = { nodes: [node], edges: [], flows: [] };
+    const after = { nodes: [reordered], edges: [], flows: [] };
+
+    expect(semanticDiff(before, after).changedNodes).toHaveLength(0);
+  });
+
+  it("restoreVersion returns the project unchanged for an unknown version id", () => {
+    const project = templates[0].project;
+    expect(restoreVersion(project, "version.nope")).toBe(project);
+  });
+
+  it("validateAtlas flags duplicate node ids", () => {
+    const project = structuredClone(templates[0].project);
+    project.nodes.push({ ...project.nodes[0] });
+    const codes = validateAtlas(project).map((issue) => issue.code);
+    expect(codes).toContain("duplicate-node");
+  });
+});
+
 describe("mermaid escaping", () => {
   it("neutralizes structural characters in node names and edge labels", () => {
     const project = structuredClone(templates[0].project);
