@@ -5,6 +5,7 @@ import ts from "typescript";
 import YAML from "yaml";
 import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSchema, CodeSymbol, CodeTestMapEntry, NodeType, PackHealth, PackMetadataSummary, ProjectStructureEntry } from "../src/types";
 import { defaultViews, emptyCodeIntelligence, generateArchitectureDoc, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
+import { basename, dirname, normalizePath, slug, symbolNodeId, unique } from "../src/lib/shared";
 
 // Exhaustive over NodeType so adding a node type without choosing its pack
 // folder is a compile error instead of a silent fall-through to "modules".
@@ -1263,30 +1264,6 @@ function dedupeDependencies(dependencies: CodeDependency[]) {
   });
 }
 
-function symbolNodeId(filePath: string, symbolName: string) {
-  return `code.symbol.${slug(filePath)}.${slug(symbolName)}`;
-}
-
-function basename(filePath: string) {
-  return filePath.split("/").at(-1) ?? filePath;
-}
-
-function dirname(filePath: string) {
-  const parts = filePath.split("/");
-  parts.pop();
-  return parts.join("/");
-}
-
-function normalizePath(value: string) {
-  const parts: string[] = [];
-  for (const part of value.split("/")) {
-    if (!part || part === ".") continue;
-    if (part === "..") parts.pop();
-    else parts.push(part);
-  }
-  return parts.join("/");
-}
-
 function resolveImportPath(fromPath: string, specifier: string, knownFiles: Map<string, string>) {
   if (!specifier.startsWith(".")) return null;
 
@@ -1775,10 +1752,6 @@ function yamlJson(value: unknown) {
   return YAML.stringify(value, { lineWidth: 0 });
 }
 
-function slug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
-}
-
 function classify(relative: string): Pick<CodeEvidence, "kind" | "language"> | null {
   if (isOpenApiFile(relative) || /\.(graphql|proto)$/i.test(relative)) return { kind: "contract", language: language(relative) };
   if (/\.prisma$/i.test(relative)) return { kind: "source", language: "prisma" };
@@ -1796,10 +1769,6 @@ function isOpenApiFile(relative: string) {
 
 function arrayOfStrings(value: unknown) {
   return Array.isArray(value) ? value.map(String) : [];
-}
-
-function unique<T>(items: T[]) {
-  return Array.from(new Set(items));
 }
 
 function uniqueSymbols(symbols: NonNullable<CodeEvidence["symbols"]>) {

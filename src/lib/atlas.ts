@@ -19,6 +19,7 @@ import {
   ValidationIssue,
   ViewId
 } from "../types";
+import { basename, dirname, normalizePath, slug, symbolNodeId, unique } from "./shared";
 
 const componentTypes = new Set<NodeType>([
   "container",
@@ -1994,7 +1995,7 @@ export function generateImportCandidates(project: AtlasProject): ImportCandidate
 
 export function promoteImportCandidates(project: AtlasProject, candidates: ImportCandidate[]): AtlasProject {
   if (candidates.length === 0) return project;
-  let next = candidates.reduce((current, candidate) => promoteGeneratedNode(current, candidate.node), project);
+  const next = candidates.reduce((current, candidate) => promoteGeneratedNode(current, candidate.node), project);
   const promotedIds = new Set(candidates.map((candidate) => candidate.node.id));
   const nextNodeIds = new Set(next.nodes.map((node) => node.id));
   const sourceViews = unique(candidates.map((candidate) => candidate.viewId));
@@ -2063,7 +2064,7 @@ export function mergeCodeEvidence(project: AtlasProject, evidence: CodeEvidence[
       linkedTests: item.kind === "test" ? [item.path] : [],
       risks: [],
       confidence: "observed",
-      notes: codeEvidenceSummary(item),
+      notes: evidenceContextSummary(item),
       architectureLevel: "code",
       tags: ["generated", item.kind],
       metadata: {
@@ -2258,10 +2259,6 @@ function listOrFallback(items: string[], fallback: string) {
   return items.length ? items.map((item) => `- ${item}`) : [`- ${fallback}`];
 }
 
-function unique<T>(items: T[]) {
-  return Array.from(new Set(items.filter(Boolean)));
-}
-
 function mermaidId(id: string) {
   return id.replace(/[^a-zA-Z0-9_]/g, "_");
 }
@@ -2327,10 +2324,6 @@ function rankEvidenceFiles(evidence: CodeEvidence[]) {
 
 function fileNodeId(filePath: string) {
   return `code.file.${slug(filePath)}`;
-}
-
-function symbolNodeId(filePath: string, symbolName: string) {
-  return `code.symbol.${slug(filePath)}.${slug(symbolName)}`;
 }
 
 function routeNodeId(filePath: string, method: string, routePath: string) {
@@ -2556,7 +2549,7 @@ function criticalityForEvidence(item: CodeEvidence): Criticality {
   return "medium";
 }
 
-function codeEvidenceSummary(item: CodeEvidence) {
+function evidenceContextSummary(item: CodeEvidence) {
   const parts = [
     `${item.kind} file`,
     item.language ? `language: ${item.language}` : "",
@@ -2662,15 +2655,6 @@ function prettySymbolKind(kind: string) {
   return kind.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function basename(filePath: string) {
-  return filePath.split("/").at(-1) ?? filePath;
-}
-
-function dirname(filePath: string) {
-  const parts = filePath.split("/");
-  parts.pop();
-  return parts.join("/");
-}
 
 function resolveImportPath(fromPath: string, specifier: string, knownFiles: Map<string, string>) {
   if (!specifier.startsWith(".")) return null;
@@ -2689,23 +2673,6 @@ function resolveImportPath(fromPath: string, specifier: string, knownFiles: Map<
   ];
 
   return candidates.find((candidate) => knownFiles.has(candidate)) ?? null;
-}
-
-function normalizePath(filePath: string) {
-  const parts: string[] = [];
-  for (const part of filePath.split("/")) {
-    if (!part || part === ".") continue;
-    if (part === "..") {
-      parts.pop();
-      continue;
-    }
-    parts.push(part);
-  }
-  return parts.join("/");
-}
-
-function slug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
 }
 
 function levelForNodeType(type: NodeType) {
