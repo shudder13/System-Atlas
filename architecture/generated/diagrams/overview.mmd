@@ -1,6 +1,9 @@
 flowchart LR
   stakeholder_architect["Architect\nstakeholder"]
   stakeholder_ai_agent["AI Agent\nstakeholder"]
+  concern_living_architecture["Living architecture\nconcern"]
+  concern_ai_migration_safety["AI migration safety\nconcern"]
+  concern_local_first["Local-first + Git-friendly\nconcern"]
   system_atlas["System Atlas\nsystem"]
   container_web["Web Client (Vite + React)\ncontainer"]
   container_api["API Server (Express)\ncontainer"]
@@ -9,3 +12,6 @@ flowchart LR
   system_atlas -->|"contains"| container_api
   system_atlas -->|"contains"| container_pack
   container_web -->|"calls"| container_api
+  stakeholder_architect -->|"has_concern"| concern_living_architecture
+  stakeholder_architect -->|"has_concern"| concern_ai_migration_safety
+  stakeholder_architect -->|"has_concern"| concern_local_first

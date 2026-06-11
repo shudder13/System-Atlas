@@ -32,6 +32,8 @@ notes: ""
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # Greenfield design → AI implementation
 
 Architect models the intended system, creates a proposal between architecture versions, then hands an AI agent a migration brief.

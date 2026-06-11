@@ -28,6 +28,8 @@ metadata:
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # React 19
 
 **Type:** `tech_choice` · **Criticality:** high · **Status:** active · **Confidence:** manual · **Level:** domain · **Owner:** architecture

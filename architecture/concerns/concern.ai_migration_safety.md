@@ -25,6 +25,8 @@ metadata:
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # AI migration safety
 
 **Type:** `concern` · **Criticality:** critical · **Status:** active · **Confidence:** manual · **Owner:** architecture

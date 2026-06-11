@@ -20,6 +20,8 @@ metadata:
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # Proposals are first-class
 
 **Type:** `decision` · **Criticality:** critical · **Status:** active · **Confidence:** manual · **Owner:** architecture

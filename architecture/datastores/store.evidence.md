@@ -24,6 +24,8 @@ metadata:
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # Evidence files
 
 **Type:** `datastore` · **Criticality:** high · **Status:** active · **Confidence:** manual · **Level:** data · **Owner:** architecture

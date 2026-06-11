@@ -21,6 +21,8 @@ metadata:
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # Mermaid CSS/HTML injection (CVEs)
 
 **Type:** `threat` · **Criticality:** medium · **Status:** active · **Confidence:** manual · **Owner:** architecture

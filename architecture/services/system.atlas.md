@@ -21,6 +21,8 @@ metadata: {}
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # System Atlas
 
 **Type:** `system` · **Criticality:** high · **Status:** active · **Confidence:** manual · **Level:** system · **Owner:** architecture

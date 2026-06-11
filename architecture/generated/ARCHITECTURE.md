@@ -32,6 +32,9 @@ Local-first architecture workbench. This pack is the dogfooded model of System A
 flowchart LR
   stakeholder_architect["Architect\nstakeholder"]
   stakeholder_ai_agent["AI Agent\nstakeholder"]
+  concern_living_architecture["Living architecture\nconcern"]
+  concern_ai_migration_safety["AI migration safety\nconcern"]
+  concern_local_first["Local-first + Git-friendly\nconcern"]
   system_atlas["System Atlas\nsystem"]
   container_web["Web Client (Vite + React)\ncontainer"]
   container_api["API Server (Express)\ncontainer"]
@@ -40,15 +43,18 @@ flowchart LR
   system_atlas -->|"contains"| container_api
   system_atlas -->|"contains"| container_pack
   container_web -->|"calls"| container_api
+  stakeholder_architect -->|"has_concern"| concern_living_architecture
+  stakeholder_architect -->|"has_concern"| concern_ai_migration_safety
+  stakeholder_architect -->|"has_concern"| concern_local_first
 ```
 
 ## Services & Containers
 
 | Name | Type | Criticality | Responsibilities | Key files |
 | --- | --- | --- | --- | --- |
-| Web Client (Vite + React) | Container | high | React Flow canvas for each architecture view; Trigger Scan/Validate/Export/Brief via the API | `src/`, `index.html`, `vite.config.ts` |
-| API Server (Express) | Container | high | Serve /api endpoints; Read and write the architecture/ pack on disk; Run the workspace scanner | `server/index.ts` |
-| Architecture Pack (filesystem) | Container | critical | Hold the authored architecture state and all derived artifacts; Round-trip cleanly between UI and disk | `architecture/` |
+| Web Client (Vite + React) | Container | high | React Flow canvas for each architecture view; Trigger Scan/Validate/Export/Brief via the API | \`src/\`, \`index.html\`, \`vite.config.ts\` |
+| API Server (Express) | Container | high | Serve /api endpoints; Read and write the architecture/ pack on disk; Run the workspace scanner | \`server/index.ts\` |
+| Architecture Pack (filesystem) | Container | critical | Hold the authored architecture state and all derived artifacts; Round-trip cleanly between UI and disk | \`architecture/\` |
 
 ## APIs & Contracts
 

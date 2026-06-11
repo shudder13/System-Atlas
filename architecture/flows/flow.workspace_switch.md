@@ -30,6 +30,8 @@ notes: ""
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # Add a project → switch workspace
 
 A single workbench instance manages many projects. Adding a workspace registers it and makes it current; switching reloads the pack without restart.

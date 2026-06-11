@@ -32,6 +32,8 @@ notes: ""
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # Brownfield import → first atlas
 
 Scan an existing repository, promote useful discovered facts into authored nodes, then commit the architecture pack.

@@ -22,6 +22,8 @@ metadata:
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # src/lib/atlas.ts past 2000 lines
 
 **Type:** `risk` · **Criticality:** medium · **Status:** active · **Confidence:** manual · **Owner:** architecture

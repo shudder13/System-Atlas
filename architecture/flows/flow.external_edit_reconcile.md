@@ -21,6 +21,8 @@ notes: ""
 
 ---
 
+<!-- The sections below are GENERATED from the YAML frontmatter above. Edit the frontmatter (or use the UI); body edits are overwritten on the next export. -->
+
 # External edit reconciliation
 
 When architecture files change on disk while the UI has unsaved edits, prompt the architect to reload or force-export.
