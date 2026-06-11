@@ -36,7 +36,10 @@ const componentTypes = new Set<NodeType>([
   "file_group"
 ]);
 
-const overviewTypes = new Set<NodeType>(["actor", "stakeholder", "system", "app", "container", "service", "external_system", "team", "load_balancer"]);
+// `concern` is included to match viewLaneRules.overview lane 1, which already
+// assigns concerns a lane -- without it the lane rule was dead and concern
+// nodes were silently dropped from the Context view.
+const overviewTypes = new Set<NodeType>(["actor", "stakeholder", "system", "app", "container", "service", "external_system", "team", "load_balancer", "concern"]);
 const containerTypes = new Set<NodeType>(["system", "container", "app", "service", "worker", "scheduler", "load_balancer", "external_system", "api_contract", "event_contract"]);
 const codeTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract", "api_contract", "event_contract", "page"]);
 const classDiagramTypes = new Set<NodeType>(["component", "module", "code_symbol", "file_group", "contract"]);
@@ -204,7 +207,9 @@ const viewLaneFallbacks: Partial<Record<ViewId, number>> = {
   class_diagram: 3,
   api_surface: 5,
   flows: 4,
-  deployment: 5,
+  // One beyond the last defined lane (5 = env_var), matching data/schema_model;
+  // a fallback of 5 merged unrecognized deployment types into the env_var column.
+  deployment: 6,
   data: 6,
   schema_model: 6,
   domain: 4,
@@ -672,6 +677,27 @@ export function validateAtlas(project: AtlasProject): ValidationIssue[] {
   const nodesById = new Map(project.nodes.map((node) => [node.id, node]));
   const edgeIds = new Set<string>();
 
+  // Duplicate node ids silently collapse in nodesById (last one wins) and the
+  // export overwrites one concept file with the other -- surface them loudly,
+  // symmetric to the duplicate-edge check below.
+  const seenNodeIds = new Set<string>();
+  for (const node of project.nodes) {
+    if (seenNodeIds.has(node.id)) {
+      issues.push({ severity: "error", code: "duplicate-node", message: `Duplicate node id ${node.id}.`, targetId: node.id });
+    }
+    seenNodeIds.add(node.id);
+  }
+
+  // Pre-bucket edges by target once: the concern-coverage and datastore-owner
+  // checks below would otherwise rescan every edge per node (O(nodes x edges))
+  // on every keystroke-driven validation pass.
+  const edgesByTarget = new Map<string, AtlasEdge[]>();
+  for (const edge of project.edges) {
+    const bucket = edgesByTarget.get(edge.target);
+    if (bucket) bucket.push(edge);
+    else edgesByTarget.set(edge.target, [edge]);
+  }
+
   for (const node of project.nodes) {
     if (!node.owner.trim()) {
       issues.push({ severity: "error", code: "missing-owner", message: `${node.name} has no owner.`, targetId: node.id });
@@ -799,8 +825,8 @@ export function validateAtlas(project: AtlasProject): ValidationIssue[] {
   }
 
   for (const concern of project.nodes.filter((node) => node.type === "concern")) {
-    const addressingEdges = project.edges.filter((edge) => edge.type === "addresses" && edge.target === concern.id);
-    if (addressingEdges.length === 0) {
+    const addressed = (edgesByTarget.get(concern.id) ?? []).some((edge) => edge.type === "addresses");
+    if (!addressed) {
       issues.push({
         severity: "warning",
         code: "concern-without-addressing-element",
@@ -812,9 +838,10 @@ export function validateAtlas(project: AtlasProject): ValidationIssue[] {
 
   const datastoreIds = new Set(project.nodes.filter((node) => ["datastore", "replica", "schema", "data_entity"].includes(node.type)).map((node) => node.id));
   for (const nodeId of datastoreIds) {
-    const ownerWriteEdges = project.edges.filter((edge) => edge.target === nodeId && ["writes", "owns"].includes(edge.type));
-    if (ownerWriteEdges.length === 0) {
-      issues.push({ severity: "warning", code: "datastore-without-owner", message: `${nodeId} has no writer or owner edge.`, targetId: nodeId });
+    const owned = (edgesByTarget.get(nodeId) ?? []).some((edge) => ["writes", "owns"].includes(edge.type));
+    if (!owned) {
+      const name = nodesById.get(nodeId)?.name ?? nodeId;
+      issues.push({ severity: "warning", code: "datastore-without-owner", message: `${name} has no writer or owner edge.`, targetId: nodeId });
     }
   }
 
