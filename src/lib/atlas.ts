@@ -1931,10 +1931,6 @@ export function generateMigrationBrief(project: AtlasProject, proposal?: AtlasPr
   ].join("\n");
 }
 
-export function mergeEvidence(project: AtlasProject, evidence: CodeEvidence[]): AtlasProject {
-  return { ...project, evidence };
-}
-
 export function promoteGeneratedNode(project: AtlasProject, generatedNode: AtlasNode, owner = "architecture"): AtlasProject {
   const existingNode = project.nodes.find((node) => node.id === generatedNode.id);
   if (existingNode && !isGeneratedAtlasNode(existingNode)) return project;
@@ -2728,8 +2724,8 @@ function levelForNodeType(type: NodeType) {
 }
 
 function cryptoSafeId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID().slice(0, 8);
-  }
-  return Math.random().toString(16).slice(2, 10);
+  // crypto.randomUUID exists in every supported runtime (Node >=18, modern
+  // browsers on secure contexts incl. localhost, vitest). The old Math.random
+  // fallback silently weakened the uniqueness guarantee the name promises.
+  return crypto.randomUUID().slice(0, 8);
 }
