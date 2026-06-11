@@ -1,4 +1,7 @@
 {
+  // Browser-side program (React client + the Vite config). The Node-side
+  // program (server/, scripts/) is tsconfig.server.json, which extends this
+  // one but swaps the DOM lib for Node types -- `npm run typecheck` runs both.
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
@@ -8,6 +11,10 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -16,5 +23,5 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "server", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"]
 }

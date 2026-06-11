@@ -3,10 +3,12 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import ts from "typescript";
 import YAML from "yaml";
-import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSchema, CodeSymbol, CodeTestMapEntry, PackHealth, PackMetadataSummary, ProjectStructureEntry } from "../src/types";
+import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSchema, CodeSymbol, CodeTestMapEntry, NodeType, PackHealth, PackMetadataSummary, ProjectStructureEntry } from "../src/types";
 import { defaultViews, emptyCodeIntelligence, generateArchitectureDoc, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 
-const conceptFolders: Record<string, string> = {
+// Exhaustive over NodeType so adding a node type without choosing its pack
+// folder is a compile error instead of a silent fall-through to "modules".
+const conceptFolders: Record<NodeType, string> = {
   system: "services",
   container: "services",
   component: "modules",
@@ -519,7 +521,7 @@ function indexTypeScriptSource(relative: string, text: string): Pick<CodeEvidenc
   };
 }
 
-function indexOpenApiContract(relative: string, text: string): Pick<CodeEvidence, "symbols" | "exports" | "routes"> {
+function indexOpenApiContract(_relative: string, text: string): Pick<CodeEvidence, "symbols" | "exports" | "routes"> {
   const parsed = parseStructured(text) as { paths?: Record<string, Record<string, { operationId?: string }>> };
   const symbols: NonNullable<CodeEvidence["symbols"]> = [];
   const exports: string[] = [];

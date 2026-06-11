@@ -1,0 +1,12 @@
+{
+  // Node-side program: the Express server, the regenerator scripts, and the
+  // shared src modules they import. Crucially this config has NO DOM lib, so a
+  // stray document/window/localStorage in server code fails the typecheck
+  // instead of crashing at runtime (the single shared config hid that).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["server", "scripts"]
+}
