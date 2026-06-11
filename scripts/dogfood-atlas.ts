@@ -729,6 +729,10 @@ async function main() {
   const warnings = result.issues.filter((issue) => issue.severity === "warning");
   console.log(`Wrote ${result.files.length} files under ${path.join(repoRoot, "architecture")}`);
   console.log(`Validation: ${errors.length} errors, ${warnings.length} warnings`);
+  // Print warnings too: this script is the sole regenerator of the pack, so a
+  // swallowed warning (dangling reference, missing field) degrades the model
+  // silently on every run.
+  for (const issue of warnings) console.log(`  WARN ${issue.code}: ${issue.message}${issue.targetId ? ` (${issue.targetId})` : ""}`);
   if (errors.length) {
     for (const issue of errors) console.log(`  ERROR ${issue.code}: ${issue.message}${issue.targetId ? ` (${issue.targetId})` : ""}`);
     process.exit(1);
