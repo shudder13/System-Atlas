@@ -1519,7 +1519,10 @@ function mdTableLines(headers: string[], rows: string[][]): string[] {
 }
 
 function mdCell(value: string): string {
-  const collapsed = (value ?? "").replace(/\r?\n/g, "<br>").replace(/\|/g, "\\|").trim();
+  // Escape the characters that break a Markdown table cell: a literal `|` ends
+  // the column and an unbalanced backtick opens a code span that swallows the
+  // rest of the row.
+  const collapsed = (value ?? "").replace(/\r?\n/g, "<br>").replace(/[|`]/g, (char) => `\\${char}`).trim();
   return collapsed || "—";
 }
 
@@ -2219,12 +2222,34 @@ function mermaidId(id: string) {
   return id.replace(/[^a-zA-Z0-9_]/g, "_");
 }
 
+// Make an arbitrary node/edge label safe inside a Mermaid flowchart `["..."]`
+// node or `|"..."|` edge label. A real newline breaks the line-based output;
+// the structural delimiters `" < > | [ ]` would otherwise corrupt the diagram
+// (the product tracks this as threat.mermaid_injection). HTML entities render
+// correctly in Mermaid's default htmlLabels mode while keeping the syntax valid.
 function escapeMermaid(value: string) {
-  return value.replace(/"/g, "'");
+  return value
+    .replace(/[\r\n]+/g, " ")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\|/g, "&#124;")
+    .replace(/\[/g, "&#91;")
+    .replace(/\]/g, "&#93;");
 }
 
+// classDiagram member lines are more restrictive: `{}` close the class body and
+// `<>` are read as generic delimiters. Convert `<>` to Mermaid's own generic
+// syntax (`~`) so `Map<string, Node>` renders as `Map~string, Node~`.
 function escapeClassMember(value: string) {
-  return value.replace(/[{}]/g, "").replace(/"/g, "'");
+  return value
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[{}]/g, "")
+    .replace(/</g, "~")
+    .replace(/>/g, "~")
+    .replace(/\|/g, "/")
+    .replace(/"/g, "'");
 }
 
 function asStringList(value: unknown) {

@@ -3,6 +3,7 @@ import { templates } from "../data/templates";
 import {
   applyProposal,
   commitWorkspaceEdit,
+  createNode,
   createProposal,
   createVersion,
   defaultViews,
@@ -618,5 +619,47 @@ describe("atlas generators", () => {
     expect(schemaGraph.nodes.filter((node) => node.metadata?.entityName === "Order")).toHaveLength(1);
     expect(schemaGraph.nodes.find((node) => node.id === manualSchema.id)?.metadata?.columns).toContain("id String primary key");
     expect(generateImportCandidates(withManualModel).some((candidate) => ["OrderService", "POST /orders", "Order"].includes(candidate.title))).toBe(false);
+  });
+});
+
+describe("mermaid escaping", () => {
+  it("neutralizes structural characters in node names and edge labels", () => {
+    const project = structuredClone(templates[0].project);
+    const service = project.nodes.find((node) => node.name === "API Service")!;
+    service.name = "Evil] Service |x\nLine2";
+    const edge = project.edges.find((item) => item.source === service.id || item.target === service.id)!;
+    edge.label = "GET|POST [v2]";
+
+    const mermaid = generateMermaid(project, "data");
+
+    // Raw `]` / `|` / newlines inside a label would terminate the `["..."]`
+    // node syntax or the `|"..."|` edge delimiter and corrupt the diagram.
+    expect(mermaid).toContain("&#93;");
+    expect(mermaid).toContain("&#124;");
+    expect(mermaid).not.toContain("Evil]");
+    expect(mermaid).not.toContain("GET|POST");
+    expect(mermaid).not.toContain("Line2\n");
+    for (const line of mermaid.split("\n")) {
+      const quotes = line.match(/"/g)?.length ?? 0;
+      expect(quotes % 2).toBe(0);
+    }
+  });
+
+  it("converts generics in class members to Mermaid tilde syntax", () => {
+    const project = structuredClone(templates[0].project);
+    project.nodes.push({
+      ...createNode("code_symbol", 0),
+      id: "code_symbol.lookup_service",
+      name: "LookupService",
+      metadata: {
+        symbolKind: "class",
+        methods: ["lookup(map: Map<string, AtlasNode>): string[]"]
+      }
+    });
+
+    const mermaid = generateMermaid(project, "class_diagram");
+
+    expect(mermaid).toContain("Map~string, AtlasNode~");
+    expect(mermaid).not.toContain("Map<string");
   });
 });
