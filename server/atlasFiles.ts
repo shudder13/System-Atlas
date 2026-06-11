@@ -137,28 +137,41 @@ export async function exportAtlas(root: string, project: AtlasProject) {
   return { files, issues: validateAtlas(project) };
 }
 
-export async function architectureRevision(root: string) {
+// Content hashing is correct (H1) but reading every pack file on the client's
+// 3s revision poll would be wasteful. Cache the content revision behind a cheap
+// stat fingerprint (path:size:mtime): any real change perturbs the fingerprint
+// and recomputes; an mtime-only churn (git checkout) recomputes once and lands
+// back on the same content revision, so no false conflict is ever surfaced.
+const revisionCache = new Map<string, { fingerprint: string; revision: string }>();
+
+async function cachedContentRevision(root: string, excludedPaths: string[]) {
   const architectureRoot = safeJoin(root, "architecture");
-  const hash = createHash("sha1");
+  const cacheKey = `${architectureRoot}|${excludedPaths.join(",")}`;
 
   try {
-    await collectRevision(architectureRoot, architectureRoot, hash);
-    return hash.digest("hex");
+    const fingerprintHash = createHash("sha1");
+    await collectRevision(architectureRoot, architectureRoot, fingerprintHash, excludedPaths, "stat");
+    const fingerprint = fingerprintHash.digest("hex");
+
+    const cached = revisionCache.get(cacheKey);
+    if (cached && cached.fingerprint === fingerprint) return cached.revision;
+
+    const contentHash = createHash("sha1");
+    await collectRevision(architectureRoot, architectureRoot, contentHash, excludedPaths, "content");
+    const revision = contentHash.digest("hex");
+    revisionCache.set(cacheKey, { fingerprint, revision });
+    return revision;
   } catch {
     return "";
   }
 }
 
-export async function architectureSourceRevision(root: string) {
-  const architectureRoot = safeJoin(root, "architecture");
-  const hash = createHash("sha1");
+export async function architectureRevision(root: string) {
+  return cachedContentRevision(root, []);
+}
 
-  try {
-    await collectRevision(architectureRoot, architectureRoot, hash, ["generated", "evidence/metadata.json"]);
-    return hash.digest("hex");
-  } catch {
-    return "";
-  }
+export async function architectureSourceRevision(root: string) {
+  return cachedContentRevision(root, ["generated", "evidence/metadata.json"]);
 }
 
 export async function packHealth(root: string): Promise<PackHealth> {
@@ -279,16 +292,24 @@ export async function loadCodeIntelligence(root: string): Promise<CodeIntelligen
   return readCodeIntelligence(root);
 }
 
+const EVIDENCE_CAP = 4000;
+
 export async function scanWorkspace(root: string): Promise<CodeScanResult> {
   const skip = new Set(["node_modules", ".git", "dist", "build", ".vite", "coverage", "architecture"]);
   const evidence: CodeEvidence[] = [];
+  let indexedFiles = 0;
 
   async function walk(directory: string) {
+    if (evidence.length >= EVIDENCE_CAP) return;
     const entries = await fs.readdir(directory, { withFileTypes: true });
     for (const entry of entries) {
+      if (evidence.length >= EVIDENCE_CAP) return;
+      // Prune by directory NAME, not just root-relative prefix: the old check
+      // only skipped a top-level node_modules, so a monorepo's nested
+      // packages/*/node_modules was walked (and TS-parsed) in full.
+      if (entry.isDirectory() && skip.has(entry.name)) continue;
       const absolute = path.join(directory, entry.name);
       const relative = path.relative(root, absolute).replace(/\\/g, "/");
-      if ([...skip].some((segment) => relative === segment || relative.startsWith(`${segment}/`))) continue;
 
       if (entry.isDirectory()) {
         evidence.push({ path: relative, kind: "directory" });
@@ -299,12 +320,18 @@ export async function scanWorkspace(root: string): Promise<CodeScanResult> {
       const kind = classify(relative);
       if (kind) {
         evidence.push(await indexFile(absolute, relative, kind));
+        // The TypeScript parse inside indexFile is synchronous CPU work on the
+        // single Express thread; yield periodically so revision polls and other
+        // requests stay responsive during a large scan.
+        if (++indexedFiles % 25 === 0) {
+          await new Promise((resolve) => setImmediate(resolve));
+        }
       }
     }
   }
 
   await walk(root);
-  const cappedEvidence = evidence.slice(0, 4000);
+  const cappedEvidence = evidence.slice(0, EVIDENCE_CAP);
   return {
     evidence: cappedEvidence,
     intelligence: buildCodeIntelligence(cappedEvidence)
@@ -1432,7 +1459,13 @@ async function latestFileMtime(root: string, relativeFolder: string, excludedFol
   return latest;
 }
 
-async function collectRevision(root: string, current: string, hash: ReturnType<typeof createHash>, excludedPaths: string[] = []) {
+async function collectRevision(
+  root: string,
+  current: string,
+  hash: ReturnType<typeof createHash>,
+  excludedPaths: string[] = [],
+  mode: "content" | "stat" = "content"
+) {
   const entries = await fs.readdir(current, { withFileTypes: true });
 
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
@@ -1444,7 +1477,14 @@ async function collectRevision(root: string, current: string, hash: ReturnType<t
     if (excludedPaths.some((excluded) => relative === excluded || relative.startsWith(`${excluded}/`))) continue;
 
     if (entry.isDirectory()) {
-      await collectRevision(root, absolute, hash, excludedPaths);
+      await collectRevision(root, absolute, hash, excludedPaths, mode);
+      continue;
+    }
+
+    if (mode === "stat") {
+      // Cheap fingerprint for the revision cache; never surfaced directly.
+      const stat = await fs.stat(absolute);
+      hash.update(`${relative}:${stat.size}:${Math.floor(stat.mtimeMs)}\n`);
       continue;
     }
 

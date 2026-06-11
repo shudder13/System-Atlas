@@ -112,6 +112,19 @@ describe("workspace scanner", () => {
     expect(post?.indexes).toContain("@@index([authorId])");
     expect(post?.relations).toContain("author -> User");
   });
+
+  it("prunes node_modules and friends at any depth, not just the workspace root", async () => {
+    const root = await tempWorkspace();
+    await writeFixture(root, "packages/api/src/index.ts", `export const ok = true;`);
+    await writeFixture(root, "packages/api/node_modules/dep/index.js", `module.exports = {};`);
+    await writeFixture(root, "node_modules/top/index.js", `module.exports = {};`);
+
+    const result = await scanWorkspace(root);
+    const paths = result.evidence.map((item) => item.path);
+
+    expect(paths).toContain("packages/api/src/index.ts");
+    expect(paths.some((p) => p.includes("node_modules"))).toBe(false);
+  });
 });
 
 async function tempPackRoot() {
