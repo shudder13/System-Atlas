@@ -204,7 +204,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The API runs on `http://localhost:5174`.
+Open `http://127.0.0.1:5173`. The API runs on `http://127.0.0.1:5174`. (Both servers bind `127.0.0.1` explicitly — on Windows, `localhost` can resolve to IPv6 `::1` first and miss them. Ports are overridable via `SYSTEM_ATLAS_WEB_PORT` / `SYSTEM_ATLAS_API_PORT`; see `.env.example`.)
 
 System Atlas runs as a long-lived workbench: launch it **once** and switch between any of your projects from the in-UI picker. The list of projects (the "workspace registry") is persisted at `~/.system-atlas/workspaces.json` (or `%APPDATA%\system-atlas\workspaces.json` on Windows), so the projects you added survive restarts.
 

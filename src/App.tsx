@@ -239,7 +239,7 @@ export function App() {
   }, [initialiseCurrentWorkspace, refreshWorkspaceRegistry]);
 
   const removeWorkspaceAction = useCallback(async (id: string) => {
-    const registry = await api.removeWorkspace(id);
+    const { registry } = await api.removeWorkspace(id);
     setWorkspaceRegistry(registry);
     if (registry.currentWorkspaceId) {
       await initialiseCurrentWorkspace();

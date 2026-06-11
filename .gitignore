@@ -2,8 +2,15 @@ node_modules
 dist
 coverage
 .DS_Store
+Thumbs.db
+desktop.ini
 .env
-.env.local
+.env.*
+!.env.example
+*.log
 .vite
 tsconfig.tsbuildinfo
+*.tsbuildinfo
 .playwright-mcp/
+.vscode/
+.idea/

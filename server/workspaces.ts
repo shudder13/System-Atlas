@@ -149,6 +149,9 @@ export async function addWorkspace(input: { path: string; name?: string }): Prom
 export async function removeWorkspace(id: string): Promise<WorkspaceRegistry> {
   return withRegistryLock(async () => {
     const registry = await loadRegistry();
+    if (!registry.workspaces.some((w) => w.id === id)) {
+      throw Object.assign(new Error(`Unknown workspace id: ${id}`), { code: "workspace_not_found" });
+    }
     const next = registry.workspaces.filter((w) => w.id !== id);
     const currentWorkspaceId =
       registry.currentWorkspaceId === id

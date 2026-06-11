@@ -1753,6 +1753,11 @@ function yamlJson(value: unknown) {
 }
 
 function classify(relative: string): Pick<CodeEvidence, "kind" | "language"> | null {
+  // Never index .env-class files (only .env.example/.env.sample templates):
+  // even path-and-size metadata documents where secrets live, and the
+  // evidence JSON is committed to the scanned project's repository.
+  const base = relative.split("/").at(-1) ?? relative;
+  if (/^\.env(\..+)?$/.test(base) && !/^\.env\.(example|sample|template)$/.test(base)) return null;
   if (isOpenApiFile(relative) || /\.(graphql|proto)$/i.test(relative)) return { kind: "contract", language: language(relative) };
   if (/\.prisma$/i.test(relative)) return { kind: "source", language: "prisma" };
   if (/\.(test|spec)\.(ts|tsx|js|jsx|py|rb|go|rs)$/.test(relative)) return { kind: "test", language: language(relative) };

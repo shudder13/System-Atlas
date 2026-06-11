@@ -17,7 +17,11 @@ import {
 const app = express();
 const port = Number(process.env.SYSTEM_ATLAS_API_PORT ?? 5174);
 
-app.use(express.json({ limit: "20mb" }));
+// Ceiling for the full atlas payload (nodes + edges + evidence + optional
+// code intelligence). The scanner caps evidence at 4000 items / intelligence
+// arrays at 2k-12k entries, which serializes well below this.
+const JSON_BODY_LIMIT = "20mb";
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
 type ExportAtlasProject = Omit<AtlasProject, "intelligence"> & { intelligence?: CodeIntelligence };
 
@@ -128,9 +132,16 @@ app.patch("/api/workspaces/:id", async (request, response, next) => {
 
 app.delete("/api/workspaces/:id", async (request, response, next) => {
   try {
+    // Envelope ({ registry }) for consistency with every other mutation
+    // response; unknown ids are a 404, not a silent no-op or a generic 500.
     const registry = await removeWorkspace(request.params.id);
-    response.json(registry);
+    response.json({ registry });
   } catch (error) {
+    const err = error as Error & { code?: string };
+    if (err.code === "workspace_not_found") {
+      response.status(404).json({ error: err.message, code: err.code });
+      return;
+    }
     next(error);
   }
 });

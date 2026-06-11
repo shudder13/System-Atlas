@@ -84,7 +84,7 @@ export const api = {
       body: JSON.stringify({ name })
     }),
   removeWorkspace: (id: string) =>
-    request<WorkspaceRegistry>(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    request<{ registry: WorkspaceRegistry }>(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" }),
   project: () => request<{ project: AtlasProject; workspace: string; revision: string; loadedFromDisk: boolean }>("/api/project"),
   projectRevision: () => request<{ revision: string }>("/api/project/revision"),
   codeIntelligence: () => request<{ intelligence: CodeIntelligence }>("/api/code-intelligence"),
