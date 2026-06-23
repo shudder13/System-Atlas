@@ -21,6 +21,7 @@ notes: ""
 tags: []
 architecture_level: container
 metadata:
+  port: "5173"
   sla: Dev-only; no production SLA
   scaling: Single user, single browser tab
 
@@ -34,6 +35,7 @@ metadata:
 
 ## Metadata
 
+- **Port:** 5173
 - **Sla:** Dev-only; no production SLA
 - **Scaling:** Single user, single browser tab
 

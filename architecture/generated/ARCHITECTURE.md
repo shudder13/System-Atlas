@@ -50,11 +50,11 @@ flowchart LR
 
 ## Services & Containers
 
-| Name | Type | Criticality | Responsibilities | Key files |
-| --- | --- | --- | --- | --- |
-| Web Client (Vite + React) | Container | high | React Flow canvas for each architecture view; Trigger Scan/Validate/Export/Brief via the API | \`src/\`, \`index.html\`, \`vite.config.ts\` |
-| API Server (Express) | Container | high | Serve /api endpoints; Read and write the architecture/ pack on disk; Run the workspace scanner | \`server/index.ts\` |
-| Architecture Pack (filesystem) | Container | critical | Hold the authored architecture state and all derived artifacts; Round-trip cleanly between UI and disk | \`architecture/\` |
+| Name | Type | Criticality | Ports | Depends on | Responsibilities | Key files |
+| --- | --- | --- | --- | --- | --- | --- |
+| Web Client (Vite + React) | Container | high | 5173 | API Server (Express) | React Flow canvas for each architecture view; Trigger Scan/Validate/Export/Brief via the API | \`src/\`, \`index.html\`, \`vite.config.ts\` |
+| API Server (Express) | Container | high | 5174 | Architecture Pack (filesystem) | Serve /api endpoints; Read and write the architecture/ pack on disk; Run the workspace scanner | \`server/index.ts\` |
+| Architecture Pack (filesystem) | Container | critical | — | — | Hold the authored architecture state and all derived artifacts; Round-trip cleanly between UI and disk | \`architecture/\` |
 
 ## APIs & Contracts
 

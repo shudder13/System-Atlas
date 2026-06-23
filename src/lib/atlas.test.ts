@@ -101,6 +101,13 @@ describe("atlas generators", () => {
     // Sections assembled from grouped node types, with real node names flowing through.
     expect(doc).toContain("## Services & Containers");
     expect(doc).toContain("API Service");
+    // New Services columns: Ports (graceful "—" when unmodeled) and Depends on
+    // (derived from edges, filtered to architectural target types).
+    expect(doc).toMatch(/\| Ports \|/);
+    expect(doc).toContain("Depends on");
+    // API Service writes to the Primary Database, so the datastore surfaces in
+    // its dependency cell — proof the column is computed from the graph, not hard-coded.
+    expect(doc).toMatch(/\| API Service \|[^\n]*Primary Database/);
     expect(doc).toContain("## Data Stores");
     expect(doc).toContain("Primary Database");
     expect(doc).toContain("## Technology Stack");

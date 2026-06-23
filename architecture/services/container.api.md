@@ -19,7 +19,8 @@ confidence: manual
 notes: ""
 tags: []
 architecture_level: container
-metadata: {}
+metadata:
+  port: "5174"
 
 ---
 
@@ -28,6 +29,10 @@ metadata: {}
 # API Server (Express)
 
 **Type:** `container` · **Criticality:** high · **Status:** active · **Confidence:** manual · **Level:** container · **Owner:** architecture
+
+## Metadata
+
+- **Port:** 5174
 
 ## Responsibilities
 

@@ -96,7 +96,7 @@ const nodes: AtlasNode[] = [
     architectureLevel: "container",
     linkedFiles: ["src/", "index.html", "vite.config.ts"],
     responsibilities: ["React Flow canvas for each architecture view", "Trigger Scan/Validate/Export/Brief via the API"],
-    metadata: { sla: "Dev-only; no production SLA", scaling: "Single user, single browser tab" }
+    metadata: { port: "5173", sla: "Dev-only; no production SLA", scaling: "Single user, single browser tab" }
   }),
   node({
     id: "container.api",
@@ -105,7 +105,8 @@ const nodes: AtlasNode[] = [
     criticality: "high",
     architectureLevel: "container",
     linkedFiles: ["server/index.ts"],
-    responsibilities: ["Serve /api endpoints", "Read and write the architecture/ pack on disk", "Run the workspace scanner"]
+    responsibilities: ["Serve /api endpoints", "Read and write the architecture/ pack on disk", "Run the workspace scanner"],
+    metadata: { port: "5174" }
   }),
   node({
     id: "container.pack",

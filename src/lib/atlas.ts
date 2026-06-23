@@ -1309,9 +1309,25 @@ export function generateOverview(project: AtlasProject): string {
 // generators above: assemble a Markdown string, group by node type/level, and reuse
 // generateMermaid for the embedded system diagram so the prose and the canvas can
 // never disagree about the system shape.
+// A service's runtime "dependency" for the Services table: the other services,
+// datastores, and external systems it calls, routes to, reads, writes, or
+// explicitly depends on. Filtering by TARGET type keeps implementation detail
+// (modules, tech choices, env vars, contracts) out of the architectural column.
+const SERVICE_DEPENDENCY_EDGE_TYPES = new Set<EdgeType>([
+  "depends_on", "calls", "routes_to", "reads", "writes", "publishes", "subscribes_to"
+]);
+const SERVICE_DEPENDENCY_TARGET_TYPES = new Set<NodeType>([
+  "container", "app", "service", "worker", "scheduler", "load_balancer",
+  "datastore", "replica", "queue", "cache", "external_system"
+]);
+// Free-form metadata keys a node may use to record its port(s), most specific
+// first. a-private-project uses `hostPort` ("8080 → 8080"); other packs use `port`.
+const SERVICE_PORT_METADATA_KEYS = ["hostPort", "ports", "port"];
+
 export function generateArchitectureDoc(project: AtlasProject): string {
   const byType = groupBy(project.nodes, (node) => node.type);
   const nodeName = new Map(project.nodes.map((node) => [node.id, node.name]));
+  const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
   const ofTypes = (...types: NodeType[]): AtlasNode[] => types.flatMap((type) => byType[type] ?? []);
 
   const systems = ofTypes("system");
@@ -1334,9 +1350,19 @@ export function generateArchitectureDoc(project: AtlasProject): string {
   // has_concern: stakeholder/team/actor -> concern.  addresses: element -> concern.
   const concernsFor = new Map<string, string[]>();
   const addressedBy = new Map<string, string[]>();
+  // source node id -> names of the services/stores/externals it depends on.
+  const dependsOn = new Map<string, Set<string>>();
   for (const edge of project.edges) {
     if (edge.type === "has_concern") concernsFor.set(edge.source, [...(concernsFor.get(edge.source) ?? []), edge.target]);
     if (edge.type === "addresses") addressedBy.set(edge.target, [...(addressedBy.get(edge.target) ?? []), edge.source]);
+    if (SERVICE_DEPENDENCY_EDGE_TYPES.has(edge.type)) {
+      const target = nodeById.get(edge.target);
+      if (target && SERVICE_DEPENDENCY_TARGET_TYPES.has(target.type)) {
+        const current = dependsOn.get(edge.source) ?? new Set<string>();
+        current.add(target.name);
+        dependsOn.set(edge.source, current);
+      }
+    }
   }
 
   const out: string[] = [
@@ -1385,8 +1411,16 @@ export function generateArchitectureDoc(project: AtlasProject): string {
   out.push("", "## Services & Containers", "");
   if (services.length) {
     out.push(...mdTableLines(
-      ["Name", "Type", "Criticality", "Responsibilities", "Key files"],
-      services.map((node) => [node.name, titleCase(node.type), node.criticality, node.responsibilities.join("; "), node.linkedFiles.map((file) => `\`${file}\``).join(", ")])
+      ["Name", "Type", "Criticality", "Ports", "Depends on", "Responsibilities", "Key files"],
+      services.map((node) => [
+        node.name,
+        titleCase(node.type),
+        node.criticality,
+        servicePortsText(node),
+        Array.from(dependsOn.get(node.id) ?? []).sort().join(", "),
+        node.responsibilities.join("; "),
+        node.linkedFiles.map((file) => `\`${file}\``).join(", ")
+      ])
     ));
   } else {
     out.push("- No services or containers modeled yet.");
@@ -1567,6 +1601,15 @@ function docMetaList(node: AtlasNode, key: string): string[] {
   if (Array.isArray(value)) return value.map(String).filter(Boolean);
   if (typeof value === "string" && value.trim()) return [value.trim()];
   return [];
+}
+
+// First non-empty port-ish metadata value for a service/container node.
+function servicePortsText(node: AtlasNode): string {
+  for (const key of SERVICE_PORT_METADATA_KEYS) {
+    const value = docMetaText(node, key);
+    if (value) return value;
+  }
+  return "";
 }
 
 export function generateArchitectureReview(project: AtlasProject): string {

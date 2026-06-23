@@ -173,6 +173,7 @@
       "linkedTests": [],
       "risks": [],
       "metadata": {
+        "port": "5173",
         "sla": "Dev-only; no production SLA",
         "scaling": "Single user, single browser tab"
       },
@@ -198,7 +199,9 @@
       ],
       "linkedTests": [],
       "risks": [],
-      "metadata": {},
+      "metadata": {
+        "port": "5174"
+      },
       "id": "container.api",
       "type": "container",
       "name": "API Server (Express)",
