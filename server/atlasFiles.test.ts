@@ -252,6 +252,34 @@ describe("pack persistence round-trip", () => {
     const files = await listFilesRecursive(path.join(root, "architecture"));
     expect(files.some((file) => file.endsWith(".tmp"))).toBe(false);
   });
+
+  it("loads nodes from a pack whose markdown has CRLF line endings (Windows autocrlf checkout)", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("CRLF Pack");
+    project.nodes = [
+      { ...createNode("service", 0), id: "service.api", name: "API Service", responsibilities: ["serve requests"] },
+      { ...createNode("datastore", 1), id: "datastore.main", name: "Main DB" }
+    ];
+    await exportAtlas(root, project);
+
+    // Simulate a git checkout with core.autocrlf=true (Windows, no .gitattributes):
+    // every authored markdown file arrives with CRLF line endings. The frontmatter
+    // parser must still read them, or loadAtlasFromPack silently yields zero nodes.
+    const mdFiles = (await listFilesRecursive(path.join(root, "architecture")))
+      .filter((file) => file.endsWith(".md"));
+    for (const file of mdFiles) {
+      const lf = await fs.readFile(file, "utf8");
+      await fs.writeFile(file, lf.replace(/\r?\n/g, "\r\n"), "utf8");
+    }
+    // Drop the atlas.json snapshot so loadAtlas takes the CRLF-sensitive pack-parse path.
+    await fs.rm(path.join(root, "architecture/generated/atlas.json"));
+
+    const loaded = await loadAtlas(root, { includeIntelligence: false });
+    expect(loaded).not.toBeNull();
+    expect(loaded!.nodes.map((node) => node.id)).toEqual(
+      expect.arrayContaining(["service.api", "datastore.main"])
+    );
+  });
 });
 
 describe("safeJoin path-traversal guard", () => {

@@ -1547,7 +1547,12 @@ async function collectRevision(
 }
 
 function parseFrontmatter(markdown: string) {
-  const match = markdown.match(/^---\n([\s\S]*?)\n---/);
+  // Normalize CRLF before matching. Pack files checked out on Windows (git
+  // autocrlf=true, no .gitattributes) arrive with \r\n line endings; an
+  // LF-only delimiter regex silently fails to match them, so loadAtlasFromPack
+  // would read zero nodes from a perfectly valid pack. Tests never caught this
+  // because they round-trip through Node-written temp files, which stay LF.
+  const match = markdown.replace(/\r\n/g, "\n").match(/^---\n([\s\S]*?)\n---/);
   if (!match) return null;
   return parseStructured(match[1]);
 }
