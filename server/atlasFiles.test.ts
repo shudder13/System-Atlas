@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { exportAtlas, loadAtlas, packHealth, safeJoin, scanWorkspace } from "./atlasFiles";
+import { architectureRevision, exportAtlas, loadAtlas, packHealth, safeJoin, scanWorkspace } from "./atlasFiles";
 import { createEmptyProject, createNode } from "../src/lib/atlas";
 
 async function tempWorkspace() {
@@ -279,6 +279,26 @@ describe("pack persistence round-trip", () => {
     expect(loaded!.nodes.map((node) => node.id)).toEqual(
       expect.arrayContaining(["service.api", "datastore.main"])
     );
+  });
+
+  it("computes a stable content revision regardless of CRLF vs LF line endings", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Line Endings");
+    project.nodes = [{ ...createNode("service", 0), id: "service.api", name: "API", responsibilities: ["serve"] }];
+    await exportAtlas(root, project);
+    const lfRevision = await architectureRevision(root);
+
+    // Rewrite every pack file with CRLF (a Windows autocrlf checkout). The
+    // revision must NOT change -- otherwise the generated pack is perpetually
+    // flagged "stale" and exports raise spurious revision_conflict 409s.
+    for (const file of await listFilesRecursive(path.join(root, "architecture"))) {
+      const raw = await fs.readFile(file);
+      const crlf = raw.toString("latin1").replace(/\r?\n/g, "\r\n");
+      await fs.writeFile(file, Buffer.from(crlf, "latin1"));
+    }
+    const crlfRevision = await architectureRevision(root);
+
+    expect(crlfRevision).toBe(lfRevision);
   });
 });
 

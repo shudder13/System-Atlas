@@ -1539,7 +1539,14 @@ async function collectRevision(
     // without changing content, and mtime granularity differs across
     // filesystems. Content addressing makes the revision stable across both,
     // eliminating false "stale pack" warnings and false revision_conflict 409s.
-    const content = await fs.readFile(absolute);
+    //
+    // Normalize CRLF -> LF first: a checkout under git core.autocrlf=true (no
+    // .gitattributes) rewrites line endings, which IS a byte change and would
+    // otherwise perturb the revision -- the exact false-stale case the line
+    // above promises to prevent. latin1 round-trips every byte, so this stays
+    // binary-safe.
+    const raw = await fs.readFile(absolute);
+    const content = Buffer.from(raw.toString("latin1").replace(/\r\n/g, "\n"), "latin1");
     hash.update(`${relative}:${content.length}:`);
     hash.update(content);
     hash.update("\n");
