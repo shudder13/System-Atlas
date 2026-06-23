@@ -195,29 +195,32 @@ export function App() {
 
   const bootedRef = useRef(false);
   useEffect(() => {
-    // Bootstrap exactly once. initialiseCurrentWorkspace's identity changes
-    // with its dependencies, so without the guard a tab/scope change after
-    // mount would re-run the whole workspace bootstrap.
+    // Bootstrap exactly once. bootedRef guarantees the body runs a single time
+    // even though React StrictMode double-invokes effects in dev and
+    // initialiseCurrentWorkspace's identity changes with its dependencies.
+    //
+    // We deliberately do NOT use a `cancelled` cleanup flag here. Under
+    // StrictMode the first pass would be torn down (cancelled = true) right
+    // after awaiting api.workspaces() but before it set the registry, called
+    // initialiseCurrentWorkspace, or cleared the loading flag; the second pass
+    // then short-circuits on bootedRef and does nothing -- leaving the app
+    // stuck on "Loading System Atlas..." forever. App never unmounts, so a late
+    // setState from the single bootstrap pass is a harmless no-op.
     if (bootedRef.current) return;
     bootedRef.current = true;
-    let cancelled = false;
     (async () => {
       try {
         const registry = await api.workspaces();
-        if (cancelled) return;
         setWorkspaceRegistry(registry);
         if (registry.currentWorkspaceId) {
           await initialiseCurrentWorkspace();
         }
       } catch (error) {
-        if (!cancelled) setStatus(error instanceof Error ? error.message : "API unavailable");
+        setStatus(error instanceof Error ? error.message : "API unavailable");
       } finally {
-        if (!cancelled) setWorkspaceLoading(false);
+        setWorkspaceLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [initialiseCurrentWorkspace]);
 
   const refreshWorkspaceRegistry = useCallback(async () => {

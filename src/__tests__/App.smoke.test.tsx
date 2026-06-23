@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,6 +60,22 @@ describe("App smoke", () => {
       expect(screen.getByRole("button", { name: new RegExp(`^${name}$`, "i") })).toBeInTheDocument();
     }
     expect(screen.getByRole("button", { name: /checkpoint/i })).toBeInTheDocument();
+  });
+
+  it("clears the loading screen under StrictMode double-invocation", async () => {
+    // Regression: the bootstrap effect double-invokes under StrictMode (which is
+    // exactly what every `npm run dev` user gets). A `cancelled`-guarded
+    // loading-clear left the first pass unable to clear the flag and the second
+    // pass short-circuited on bootedRef, stranding the app on "Loading…".
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^Validate$/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Loading System Atlas/i)).not.toBeInTheDocument();
   });
 
   it("renders the architecture-views navigation with multiple view-family regions", async () => {
