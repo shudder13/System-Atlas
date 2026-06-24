@@ -1680,6 +1680,12 @@ code {
   color: #991b1b;
 }
 
+.pack-health.drifted {
+  border-color: #fed7aa;
+  background: #ffedd5;
+  color: #9a3412;
+}
+
 @media (max-width: 1500px) {
   .topbar {
     grid-template-columns: 1fr;

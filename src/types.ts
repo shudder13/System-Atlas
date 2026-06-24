@@ -384,13 +384,21 @@ export interface PackMetadataSummary {
   };
 }
 
+export interface StaleLink {
+  nodeId: string;
+  nodeName: string;
+  path: string;
+  kind: "file" | "test";
+}
+
 export interface PackHealth {
-  status: "missing" | "healthy" | "stale" | "misaligned";
+  status: "missing" | "healthy" | "stale" | "misaligned" | "drifted";
   message: string;
   currentSourceRevision: string;
   generated?: PackMetadataSummary;
   evidence?: PackMetadataSummary;
   issues: string[];
+  staleLinks?: StaleLink[];
 }
 
 export interface SemanticDiff {

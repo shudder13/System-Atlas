@@ -1081,7 +1081,8 @@ function packHealthLabel(health: PackHealth | null) {
     missing: "Pack Health: missing",
     healthy: "Pack Health: healthy",
     stale: "Pack Health: stale",
-    misaligned: "Pack Health: misaligned"
+    misaligned: "Pack Health: misaligned",
+    drifted: "Pack Health: drifted"
   };
   return labels[health.status];
 }

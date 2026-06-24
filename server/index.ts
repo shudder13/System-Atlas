@@ -172,7 +172,9 @@ app.get("/api/code-intelligence", async (_request, response, next) => {
 
 app.get("/api/pack-health", async (_request, response, next) => {
   try {
-    response.json({ packHealth: await packHealth(await currentWorkspaceRoot()) });
+    const root = await currentWorkspaceRoot();
+    const project = await loadAtlas(root, { includeIntelligence: false });
+    response.json({ packHealth: await packHealth(root, project ?? undefined) });
   } catch (error) {
     handleWorkspaceError(error, response, next);
   }
@@ -222,7 +224,7 @@ app.post("/api/export", async (request, response, next) => {
 
       const result = await exportAtlas(workspaceRoot, project);
       const revision = await architectureRevision(workspaceRoot);
-      response.json({ ok: true, revision, packHealth: await packHealth(workspaceRoot), ...result });
+      response.json({ ok: true, revision, packHealth: await packHealth(workspaceRoot, project), ...result });
     });
   } catch (error) {
     handleWorkspaceError(error, response, next);

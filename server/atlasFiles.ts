@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import ts from "typescript";
 import YAML from "yaml";
-import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSchema, CodeSymbol, CodeTestMapEntry, NodeType, PackHealth, PackMetadataSummary, ProjectStructureEntry } from "../src/types";
+import { AtlasFlow, AtlasNode, AtlasProject, AtlasProposal, AtlasVersion, AtlasView, CodeClass, CodeDependency, CodeEvidence, CodeFileSummary, CodeIntelligence, CodeRoute, CodeScanResult, CodeSchema, CodeSymbol, CodeTestMapEntry, NodeType, PackHealth, PackMetadataSummary, ProjectStructureEntry, StaleLink } from "../src/types";
 import { defaultViews, emptyCodeIntelligence, generateArchitectureDoc, generateContextPack, generateMermaid, generateMigrationBrief, generateOverview, validateAtlas } from "../src/lib/atlas";
 import { basename, dirname, normalizePath, slug, symbolNodeId, unique } from "../src/lib/shared";
 
@@ -203,7 +203,7 @@ export async function architectureSourceRevision(root: string) {
   return cachedContentRevision(root, ["generated", "evidence/metadata.json"]);
 }
 
-export async function packHealth(root: string): Promise<PackHealth> {
+async function generatedPackHealth(root: string): Promise<PackHealth> {
   const currentSourceRevision = await architectureSourceRevision(root);
   const generated = await readPackMetadata(root, "architecture/generated/metadata.json");
   const evidence = await readPackMetadata(root, "architecture/evidence/metadata.json");
@@ -265,6 +265,85 @@ export async function packHealth(root: string): Promise<PackHealth> {
     evidence,
     issues
   };
+}
+
+// Pack health has two independent dimensions:
+//   1. Are the generated/evidence files in sync with the authored architecture?
+//      (generatedPackHealth, above — a revision comparison.)
+//   2. Do the authored concepts still point at files that exist in the repo?
+//      (detectStaleLinks — the "living architecture" check.)
+// The second catches the model drifting away from the real code (a linked file
+// renamed or deleted), which the revision check can never see because the
+// authored pack is internally consistent. It is only run when the caller threads
+// in the loaded project, so the cheap metadata-only `packHealth(root)` contract
+// (and its callers/tests) is preserved.
+export async function packHealth(root: string, project?: AtlasProject): Promise<PackHealth> {
+  const base = await generatedPackHealth(root);
+  if (!project || base.status === "missing") return base;
+
+  const staleLinks = await detectStaleLinks(project, root);
+  if (staleLinks.length === 0) return base;
+
+  const linkIssues = staleLinks.map(
+    (link) => `${link.nodeName} links a missing ${link.kind === "test" ? "test" : "file"}: ${link.path}`
+  );
+  const count = staleLinks.length;
+  return {
+    ...base,
+    // Generated-file problems are the more urgent fix, so they keep their status;
+    // an otherwise-healthy pack with broken links is downgraded to "drifted".
+    status: base.status === "healthy" ? "drifted" : base.status,
+    message:
+      base.status === "healthy"
+        ? `Architecture links ${count} path${count === 1 ? "" : "s"} that no longer exist in the repository.`
+        : base.message,
+    issues: [...base.issues, ...linkIssues],
+    staleLinks
+  };
+}
+
+// A linked path is drift only when it is a repo-relative path that no longer
+// resolves. Home-dir (`~/...`), absolute, and URL references are intentional
+// out-of-repo pointers (e.g. the per-machine workspace registry), not code
+// links, so they are never flagged. Directory links (trailing slash) are
+// honored — a concept may legitimately point at a folder.
+export async function detectStaleLinks(project: AtlasProject, root: string): Promise<StaleLink[]> {
+  const stale: StaleLink[] = [];
+  for (const node of project.nodes) {
+    for (const file of node.linkedFiles) {
+      if (!(await linkTargetExists(root, file))) {
+        stale.push({ nodeId: node.id, nodeName: node.name, path: file, kind: "file" });
+      }
+    }
+    for (const test of node.linkedTests) {
+      if (!(await linkTargetExists(root, test))) {
+        stale.push({ nodeId: node.id, nodeName: node.name, path: test, kind: "test" });
+      }
+    }
+  }
+  return stale;
+}
+
+async function linkTargetExists(root: string, link: string): Promise<boolean> {
+  const trimmed = link.trim();
+  if (!trimmed) return true;
+  // Out-of-repo references can't be verified against the workspace; don't flag them.
+  if (trimmed.startsWith("~") || trimmed.startsWith("http://") || trimmed.startsWith("https://") || path.isAbsolute(trimmed)) {
+    return true;
+  }
+  let absolute: string;
+  try {
+    absolute = safeJoin(root, trimmed.replace(/[/\\]+$/, ""));
+  } catch {
+    // Escapes the workspace — not a repo file, so out of scope for drift detection.
+    return true;
+  }
+  try {
+    await fs.stat(absolute);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function loadAtlasFromPack(root: string, options: { includeIntelligence?: boolean } = {}): Promise<AtlasProject | null> {

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { architectureRevision, exportAtlas, loadAtlas, packHealth, safeJoin, scanWorkspace } from "./atlasFiles";
+import { architectureRevision, detectStaleLinks, exportAtlas, loadAtlas, packHealth, safeJoin, scanWorkspace } from "./atlasFiles";
 import { createEmptyProject, createNode } from "../src/lib/atlas";
 
 async function tempWorkspace() {
@@ -342,5 +342,75 @@ describe("packHealth", () => {
     await exportAtlas(root, project);
     await fs.rm(path.join(root, "architecture/generated/metadata.json"));
     expect((await packHealth(root)).status).toBe("missing");
+  });
+});
+
+describe("detectStaleLinks (model-vs-code drift)", () => {
+  it("flags linked files and tests that no longer exist, ignoring out-of-repo and directory links", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Drift");
+    project.nodes = [
+      {
+        ...createNode("service", 0),
+        id: "service.api",
+        name: "API",
+        responsibilities: ["x"],
+        // architecture/ is a real directory after export; the ~ path is the
+        // per-machine registry (intentionally out-of-repo); the two ghosts drift.
+        linkedFiles: ["architecture/", "~/.system-atlas/workspaces.json", "server/ghost.ts"],
+        linkedTests: ["server/ghost.test.ts"]
+      }
+    ];
+    await exportAtlas(root, project);
+
+    const stale = await detectStaleLinks(project, root);
+    const paths = stale.map((link) => link.path).sort();
+    expect(paths).toEqual(["server/ghost.test.ts", "server/ghost.ts"]);
+    expect(stale.find((link) => link.path === "server/ghost.test.ts")?.kind).toBe("test");
+    expect(stale.find((link) => link.path === "server/ghost.ts")?.kind).toBe("file");
+    expect(paths).not.toContain("architecture/");
+    expect(paths).not.toContain("~/.system-atlas/workspaces.json");
+  });
+
+  it("drives packHealth to 'drifted' only when a project with broken links is threaded in", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Drift");
+    project.nodes = [
+      {
+        ...createNode("service", 0),
+        id: "service.api",
+        name: "API",
+        responsibilities: ["x"],
+        linkedFiles: ["architecture/manifest.yaml", "src/does-not-exist.ts"]
+      }
+    ];
+    await exportAtlas(root, project);
+
+    // Metadata-only call (no project) keeps the cheap, unchanged contract.
+    expect((await packHealth(root)).status).toBe("healthy");
+
+    const health = await packHealth(root, project);
+    expect(health.status).toBe("drifted");
+    expect(health.staleLinks?.map((link) => link.path)).toEqual(["src/does-not-exist.ts"]);
+    expect(health.issues.some((issue) => issue.includes("src/does-not-exist.ts"))).toBe(true);
+  });
+
+  it("stays healthy when every linked path resolves", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Live");
+    project.nodes = [
+      {
+        ...createNode("service", 0),
+        id: "service.api",
+        name: "API",
+        responsibilities: ["x"],
+        linkedFiles: ["architecture/manifest.yaml", "architecture/"]
+      }
+    ];
+    await exportAtlas(root, project);
+
+    const health = await packHealth(root, project);
+    expect(health.status).toBe("healthy");
+    expect(health.staleLinks ?? []).toEqual([]);
   });
 });
