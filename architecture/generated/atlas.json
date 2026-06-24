@@ -979,7 +979,7 @@
       },
       "id": "risk.port_collision",
       "type": "risk",
-      "name": "Default API port 5174 collides with a-private-project",
+      "name": "Default API port 5174 can collide with another local dev server",
       "criticality": "high"
     },
     {

@@ -419,7 +419,7 @@ const nodes: AtlasNode[] = [
   node({
     id: "risk.port_collision",
     type: "risk",
-    name: "Default API port 5174 collides with a-private-project",
+    name: "Default API port 5174 can collide with another local dev server",
     criticality: "high",
     responsibilities: ["Without a startup check the API is silently shadowed by whatever already owns the port"],
     metadata: { likelihood: "Observed", impact: "All /api calls 404 against the wrong service", mitigation: "Startup port-conflict check; configurable port via env" }

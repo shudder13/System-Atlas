@@ -45,7 +45,7 @@ export function WorkspaceOnboarding({ onAdd }: WorkspaceOnboardingProps) {
             <input
               autoFocus
               type="text"
-              placeholder="C:/Dev/Projects/a-private-project"
+              placeholder="C:/Dev/Projects/my-app"
               value={path}
               onChange={(event) => setPath(event.target.value)}
               spellCheck={false}

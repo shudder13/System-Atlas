@@ -108,7 +108,7 @@ flowchart LR
 
 | Risk | Likelihood | Impact | Mitigation |
 | --- | --- | --- | --- |
-| Default API port 5174 collides with a-private-project<br>Without a startup check the API is silently shadowed by whatever already owns the port | Observed | All /api calls 404 against the wrong service | Startup port-conflict check; configurable port via env |
+| Default API port 5174 can collide with another local dev server<br>Without a startup check the API is silently shadowed by whatever already owns the port | Observed | All /api calls 404 against the wrong service | Startup port-conflict check; configurable port via env |
 | Client bundle creeping past 500 KB<br>Vite warns; mermaid and React Flow are the heavy ones | Observed | Slower first-load, no functional break | Lazy-load mermaid; consider manualChunks |
 | src/lib/atlas.ts past 2000 lines<br>Single file owns validation, layout, generation, diff, import — sustainable for now but watch for further growth | Observed | Cognitive load on changes | Split along natural seams when next major feature lands |
 

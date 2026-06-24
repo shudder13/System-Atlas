@@ -12,7 +12,7 @@ flowchart LR
   decision_multi_workspace_runtime["Workspace is runtime state, not env-locked\ndecision"]
   risk_bundle_size["Client bundle creeping past 500 KB\nrisk"]
   risk_atlas_monolith["src/lib/atlas.ts past 2000 lines\nrisk"]
-  risk_port_collision["Default API port 5174 collides with a-private-project\nrisk"]
+  risk_port_collision["Default API port 5174 can collide with another local dev server\nrisk"]
   quality_pack_roundtrip["Pack round-trip fidelity\nquality_scenario"]
   module_atlas_files -->|"depends_on"| module_atlas_core
   module_atlas_files -->|"writes"| store_evidence

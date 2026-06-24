@@ -1335,7 +1335,7 @@ const SERVICE_DEPENDENCY_TARGET_TYPES = new Set<NodeType>([
   "datastore", "replica", "queue", "cache", "external_system"
 ]);
 // Free-form metadata keys a node may use to record its port(s), most specific
-// first. a-private-project uses `hostPort` ("8080 → 8080"); other packs use `port`.
+// first. Some packs use `hostPort` ("8080 → 8080"); other packs use `port`.
 const SERVICE_PORT_METADATA_KEYS = ["hostPort", "ports", "port"];
 
 export function generateArchitectureDoc(project: AtlasProject): string {

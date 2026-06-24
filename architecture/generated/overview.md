@@ -50,7 +50,7 @@ Local-first architecture workbench. This pack is the dogfooded model of System A
 - Workspace registry (per-machine) (datastore, high)
 - Observed evidence is separate from intended design (decision, high)
 - Workspace is runtime state, not env-locked (decision, high)
-- Default API port 5174 collides with a-private-project (risk, high)
+- Default API port 5174 can collide with another local dev server (risk, high)
 - Pack round-trip fidelity (quality_scenario, high)
 
 ## Flows
