@@ -37,6 +37,12 @@ export function AtlasCanvas({ viewId, nodes, edges, selectedId, highlightedNodeI
     const isSelected = selectedId === node.id;
     const details = viewDetails(node, viewId);
     const dimensions = nodeDimensions(node, viewId, details.length);
+    // Importance weighting: load-bearing nodes carry more visual weight (thicker
+    // border + accent ring) than incidental ones, so a critical datastore reads
+    // as more prominent than a trivial page at a glance. Border *color* stays the
+    // node-type color (identity); criticality drives weight + ring only.
+    const critColor = node.criticality === "critical" ? "#e11d48" : node.criticality === "high" ? "#f59e0b" : null;
+    const critWeight = node.criticality === "critical" ? 3 : node.criticality === "high" ? 2 : 1;
 
     return {
       id: node.id,
@@ -53,17 +59,20 @@ export function AtlasCanvas({ viewId, nodes, edges, selectedId, highlightedNodeI
       selected: isSelected,
       style: {
         borderColor: isSelected ? "#111827" : color,
-        borderWidth: isSelected || isHighlighted ? 2 : 1,
+        borderWidth: isSelected ? Math.max(critWeight, 2) : isHighlighted ? critWeight : 1,
         borderRadius: 8,
         color: "#111827",
         width: dimensions.width,
         minHeight: dimensions.height,
         opacity: isHighlighted ? 1 : 0.34,
-        boxShadow: isSelected
-          ? "0 12px 30px rgba(17, 24, 39, 0.16)"
-          : isHighlighted && hasFlowHighlight
-            ? "0 10px 24px rgba(15, 118, 110, 0.16)"
-            : "0 8px 20px rgba(17, 24, 39, 0.08)"
+        boxShadow: [
+          critColor && isHighlighted ? `0 0 0 ${node.criticality === "critical" ? 4 : 3}px ${critColor}${node.criticality === "critical" ? "73" : "59"}` : "",
+          isSelected
+            ? "0 12px 30px rgba(17, 24, 39, 0.16)"
+            : isHighlighted && hasFlowHighlight
+              ? "0 10px 24px rgba(15, 118, 110, 0.16)"
+              : "0 8px 20px rgba(17, 24, 39, 0.08)"
+        ].filter(Boolean).join(", ")
       }
     };
   }), [hasFlowHighlight, highlightedNodes, nodes, selectedId, viewId]);
