@@ -108,6 +108,14 @@ describe("atlas generators", () => {
     expect(overview).toContain("- [warning] API Service links a missing file: src/gone.ts");
   });
 
+  it("marks stale linked files in the AI context pack at point-of-use", () => {
+    const node = { ...createNode("service", 0), id: "svc.api", name: "API", criticality: "high" as const, linkedFiles: ["src/gone.ts"] };
+    const pack = generateContextPack({ ...project, nodes: [node], edges: [], flows: [] }, ["svc.api"], undefined, "standard", [
+      { nodeId: "svc.api", nodeName: "API", path: "src/gone.ts", kind: "file" as const }
+    ]);
+    expect(pack).toContain("src/gone.ts (MISSING on disk -- stale link)");
+  });
+
   it("generates a narrative architecture document from the graph", () => {
     const doc = generateArchitectureDoc(project);
     // Title + provenance banner so a human reader knows it is generated.

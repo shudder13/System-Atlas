@@ -1772,9 +1772,11 @@ export function generateContextPack(
   project: AtlasProject,
   targetIds: string[] = [],
   goal = "Implement the next architecture-safe change.",
-  scope: ContextPackScope = "standard"
+  scope: ContextPackScope = "standard",
+  staleLinks: StaleLink[] = []
 ): string {
   const budget = contextPackBudgets[scope];
+  const staleSet = new Set(staleLinks.map((link) => link.path));
   const targets = targetIds.length
     ? project.nodes.filter((node) => targetIds.includes(node.id)).slice(0, budget.seedCount)
     : rankedContextSeeds(project.nodes).slice(0, budget.seedCount);
@@ -1849,7 +1851,9 @@ export function generateContextPack(
     "",
     "## Linked Files",
     "",
-    ...(files.length ? files.map((item) => `- ${item}`) : ["- No linked files yet."]),
+    ...(files.length
+      ? files.map((item) => (staleSet.has(item) ? `- ${item} (MISSING on disk -- stale link)` : `- ${item}`))
+      : ["- No linked files yet."]),
     "",
     "## Code Evidence",
     "",
