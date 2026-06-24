@@ -16,6 +16,7 @@ import {
   ImportCandidate,
   NodeType,
   SemanticDiff,
+  StaleLink,
   ValidationIssue,
   ViewId
 } from "../types";
@@ -1268,7 +1269,7 @@ function generateClassMermaid(project: AtlasProject): string {
   return lines.join("\n");
 }
 
-export function generateOverview(project: AtlasProject): string {
+export function generateOverview(project: AtlasProject, staleLinks: StaleLink[] = []): string {
   const byType = groupBy(project.nodes, (node) => node.type);
   // Critical Areas leads with the most load-bearing concepts: critical before
   // high (stable within a tier), so the overview's importance ordering matches
@@ -1277,6 +1278,16 @@ export function generateOverview(project: AtlasProject): string {
     .filter((node) => ["critical", "high"].includes(node.criticality))
     .sort((a, b) => (a.criticality === "critical" ? 0 : 1) - (b.criticality === "critical" ? 0 : 1));
   const issues = validateAtlas(project);
+  // Drift (links to files that no longer exist on disk) is computed at export
+  // time and folded into Validation, so the persisted, LLM-readable overview
+  // shows model-vs-code drift -- not just the live Pack Health chip.
+  const driftIssues = staleLinks.map(
+    (link) => `- [warning] ${link.nodeName} links a missing ${link.kind === "test" ? "test" : "file"}: ${link.path}`
+  );
+  const validationLines = [
+    ...issues.map((issue) => `- [${issue.severity}] ${issue.message}`),
+    ...driftIssues
+  ];
 
   return [
     `# ${project.manifest.name}`,
@@ -1299,9 +1310,7 @@ export function generateOverview(project: AtlasProject): string {
     "",
     "## Validation",
     "",
-    ...(issues.length
-      ? issues.map((issue) => `- [${issue.severity}] ${issue.message}`)
-      : ["- No validation issues found."]),
+    ...(validationLines.length ? validationLines : ["- No validation issues found."]),
     "",
     "## AI Notes",
     "",

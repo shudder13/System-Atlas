@@ -147,7 +147,8 @@ export async function exportAtlas(root: string, project: AtlasProject) {
   const metadata = await exportMetadata(root, project);
   await writeFile(root, "architecture/evidence/metadata.json", JSON.stringify(metadata.evidence, null, 2), files);
   await writeFile(root, "architecture/generated/atlas.json", JSON.stringify(projectSnapshotForAtlasJson(project), null, 2), files);
-  await writeFile(root, "architecture/generated/overview.md", generateOverview(project), files);
+  const staleLinks = await detectStaleLinks(project, root);
+  await writeFile(root, "architecture/generated/overview.md", generateOverview(project, staleLinks), files);
   await writeFile(root, "architecture/generated/context-pack.md", generateContextPack(project), files);
   await writeFile(root, "architecture/generated/ARCHITECTURE.md", generateArchitectureDoc(project), files);
 

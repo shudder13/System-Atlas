@@ -101,6 +101,13 @@ describe("atlas generators", () => {
     expect(section.indexOf("ZzzCriticalStore")).toBeLessThan(section.indexOf("AaaHighService"));
   });
 
+  it("folds stale-link drift into the overview Validation section", () => {
+    const overview = generateOverview(project, [
+      { nodeId: "svc.api", nodeName: "API Service", path: "src/gone.ts", kind: "file" as const }
+    ]);
+    expect(overview).toContain("- [warning] API Service links a missing file: src/gone.ts");
+  });
+
   it("generates a narrative architecture document from the graph", () => {
     const doc = generateArchitectureDoc(project);
     // Title + provenance banner so a human reader knows it is generated.

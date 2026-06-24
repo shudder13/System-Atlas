@@ -413,4 +413,15 @@ describe("detectStaleLinks (model-vs-code drift)", () => {
     expect(health.status).toBe("healthy");
     expect(health.staleLinks ?? []).toEqual([]);
   });
+
+  it("writes stale-link drift into the exported overview.md", async () => {
+    const root = await tempPackRoot();
+    const project = createEmptyProject("Drift");
+    project.nodes = [
+      { ...createNode("service", 0), id: "service.api", name: "API", responsibilities: ["x"], linkedFiles: ["src/ghost.ts"] }
+    ];
+    await exportAtlas(root, project);
+    const overview = await fs.readFile(path.join(root, "architecture/generated/overview.md"), "utf8");
+    expect(overview).toContain("API links a missing file: src/ghost.ts");
+  });
 });
