@@ -60,6 +60,7 @@ const nodes: AtlasNode[] = [
     name: "Living architecture",
     criticality: "critical",
     responsibilities: ["The diagrams must not drift from the code"],
+    linkedTests: ["server/atlasFiles.test.ts"],
     metadata: { category: "Operability", sourceStakeholder: "Architect", priority: "Critical", acceptanceCriteria: ["Pack Health reports healthy after every commit", "Generated files match authored source revision"] }
   }),
   node({
@@ -115,6 +116,7 @@ const nodes: AtlasNode[] = [
     criticality: "critical",
     architectureLevel: "data",
     linkedFiles: ["architecture/"],
+    linkedTests: ["server/atlasFiles.test.ts"],
     responsibilities: ["Hold the authored architecture state and all derived artifacts", "Round-trip cleanly between UI and disk"]
   }),
 

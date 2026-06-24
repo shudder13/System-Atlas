@@ -67,7 +67,9 @@
       "dependencies": [],
       "invariants": [],
       "linkedFiles": [],
-      "linkedTests": [],
+      "linkedTests": [
+        "server/atlasFiles.test.ts"
+      ],
       "risks": [],
       "metadata": {
         "category": "Operability",
@@ -221,7 +223,9 @@
       "linkedFiles": [
         "architecture/"
       ],
-      "linkedTests": [],
+      "linkedTests": [
+        "server/atlasFiles.test.ts"
+      ],
       "risks": [],
       "metadata": {},
       "id": "container.pack",

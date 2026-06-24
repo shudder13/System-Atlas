@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "exportId": "89f48894-ddd8-4a38-ab61-5119e9ef99e5",
-  "generatedAt": "2026-06-23T03:06:40.642Z",
-  "architectureSourceRevision": "af237e7baf2e4a2279171e3569ae96a1d55dfaf4",
+  "exportId": "d6a32cc3-2d48-4855-ab78-572bc6974c37",
+  "generatedAt": "2026-06-24T02:19:16.352Z",
+  "architectureSourceRevision": "6c6a5011dee6b5854244a7aede48357013356113",
   "project": {
     "name": "System Atlas",
     "updatedAt": "2026-05-28T18:00:00.000Z",

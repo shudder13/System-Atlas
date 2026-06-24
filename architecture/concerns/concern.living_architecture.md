@@ -10,7 +10,8 @@ responsibilities:
 dependencies: []
 invariants: []
 linked_files: []
-linked_tests: []
+linked_tests:
+  - server/atlasFiles.test.ts
 risks: []
 confidence: manual
 notes: ""
@@ -41,3 +42,7 @@ metadata:
 ## Responsibilities
 
 - The diagrams must not drift from the code
+
+## Linked tests
+
+- `server/atlasFiles.test.ts`

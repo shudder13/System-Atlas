@@ -63,9 +63,7 @@ Local-first architecture workbench. This pack is the dogfooded model of System A
 
 ## Validation
 
-- [warning] Living architecture is critical but has no linked tests.
 - [warning] AI migration safety is critical but has no linked tests.
-- [warning] Architecture Pack (filesystem) is critical but has no linked tests.
 - [info] REST API (/api) is a contract with no linked tests.
 - [warning] TypeScript strict mode is critical but has no linked tests.
 - [info] Evidence files has no data ownership, retention, or consistency invariant.

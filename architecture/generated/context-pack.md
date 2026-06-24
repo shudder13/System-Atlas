@@ -15,11 +15,11 @@ Implement the next architecture-safe change.
 ## Affected Architecture
 
 - module.atlas_core: atlas-core (pure domain) (module) owned by architecture; criticality critical
-- module.atlas_files: atlas-files (I/O + scanner) (module) owned by architecture; criticality critical
 - container.pack: Architecture Pack (filesystem) (container) owned by architecture; criticality critical
+- module.atlas_files: atlas-files (I/O + scanner) (module) owned by architecture; criticality critical
 - module.workspaces: workspaces registry (module) owned by architecture; criticality high
-- concern.ai_migration_safety: AI migration safety (concern) owned by architecture; criticality critical
 - concern.living_architecture: Living architecture (concern) owned by architecture; criticality critical
+- concern.ai_migration_safety: AI migration safety (concern) owned by architecture; criticality critical
 - decision.proposals_first_class: Proposals are first-class (decision) owned by architecture; criticality critical
 - decision.repo_files_beat_db: Repo files beat an app database for v1 (decision) owned by architecture; criticality critical
 - decision.graph_is_product: The architecture graph is the product core (decision) owned by architecture; criticality critical
@@ -90,14 +90,14 @@ Implement the next architecture-safe change.
 
 ## Typed Metadata
 
-- concern.ai_migration_safety.category: Reliability
-- concern.ai_migration_safety.sourceStakeholder: Architect
-- concern.ai_migration_safety.priority: Critical
-- concern.ai_migration_safety.acceptanceCriteria: Every migration brief lists forbidden changes and acceptance checks, Validation passes after the AI's commit
 - concern.living_architecture.category: Operability
 - concern.living_architecture.sourceStakeholder: Architect
 - concern.living_architecture.priority: Critical
 - concern.living_architecture.acceptanceCriteria: Pack Health reports healthy after every commit, Generated files match authored source revision
+- concern.ai_migration_safety.category: Reliability
+- concern.ai_migration_safety.sourceStakeholder: Architect
+- concern.ai_migration_safety.priority: Critical
+- concern.ai_migration_safety.acceptanceCriteria: Every migration brief lists forbidden changes and acceptance checks, Validation passes after the AI's commit
 - decision.proposals_first_class.adrStatus: Accepted
 - decision.repo_files_beat_db.adrStatus: Accepted
 - decision.graph_is_product.adrStatus: Accepted
@@ -131,8 +131,8 @@ Implement the next architecture-safe change.
 ## Linked Files
 
 - src/lib/atlas.ts
-- server/atlasFiles.ts
 - architecture/
+- server/atlasFiles.ts
 - server/workspaces.ts
 - server/index.ts
 - architecture/evidence/

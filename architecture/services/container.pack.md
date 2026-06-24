@@ -12,7 +12,8 @@ dependencies: []
 invariants: []
 linked_files:
   - architecture/
-linked_tests: []
+linked_tests:
+  - server/atlasFiles.test.ts
 risks: []
 confidence: manual
 notes: ""
@@ -36,3 +37,7 @@ metadata: {}
 ## Linked files
 
 - `architecture/`
+
+## Linked tests
+
+- `server/atlasFiles.test.ts`
