@@ -1342,7 +1342,14 @@ export function generateArchitectureDoc(project: AtlasProject): string {
   const byType = groupBy(project.nodes, (node) => node.type);
   const nodeName = new Map(project.nodes.map((node) => [node.id, node.name]));
   const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
-  const ofTypes = (...types: NodeType[]): AtlasNode[] => types.flatMap((type) => byType[type] ?? []);
+  // Every section leads with the most load-bearing concepts (critical before
+  // high, stable within a tier), matching the canvas weighting and the
+  // overview's Critical Areas ordering.
+  const docCriticalityOrder: Record<Criticality, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  const ofTypes = (...types: NodeType[]): AtlasNode[] =>
+    types
+      .flatMap((type) => byType[type] ?? [])
+      .sort((a, b) => docCriticalityOrder[a.criticality] - docCriticalityOrder[b.criticality]);
 
   const systems = ofTypes("system");
   const stakeholders = ofTypes("stakeholder");

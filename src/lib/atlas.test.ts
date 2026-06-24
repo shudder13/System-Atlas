@@ -116,6 +116,17 @@ describe("atlas generators", () => {
     expect(pack).toContain("src/gone.ts (MISSING on disk -- stale link)");
   });
 
+  it("orders Architecture doc sections with critical concepts ahead of high ones", () => {
+    // Two services so type-arg order can't explain the result; high is first in
+    // the array and alphabetically first, so only a criticality sort reorders.
+    const highSvc = { ...createNode("service", 0), id: "svc.high", name: "AaaHighService", criticality: "high" as const };
+    const critSvc = { ...createNode("service", 1), id: "svc.crit", name: "ZzzCriticalService", criticality: "critical" as const };
+    const doc = generateArchitectureDoc({ ...project, nodes: [highSvc, critSvc], edges: [], flows: [] });
+    const section = doc.split("## Services & Containers")[1].split("\n## ")[0];
+    expect(section.indexOf("ZzzCriticalService")).toBeGreaterThan(-1);
+    expect(section.indexOf("ZzzCriticalService")).toBeLessThan(section.indexOf("AaaHighService"));
+  });
+
   it("generates a narrative architecture document from the graph", () => {
     const doc = generateArchitectureDoc(project);
     // Title + provenance banner so a human reader knows it is generated.

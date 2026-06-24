@@ -52,9 +52,9 @@ flowchart LR
 
 | Name | Type | Criticality | Ports | Depends on | Responsibilities | Key files |
 | --- | --- | --- | --- | --- | --- | --- |
+| Architecture Pack (filesystem) | Container | critical | — | — | Hold the authored architecture state and all derived artifacts; Round-trip cleanly between UI and disk | \`architecture/\` |
 | Web Client (Vite + React) | Container | high | 5173 | API Server (Express) | React Flow canvas for each architecture view; Trigger Scan/Validate/Export/Brief via the API | \`src/\`, \`index.html\`, \`vite.config.ts\` |
 | API Server (Express) | Container | high | 5174 | Architecture Pack (filesystem) | Serve /api endpoints; Read and write the architecture/ pack on disk; Run the workspace scanner | \`server/index.ts\` |
-| Architecture Pack (filesystem) | Container | critical | — | — | Hold the authored architecture state and all derived artifacts; Round-trip cleanly between UI and disk | \`architecture/\` |
 
 ## APIs & Contracts
 
@@ -77,19 +77,19 @@ flowchart LR
 
 | Variable | Scope | Sensitive | Required | Default |
 | --- | --- | --- | --- | --- |
+| SYSTEM_ATLAS_WORKSPACE | server (Express) | no | no | process.cwd() |
 | SYSTEM_ATLAS_API_PORT | server (Express) + vite proxy | no | no | 5174 |
 | SYSTEM_ATLAS_WEB_PORT | vite | no | no | 5173 |
-| SYSTEM_ATLAS_WORKSPACE | server (Express) | no | no | process.cwd() |
 
 ## Technology Stack
 
 | Technology | Category | Version | Rationale |
 | --- | --- | --- | --- |
-| React 19 | Frontend framework | ^19.0.0 | Mature ecosystem, React Flow integration, useState/useMemo are enough for this app's state shape |
-| Vite 6 | Build tool | ^6.0.6 | Fast HMR, simple config, first-class React plugin |
-| @xyflow/react | Library | ^12.8.5 | Production-grade graph editor; pan/zoom/select/edge-routing handled out of the box |
-| Express 5 | Backend framework | ^5.1.0 | Smallest dependency that gives JSON routes; the API has 11 endpoints with no auth/middleware needs |
 | TypeScript strict mode | Language | ^5.7.2 | Discriminated unions for NODE_TYPES/EDGE_TYPES/VIEW_IDS make the typed graph self-validating |
+| React 19 | Frontend framework | ^19.0.0 | Mature ecosystem, React Flow integration, useState/useMemo are enough for this app's state shape |
+| @xyflow/react | Library | ^12.8.5 | Production-grade graph editor; pan/zoom/select/edge-routing handled out of the box |
+| Vite 6 | Build tool | ^6.0.6 | Fast HMR, simple config, first-class React plugin |
+| Express 5 | Backend framework | ^5.1.0 | Smallest dependency that gives JSON routes; the API has 11 endpoints with no auth/middleware needs |
 
 > This captures the load-bearing technology choices. The complete, version-pinned dependency set lives in the project's package manifests (for example `package.json`, `pyproject.toml`, or `Cargo.toml`).
 
@@ -99,18 +99,18 @@ flowchart LR
 | --- | --- | --- |
 | The architecture graph is the product core | Accepted | All derived artifacts (Mermaid, MD, briefs) come from the typed graph, not free-text |
 | Repo files beat an app database for v1 | Accepted | Architecture state is exported into architecture/ for Git review |
-| Observed evidence is separate from intended design | Accepted | Scanner output never silently rewrites the authored atlas |
 | Proposals are first-class | Accepted | Migration briefs are generated from before/after snapshots, not loose prompts |
-| Views own their layouts | Accepted | Each view stores its own positions instead of using a single global node position |
+| Observed evidence is separate from intended design | Accepted | Scanner output never silently rewrites the authored atlas |
 | Workspace is runtime state, not env-locked | Accepted | Earlier design read SYSTEM_ATLAS_WORKSPACE once at server boot. That forced a restart to switch projects. The runtime registry pattern matches what tools like Postman / TablePlus do — launch once, work on any project. |
+| Views own their layouts | Accepted | Each view stores its own positions instead of using a single global node position |
 
 ## Risks & Known Issues
 
 | Risk | Likelihood | Impact | Mitigation |
 | --- | --- | --- | --- |
+| Default API port 5174 collides with a-private-project<br>Without a startup check the API is silently shadowed by whatever already owns the port | Observed | All /api calls 404 against the wrong service | Startup port-conflict check; configurable port via env |
 | Client bundle creeping past 500 KB<br>Vite warns; mermaid and React Flow are the heavy ones | Observed | Slower first-load, no functional break | Lazy-load mermaid; consider manualChunks |
 | src/lib/atlas.ts past 2000 lines<br>Single file owns validation, layout, generation, diff, import — sustainable for now but watch for further growth | Observed | Cognitive load on changes | Split along natural seams when next major feature lands |
-| Default API port 5174 collides with a-private-project<br>Without a startup check the API is silently shadowed by whatever already owns the port | Observed | All /api calls 404 against the wrong service | Startup port-conflict check; configurable port via env |
 
 ## Security & Threats
 
