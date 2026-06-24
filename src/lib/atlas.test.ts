@@ -90,6 +90,17 @@ describe("atlas generators", () => {
     expect(overview).toContain("## Critical Areas");
   });
 
+  it("orders Critical Areas with critical concepts ahead of high ones", () => {
+    // The high node is listed first in the array AND sorts first alphabetically;
+    // only a criticality-aware sort puts the critical concept ahead of it.
+    const highNode = { ...createNode("service", 0), id: "svc.high", name: "AaaHighService", criticality: "high" as const };
+    const criticalNode = { ...createNode("datastore", 1), id: "store.crit", name: "ZzzCriticalStore", criticality: "critical" as const };
+    const overview = generateOverview({ ...project, nodes: [highNode, criticalNode], edges: [], flows: [] });
+    const section = overview.split("## Critical Areas")[1].split("## ")[0];
+    expect(section).toContain("ZzzCriticalStore");
+    expect(section.indexOf("ZzzCriticalStore")).toBeLessThan(section.indexOf("AaaHighService"));
+  });
+
   it("generates a narrative architecture document from the graph", () => {
     const doc = generateArchitectureDoc(project);
     // Title + provenance banner so a human reader knows it is generated.

@@ -1270,7 +1270,12 @@ function generateClassMermaid(project: AtlasProject): string {
 
 export function generateOverview(project: AtlasProject): string {
   const byType = groupBy(project.nodes, (node) => node.type);
-  const critical = project.nodes.filter((node) => ["critical", "high"].includes(node.criticality));
+  // Critical Areas leads with the most load-bearing concepts: critical before
+  // high (stable within a tier), so the overview's importance ordering matches
+  // how the context pack already ranks nodes for LLM consumption.
+  const critical = project.nodes
+    .filter((node) => ["critical", "high"].includes(node.criticality))
+    .sort((a, b) => (a.criticality === "critical" ? 0 : 1) - (b.criticality === "critical" ? 0 : 1));
   const issues = validateAtlas(project);
 
   return [
