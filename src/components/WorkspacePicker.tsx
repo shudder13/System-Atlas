@@ -1,5 +1,6 @@
 import { FolderOpen, Folder, Plus, Trash2, Check, Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Workspace } from "../lib/api";
 
 interface WorkspacePickerProps {
@@ -25,13 +26,24 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
   // Enter committed twice.
   const renameSettledRef = useRef(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
 
   const current = workspaces.find((w) => w.id === currentId) ?? null;
 
   useEffect(() => {
     if (!open) return;
+    // The toolbar is an overflow scroll container, so an absolutely-positioned
+    // popover gets clipped. The popover is portaled to <body> and positioned
+    // against the trigger's rect (re-measured on scroll/resize so it tracks).
+    function updatePosition() {
+      const rect = wrapRef.current?.getBoundingClientRect();
+      if (rect) setPos({ top: rect.bottom + 8, left: rect.left });
+    }
+    updatePosition();
     function handleClick(event: MouseEvent) {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!wrapRef.current?.contains(target) && !popoverRef.current?.contains(target)) setOpen(false);
     }
     // Keyboard users could open the popover but had no way to dismiss it
     // short of tabbing through every control inside.
@@ -40,9 +52,13 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
     }
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleKey);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     return () => {
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
   }, [open]);
 
@@ -83,7 +99,11 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
       <button
         type="button"
         className="workspace-trigger"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          const rect = wrapRef.current?.getBoundingClientRect();
+          if (rect) setPos({ top: rect.bottom + 8, left: rect.left });
+          setOpen((value) => !value);
+        }}
         title={current ? current.path : "No workspace selected"}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -92,8 +112,14 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
         <span className="workspace-trigger-label">{current?.name ?? "Pick a project"}</span>
       </button>
 
-      {open && (
-        <div className="workspace-popover" role="dialog" aria-label="Workspaces">
+      {open && createPortal(
+        <div
+          className="workspace-popover"
+          role="dialog"
+          aria-label="Workspaces"
+          ref={popoverRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, right: "auto" }}
+        >
           <div className="workspace-popover-header">Projects</div>
           {workspaces.length === 0 && (
             <p className="workspace-empty">No projects yet. Add one below.</p>
@@ -221,7 +247,8 @@ export function WorkspacePicker({ workspaces, currentId, onSwitch, onAdd, onRemo
               </button>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
